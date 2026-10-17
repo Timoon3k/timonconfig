@@ -45,3 +45,10 @@ The supplied visual reference is used only for layout and art direction. Its fic
 - Complete Discord OAuth2, current guild-role verification, protected premium delivery, content/catalogue pages, legal drafts, consent analytics, broader SEO pages, and installation ZIP testing.
 - Do not deploy to production or modify current payments/roles without explicit approval.
 
+## Hostinger deployment preparation
+
+- Deployment archives were created and validated with `unzip -t`:
+  - `artifacts/timonconfigs-theme-0.1.0.zip` (20 MB, includes the three supplied Apex videos).
+  - `artifacts/timonconfigs-core-0.1.0.zip` (4 KB).
+- The Hostinger Connector skills are available, but the current session exposes no callable Hostinger hosting or WordPress tools. No account state could be read and no Hostinger resource was changed.
+
