@@ -11,6 +11,24 @@ The production site needs WordPress 6.5+ and PHP 8.1+. No Node.js server is requ
 
 ## Local installation
 
+### Docker (recommended)
+
+With Docker available, run:
+
+```bash
+bash tools/setup-local-wordpress.sh
+```
+
+This starts WordPress 6.8.3 with PHP 8.2 and MariaDB 11.4 on port `8080`, activates the theme and plugin, and creates Home, Pricing, and navigation. The disposable local administrator is `timonadmin` with password `local-preview-only`. These credentials are local-only and must never be reused on staging or production.
+
+Stop the services without deleting their database:
+
+```bash
+docker compose -f docker-compose.local.yml down
+```
+
+### Existing WordPress installation
+
 1. Install WordPress in a local or staging environment.
 2. Copy both directories into the matching `wp-content` directories.
 3. Activate **TimonConfigs Core**, then activate **TimonConfigs**.

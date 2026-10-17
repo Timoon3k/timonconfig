@@ -24,7 +24,18 @@ The supplied visual reference is used only for layout and art direction. Its fic
 - MP4 inspection: passed; all three are H.264/AAC Apex clips, 28–37 seconds, vertical 480×854 or 576×1024.
 - Static structure/security/content assertions: passed.
 - PHP source parsing: all 12 PHP files parsed without syntax errors using Prettier's PHP parser. Its format check reported style differences because the source follows WordPress conventions rather than Prettier formatting.
-- Native `php -l` and live WordPress smoke test: blocked in this cloud image because PHP CLI is absent and system package installation is denied by `/var/lib/apt` permissions.
+- Host PHP CLI is absent, but native `php -l` and live WordPress smoke tests now run successfully inside the pinned Docker environment.
+
+## Local WordPress environment
+
+- WordPress 6.8.3, PHP 8.2.29, Apache, and MariaDB 11.4 run in Docker.
+- Theme and plugin activation passed.
+- Native `php -l` passed for all 12 PHP files inside the WordPress container.
+- Home and Pricing returned HTTP 200 and contained their expected primary content.
+- The unconfigured Monthly checkout returned the intentional HTTP 503 unavailable state instead of redirecting to an invented URL.
+- Playwright rendered Home at 1440 px and 390 px and Pricing at 1440 px without browser console errors.
+- Browser interaction checks passed for the mobile menu, video dialog, Escape close behavior, on-demand video source, and 390 px horizontal overflow.
+- Reusable setup is available through `bash tools/setup-local-wordpress.sh`.
 
 ## Required before production
 
