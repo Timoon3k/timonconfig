@@ -72,6 +72,24 @@ function timonconfigs_meta_description(): string {
 		return 'Premium Cronus Zen and XIM Matrix configurations for Apex Legends, with Free, VIP Monthly, and VIP Lifetime access.';
 	}
 
+	if ( is_page() ) {
+		$page_descriptions = array(
+			'games'            => 'Browse supported TimonConfigs game collections and find Cronus Zen or XIM Matrix releases for your setup.',
+			'vip-monthly'      => 'VIP Monthly includes premium configs, covered updates while subscribed, and private Discord channels for €40 per month.',
+			'vip-lifetime'     => 'VIP Lifetime provides premium config access under the Lifetime license terms for a €100 one-time payment.',
+			'faq'              => 'Answers about TimonConfigs compatibility, membership plans, Upgrade.chat checkout, Discord access, and support.',
+			'contact'          => 'Contact TimonConfigs for configuration, membership, policy, privacy, or account support.',
+			'video-showcase'   => 'Watch first-party TimonConfigs Apex Legends gameplay demonstrations for the flagship config collection.',
+			'terms-of-service' => 'Terms governing TimonConfigs digital configuration licenses, memberships, access, and acceptable use.',
+			'privacy-policy'   => 'How TimonConfigs handles account, Discord, support, security, and website information.',
+			'refund-policy'    => 'Refund and cancellation information for TimonConfigs digital access and VIP memberships.',
+		);
+		$slug = (string) get_post_field( 'post_name', get_queried_object_id() );
+		if ( isset( $page_descriptions[ $slug ] ) ) {
+			return $page_descriptions[ $slug ];
+		}
+	}
+
 	if ( is_post_type_archive( 'tc_config' ) ) {
 		return 'Browse verified TimonConfigs releases by game, device, input method, and access tier.';
 	}

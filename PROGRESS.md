@@ -28,6 +28,10 @@ The supplied visual reference is used only for layout and art direction. Its fic
 - Page-specific canonical URLs and descriptions for catalogue/taxonomy views, visible breadcrumbs, and BreadcrumbList structured data.
 - Catalogue date values now reject invalid calendar dates in addition to malformed input.
 - Local setup now creates Games and both VIP plan pages idempotently and adds Games to the primary navigation.
+- Standalone FAQ and Contact pages with honest compatibility, checkout, Discord, and support guidance. Contact details remain hidden until a real Discord URL and production admin email are configured.
+- Terms of Service, Privacy Policy, and Refund Policy baseline pages with editable page content and footer navigation. These drafts require owner/legal review for the operating entity and target markets before production.
+- Dedicated Video Showcase page using the three supplied first-party clips, lazy posters, on-demand MP4 loading, and the accessible dialog player. Device labels remain explicitly pending verification.
+- Two Gutenberg block patterns provide an editable premium CTA and FAQ starter for future page editing.
 
 ## Validation results
 
@@ -41,13 +45,15 @@ The supplied visual reference is used only for layout and art direction. Its fic
 
 - WordPress 6.8.3, PHP 8.2.29, Apache, and MariaDB 11.4 run in Docker.
 - Theme and plugin activation passed.
-- Native `php -l` passed for all 22 PHP files inside the WordPress container.
+- Native `php -l` passed for all 31 PHP files inside the WordPress container.
 - Home, Pricing, Games, both VIP pages, the catalogue, three primary taxonomy landings, and config detail returned HTTP 200.
 - The unconfigured Monthly checkout returned the intentional HTTP 503 unavailable state instead of redirecting to an invented URL.
 - Playwright rendered Home at 1440 px and 390 px and Pricing at 1440 px without browser console errors.
 - Browser interaction checks passed for the mobile menu, video dialog, Escape close behavior, on-demand video source, and 390 px horizontal overflow.
 - Catalogue and sales browser checks passed at desktop and mobile widths without console errors or horizontal overflow. The Monthly filter returned only the matching local fixture.
 - Canonical and BreadcrumbList checks passed for Games, catalogue, Apex/Cronus/XIM landings, and config detail.
+- FAQ, Contact, Video Showcase, Terms, Privacy, and Refund pages return HTTP 200 with unique descriptions. The showcase player opens on demand and closes with Escape in browser tests.
+- Home, Pricing, and catalogue passed the 768 px tablet rendering pass without console errors or horizontal overflow.
 - Reusable setup is available through `bash tools/setup-local-wordpress.sh`.
 
 The three catalogue entries currently visible in the Docker database are local-only preview fixtures. They are not stored in the distributable plugin/theme and must not be treated as production product data.
@@ -57,7 +63,7 @@ The three catalogue entries currently visible in the Docker database are local-o
 - Confirm which supplied video corresponds to Cronus Zen S30, XIM Matrix Controller, and XIM Matrix MnK; then enter accurate device/config version/platform/recording metadata.
 - Supply the real VIP Monthly and VIP Lifetime Upgrade.chat checkout URLs.
 - Test theme and plugin activation on a WordPress staging installation with PHP 8.1+.
-- Complete Discord OAuth2, current guild-role verification, protected premium delivery, legal drafts, standalone FAQ/Contact pages, consent analytics, remaining SEO pages, and installation ZIP testing.
+- Complete Discord OAuth2, current guild-role verification, protected premium delivery, consent analytics, final legal review, and installation ZIP testing on an isolated staging WordPress.
 - Do not deploy to production or modify current payments/roles without explicit approval.
 
 ## Hostinger deployment preparation

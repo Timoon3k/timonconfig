@@ -4,7 +4,7 @@ Custom WordPress theme and business plugin for `timonconfigs.com`.
 
 ## Components
 
-- `wp-content/themes/timonconfigs` — premium marketing theme with Home, Pricing, Games, VIP plan landings, the Apex showcase, config catalogue templates, responsive navigation, and SEO metadata.
+- `wp-content/themes/timonconfigs` — premium marketing theme with Home, Pricing, Games, VIP plan landings, video showcase, FAQ, Contact, policy pages, config catalogue templates, block patterns, responsive navigation, and SEO metadata.
 - `wp-content/plugins/timonconfigs-core` — validated Upgrade.chat checkout redirects, admin settings, and the editable config catalogue content model.
 
 The production site needs WordPress 6.5+ and PHP 8.1+. No Node.js server is required at runtime.
@@ -19,7 +19,7 @@ With Docker available, run:
 bash tools/setup-local-wordpress.sh
 ```
 
-This starts WordPress 6.8.3 with PHP 8.2 and MariaDB 11.4 on port `8080`, activates the theme and plugin, and creates Home, Pricing, Games, VIP Monthly, VIP Lifetime, and navigation. The disposable local administrator is `timonadmin` with password `local-preview-only`. These credentials are local-only and must never be reused on staging or production.
+This starts WordPress 6.8.3 with PHP 8.2 and MariaDB 11.4 on port `8080`, activates the theme and plugin, and creates the storefront, support, video, and policy pages plus navigation. The disposable local administrator is `timonadmin` with password `local-preview-only`. These credentials are local-only and must never be reused on staging or production.
 
 Stop the services without deleting their database:
 
@@ -32,7 +32,7 @@ docker compose -f docker-compose.local.yml down
 1. Install WordPress in a local or staging environment.
 2. Copy both directories into the matching `wp-content` directories.
 3. Activate **TimonConfigs Core**, then activate **TimonConfigs**.
-4. Create pages with slugs `pricing`, `games`, `vip-monthly`, and `vip-lifetime`. WordPress automatically uses their matching templates.
+4. Create pages using the slugs in `tools/setup-local-wordpress.sh`. WordPress automatically selects the matching storefront, support, showcase, and policy templates.
 5. Set a static front page in **Settings → Reading**.
 6. Create and assign Primary and Footer menus in **Appearance → Menus**.
 7. Enter the real product checkout URLs under **Settings → TimonConfigs**. Only HTTPS links on `upgrade.chat` or its subdomains are accepted.
