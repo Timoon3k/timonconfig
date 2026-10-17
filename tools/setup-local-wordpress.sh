@@ -89,8 +89,9 @@ wp option update page_on_front "$home_id"
 if ! wp menu list --fields=name --format=csv | grep -qx 'Primary'; then
   wp menu create Primary
   wp menu item add-post Primary "$home_id" --title=Home
-  wp menu item add-post Primary "$pricing_id" --title=Pricing
   wp menu item add-custom Primary Configs http://127.0.0.1:8080/configs/
+  wp menu item add-post Primary "$games_id" --title=Games
+  wp menu item add-post Primary "$pricing_id" --title=Pricing
   wp menu item add-custom Primary FAQ http://127.0.0.1:8080/faq/
 fi
 faq_item_id="$(wp menu item list Primary --fields=db_id,title --format=csv | awk -F, '$2 == "FAQ" { print $1; exit }')"
@@ -99,6 +100,10 @@ if [[ -n "$faq_item_id" ]]; then
 fi
 if ! wp menu item list Primary --fields=title --format=csv | grep -qx 'Games'; then
   wp menu item add-post Primary "$games_id" --title=Games
+fi
+if ! wp menu item list Primary --fields=title --format=csv | grep -qx 'Contact'; then
+  contact_id="$(wp post list --post_type=page --name=contact --field=ID --format=ids)"
+  wp menu item add-post Primary "$contact_id" --title=Contact
 fi
 wp menu location assign Primary primary
 

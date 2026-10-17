@@ -33,6 +33,17 @@ The supplied visual reference is used only for layout and art direction. Its fic
 - Dedicated Video Showcase page using the three supplied first-party clips, lazy posters, on-demand MP4 loading, and the accessible dialog player. Device labels remain explicitly pending verification.
 - Two Gutenberg block patterns provide an editable premium CTA and FAQ starter for future page editing.
 
+## Reference-led visual revision (theme 0.3.0)
+
+- Reworked the Home composition against the supplied mockup: compact wordmark header, wide cinematic hero, orange/blue lighting, clipped four-column information strip, working search and quick filters, compact collection tiles, three pricing cards with Monthly emphasis, five benefit columns, first-party video cards, FAQ, landscape CTA, and compact footer.
+- Recreated decorative hero and landscape artwork from the visual reference as optimized WebP assets. These are illustrations, not gameplay evidence. The supplied screenshot is not a source design package: the fallback wordmark is typographic, and the new hero is recreated rather than the original artwork.
+- Preserved the actual €0 / €40 per month / €100 one-time offer and existing Upgrade.chat endpoints. Unsupported game releases, invented statistics, and testimonial quotes from the reference were not added; first-party gameplay occupies the testimonial row.
+- Replaced the modal player on BOTH Home and Video Showcase with a shared native inline video card. MP4 sources are attached only on interaction, playback stays in the card, other videos pause when one starts, and native controls remain available. Failed media offers an in-card retry; no-JavaScript users receive direct video links.
+- Added Customizer image controls for the hero and all three video posters. Existing video/title/device settings remain reusable. Updated the local menu to Home / Configs / Games / Pricing / FAQ / Contact.
+- Fixed nested logo links by rendering the uploaded logo image within the existing single brand link.
+- Validation: PHP lint passed for all theme PHP files; static checks, JavaScript syntax, and Git whitespace checks passed. The new `tests/storefront-browser.cjs` passed 12 route/viewport combinations at 1440, 768, and 390 px, real inline media playback, pause coordination, keyboard menu/FAQ behavior, homepage search, and media-failure retry UI. No console errors or horizontal overflow were detected in the normal cases.
+- Theme ZIP: `artifacts/timonconfigs-theme-0.3.0.zip`; Core remains 0.2.0. Both current ZIP copies are refreshed and archive-validated. No production deployment was performed.
+
 ## Validation results
 
 - JavaScript syntax: passed with `node --check`.

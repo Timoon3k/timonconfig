@@ -5,7 +5,7 @@ defined( 'ABSPATH' ) || exit;
 <footer class="tc-footer">
 	<div class="tc-shell tc-footer__grid">
 		<div>
-			<a class="tc-brand" href="<?php echo esc_url( home_url( '/' ) ); ?>"><span class="tc-brand__mark">T</span><span>TIMON<span>CONFIGS</span></span></a>
+			<a class="tc-brand" href="<?php echo esc_url( home_url( '/' ) ); ?>"><?php get_template_part( 'template-parts/brand' ); ?></a>
 			<p><?php esc_html_e( 'Premium controller configurations and a focused community for players who care about every input.', 'timonconfigs' ); ?></p>
 		</div>
 		<nav aria-label="<?php echo esc_attr__( 'Footer navigation', 'timonconfigs' ); ?>">

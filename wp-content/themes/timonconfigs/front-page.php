@@ -1,90 +1,46 @@
 <?php
-/** Front page template. @package TimonConfigs */
+/** Reference-led storefront. @package TimonConfigs */
 defined( 'ABSPATH' ) || exit;
 get_header();
-
 $discord_url = get_theme_mod( 'timonconfigs_discord_url', '' );
+$hero_image = get_theme_mod( 'timonconfigs_hero_image', get_template_directory_uri() . '/assets/images/hero-premium.webp' );
 ?>
 <main id="main">
-	<section class="tc-hero">
-		<div class="tc-hero__glow" aria-hidden="true"></div>
-		<div class="tc-shell tc-hero__grid">
-			<div class="tc-hero__content">
-				<p class="tc-eyebrow"><span></span><?php echo esc_html( get_theme_mod( 'timonconfigs_hero_eyebrow', 'BUILT FOR PLAYERS WHO WANT MORE' ) ); ?></p>
-				<h1><?php echo esc_html( get_theme_mod( 'timonconfigs_hero_title', 'Precision configs. Competitive confidence.' ) ); ?></h1>
-				<p class="tc-lead"><?php echo esc_html( get_theme_mod( 'timonconfigs_hero_copy', 'Premium Cronus Zen and XIM Matrix configurations, refined for responsive control and supported by a focused Discord community.' ) ); ?></p>
-				<div class="tc-actions">
-					<a class="tc-button" href="<?php echo esc_url( timonconfigs_plan_url( 'monthly' ) ); ?>"><?php esc_html_e( 'Unlock VIP Monthly', 'timonconfigs' ); ?><?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></a>
-					<a class="tc-button tc-button--ghost" href="#showcase"><?php echo timonconfigs_icon( 'play' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php esc_html_e( 'See configs in action', 'timonconfigs' ); ?></a>
-				</div>
-				<ul class="tc-trust" aria-label="<?php echo esc_attr__( 'Membership highlights', 'timonconfigs' ); ?>">
-					<li><?php echo timonconfigs_icon( 'check' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>Secure Upgrade.chat checkout</li>
-					<li><?php echo timonconfigs_icon( 'check' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>Private VIP channels</li>
-					<li><?php echo timonconfigs_icon( 'check' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>Ongoing config updates</li>
-				</ul>
-			</div>
-			<div class="tc-hero-card" aria-label="<?php echo esc_attr__( 'Featured Apex Legends config', 'timonconfigs' ); ?>">
-				<div class="tc-hero-card__visual">
-					<div class="tc-crosshair" aria-hidden="true"></div>
-					<span class="tc-badge">FLAGSHIP CONFIG</span>
-					<div class="tc-hero-card__device">APEX<br><strong>S30</strong></div>
-				</div>
-				<div class="tc-hero-card__meta"><span>CRONUS ZEN</span><span>CONTROLLER</span><span>LIVE TUNING</span></div>
-			</div>
-		</div>
-	</section>
-
-	<section class="tc-section tc-section--tight" aria-labelledby="platforms-title">
-		<div class="tc-shell">
-			<p class="tc-section-kicker" id="platforms-title"><?php esc_html_e( 'Purpose-built for your setup', 'timonconfigs' ); ?></p>
-			<div class="tc-platforms">
-				<article><span class="tc-number">01</span><h2>Cronus Zen</h2><p>Refined controller configurations with clear setup guidance and support.</p><a href="<?php echo esc_url( home_url( '/cronus-zen-configs/' ) ); ?>">Explore Zen configs <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a></article>
-				<article><span class="tc-number">02</span><h2>XIM Matrix Controller</h2><p>Responsive Smart Action setups designed around controller play.</p><a href="<?php echo esc_url( home_url( '/xim-matrix-configs/' ) ); ?>">Explore Matrix configs <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a></article>
-				<article><span class="tc-number">03</span><h2>XIM Matrix MnK</h2><p>Dedicated mouse and keyboard profiles with practical tuning notes.</p><a href="<?php echo esc_url( home_url( '/xim-matrix-configs/' ) ); ?>">View MnK options <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a></article>
-			</div>
-		</div>
-	</section>
-
-	<section class="tc-section tc-showcase" id="showcase" aria-labelledby="showcase-title">
-		<div class="tc-shell">
-			<div class="tc-section-heading"><div><p class="tc-eyebrow"><span></span>APEX LEGENDS</p><h2 id="showcase-title">See our flagship configs in action</h2></div><p>Real TimonConfigs demonstrations will appear here. Video fields are prepared for first-party YouTube or MP4 footage without fabricated claims.</p></div>
-			<div class="tc-video-grid">
-				<?php for ( $index = 1; $index <= 3; $index++ ) :
-					$title  = get_theme_mod( 'timonconfigs_video_' . $index . '_title', sprintf( 'Apex Legends Gameplay Demo %02d', $index ) );
-					$device = get_theme_mod( 'timonconfigs_video_' . $index . '_device', 'Device details pending verification' );
-					$video  = get_theme_mod( 'timonconfigs_video_' . $index . '_url', get_template_directory_uri() . '/assets/video/apex-demo-0' . $index . '.mp4' );
-					$poster = get_template_directory_uri() . '/assets/images/apex-demo-0' . $index . '.jpg';
-					?>
-					<article class="tc-video-card">
-						<button class="tc-video-card__media" type="button" data-video-open data-video-src="<?php echo esc_url( $video ); ?>" data-video-poster="<?php echo esc_url( $poster ); ?>" data-video-title="<?php echo esc_attr( $title ); ?>" aria-label="<?php echo esc_attr( sprintf( __( 'Play %s', 'timonconfigs' ), $title ) ); ?>">
-							<img src="<?php echo esc_url( $poster ); ?>" alt="" loading="lazy" width="576" height="1024">
-							<span class="tc-video-card__shade"></span><span class="tc-video-card__index"><?php echo esc_html( sprintf( '%02d', $index ) ); ?></span><span class="tc-play"><?php echo timonconfigs_icon( 'play' ); // phpcs:ignore ?></span><span class="tc-video-card__action">PLAY DEMO</span>
-						</button>
-						<div><p>APEX LEGENDS</p><h3><?php echo esc_html( $title ); ?></h3><span><?php echo esc_html( $device ); ?></span></div>
-					</article>
-				<?php endfor; ?>
-			</div>
-			<div class="tc-showcase__cta"><a class="tc-button" href="<?php echo esc_url( timonconfigs_plan_url( 'monthly' ) ); ?>">Get VIP Monthly — €40/month <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a><a class="tc-button tc-button--ghost" href="<?php echo esc_url( timonconfigs_plan_url( 'lifetime' ) ); ?>">Get Lifetime — €100</a></div>
-		</div>
-	</section>
-	<dialog class="tc-video-modal" data-video-modal aria-labelledby="tc-video-title">
-		<div class="tc-video-modal__bar"><h2 id="tc-video-title" data-video-modal-title>Apex Legends demo</h2><button type="button" data-video-close aria-label="<?php echo esc_attr__( 'Close video', 'timonconfigs' ); ?>">&times;</button></div>
-		<video controls playsinline preload="none" data-video-player></video>
-	</dialog>
-
-	<section class="tc-section tc-pricing-preview" aria-labelledby="pricing-title">
-		<div class="tc-shell">
-			<div class="tc-section-heading tc-section-heading--center"><div><p class="tc-eyebrow"><span></span>SIMPLE ACCESS</p><h2 id="pricing-title">Choose how you want to play</h2></div><p>Start free, subscribe for continuous VIP access, or choose a one-time Lifetime license.</p></div>
-			<?php get_template_part( 'template-parts/pricing-cards' ); ?>
-		</div>
-	</section>
-
-	<section class="tc-section tc-final-cta">
-		<div class="tc-shell tc-final-cta__inner">
-			<div><p class="tc-eyebrow"><span></span>READY TO GET STARTED?</p><h2>Build your setup with confidence.</h2><p>Join VIP for premium configs, covered updates, and access to private Discord channels.</p></div>
-			<div class="tc-actions"><a class="tc-button" href="<?php echo esc_url( timonconfigs_plan_url( 'monthly' ) ); ?>">Get VIP Monthly <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a><?php if ( $discord_url ) : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( $discord_url ); ?>" target="_blank" rel="noopener noreferrer">Join Discord</a><?php endif; ?></div>
-		</div>
-	</section>
+    <section class="tc-hero" aria-labelledby="hero-title">
+        <img class="tc-hero__art" src="<?php echo esc_url( $hero_image ); ?>" alt="" width="1672" height="941" fetchpriority="high" decoding="async">
+        <div class="tc-shell tc-hero__inner"><div class="tc-hero__content">
+            <p class="tc-eyebrow"><?php echo esc_html( get_theme_mod( 'timonconfigs_hero_eyebrow', 'PRECISION × CONSISTENCY × REAL SETUPS' ) ); ?></p>
+            <h1 id="hero-title"><?php echo esc_html( get_theme_mod( 'timonconfigs_hero_title', 'Elite Configs for Serious Players' ) ); ?></h1>
+            <p class="tc-hero__tagline">Play Smarter. Hit Different.</p>
+            <p class="tc-hero__description"><?php echo esc_html( get_theme_mod( 'timonconfigs_hero_copy', 'Professional configs for Cronus Zen and XIM Matrix. Find the right setup, explore real gameplay, and join the TimonConfigs community.' ) ); ?></p>
+            <div class="tc-actions"><a class="tc-button" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Get Started <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a><?php if ( $discord_url ) : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( $discord_url ); ?>"><?php echo timonconfigs_icon( 'discord' ); // phpcs:ignore ?>Join Discord</a><?php else : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">Explore Configs</a><?php endif; ?></div>
+            <ul class="tc-trust"><li><?php echo timonconfigs_icon( 'bolt' ); // phpcs:ignore ?>Digital Access</li><li><?php echo timonconfigs_icon( 'refresh' ); // phpcs:ignore ?>Regular Updates</li><li><?php echo timonconfigs_icon( 'shield' ); // phpcs:ignore ?>Community Support</li></ul>
+        </div></div>
+    </section>
+    <div class="tc-shell"><ul class="tc-assurance-strip" aria-label="Membership highlights">
+        <li><?php echo timonconfigs_icon( 'users' ); // phpcs:ignore ?><div><strong>Cronus Zen</strong><span>CONTROLLER CONFIGS</span></div></li>
+        <li><?php echo timonconfigs_icon( 'crosshair' ); // phpcs:ignore ?><div><strong>XIM Matrix</strong><span>CONTROLLER & MNK</span></div></li>
+        <li><?php echo timonconfigs_icon( 'download' ); // phpcs:ignore ?><div><strong>Free + VIP</strong><span>CHOOSE YOUR ACCESS</span></div></li>
+        <li><?php echo timonconfigs_icon( 'shield' ); // phpcs:ignore ?><div><strong>Upgrade.chat</strong><span>OFFICIAL CHECKOUT</span></div></li>
+    </ul></div>
+    <section class="tc-search-section"><div class="tc-shell tc-search-layout"><div><p class="tc-section-label">FIND YOUR PERFECT CONFIG</p><p>Search for your device, game, or setup…</p><form action="<?php echo esc_url( home_url( '/configs/' ) ); ?>" method="get" role="search"><label class="tc-search-input"><?php echo timonconfigs_icon( 'search' ); // phpcs:ignore ?><span class="screen-reader-text">Search configs</span><input type="search" name="config_search" placeholder="Search configs, games, or setups…"><button type="submit" aria-label="Search configs"><?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></button></label></form></div><div class="tc-popular-searches"><p class="tc-micro-label">POPULAR SEARCHES</p><div><a href="<?php echo esc_url( home_url( '/cronus-zen-configs/' ) ); ?>">Cronus Zen Configs</a><a href="<?php echo esc_url( home_url( '/apex-legends-configs/' ) ); ?>">Apex Legends Configs</a><a href="<?php echo esc_url( home_url( '/xim-matrix-configs/' ) ); ?>">XIM Matrix Configs</a><a href="<?php echo esc_url( home_url( '/configs/?tier=free' ) ); ?>">Free Configs</a><a href="<?php echo esc_url( home_url( '/vip-monthly/' ) ); ?>">VIP Monthly</a><a href="<?php echo esc_url( home_url( '/video-showcase/' ) ); ?>">Apex Gameplay</a></div></div></div></section>
+    <section class="tc-section tc-supported"><div class="tc-shell"><div class="tc-section-heading"><div class="tc-heading-marker"><p class="tc-eyebrow">SUPPORTED GAMES</p><h2>Play Your Favorite Game</h2></div><a class="tc-text-link" href="<?php echo esc_url( home_url( '/games/' ) ); ?>">EXPLORE COLLECTIONS <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a></div><div class="tc-game-tiles"><a class="tc-game-tile tc-game-tile--apex" href="<?php echo esc_url( home_url( '/apex-legends-configs/' ) ); ?>"><span>APEX<small>LEGENDS</small></span></a><a class="tc-game-tile tc-game-tile--zen" href="<?php echo esc_url( home_url( '/cronus-zen-configs/' ) ); ?>"><?php echo timonconfigs_icon( 'gamepad' ); // phpcs:ignore ?><span>CRONUS ZEN<small>CONTROLLER CONFIGS</small></span></a><a class="tc-game-tile tc-game-tile--xim" href="<?php echo esc_url( home_url( '/xim-matrix-configs/' ) ); ?>"><?php echo timonconfigs_icon( 'crosshair' ); // phpcs:ignore ?><span>XIM MATRIX<small>CONTROLLER & MNK</small></span></a><div class="tc-game-coming"><span>More to come.</span><small>New collections when ready.</small></div></div></div></section>
+    <section class="tc-section tc-home-pricing" id="pricing"><div class="tc-shell tc-pricing-layout"><div class="tc-heading-marker"><p class="tc-eyebrow">PRICING</p><h2>Choose Your Plan</h2><p>Simple pricing.<br>Maximum performance.</p><a class="tc-text-link" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Compare plans <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a></div><?php get_template_part( 'template-parts/pricing-cards' ); ?></div></section>
+    <section class="tc-section tc-why"><div class="tc-shell tc-benefits-layout"><div class="tc-heading-marker"><p class="tc-eyebrow">WHY TIMONCONFIGS</p><h2>A Higher<br>Standard</h2></div><?php foreach ( array(
+        array( 'settings', 'Purpose-built Configs', 'Clear setup guidance for your supported device.' ),
+        array( 'crosshair', 'Setup with Confidence', 'Device, input, and version details in every listing.' ),
+        array( 'refresh', 'Regular Updates', 'Updates covered by your membership or license.' ),
+        array( 'users', 'Community & Support', 'Connect with the TimonConfigs Discord community.' ),
+        array( 'shield', 'Clear Access Terms', 'Free, Monthly, and Lifetime options with clear terms.' ),
+    ) as $benefit ) : ?><article><?php echo timonconfigs_icon( $benefit[0] ); // phpcs:ignore ?><h3><?php echo esc_html( $benefit[1] ); ?></h3><p><?php echo esc_html( $benefit[2] ); ?></p></article><?php endforeach; ?></div></section>
+    <section class="tc-section tc-showcase" id="showcase"><div class="tc-shell"><div class="tc-section-heading"><div class="tc-heading-marker"><p class="tc-eyebrow">APEX LEGENDS</p><h2>See Our Flagship Configs in Action</h2></div><a class="tc-text-link" href="<?php echo esc_url( home_url( '/video-showcase/' ) ); ?>">ALL VIDEOS <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a></div><?php get_template_part( 'template-parts/video-cards' ); ?></div></section>
+    <section class="tc-section tc-home-faq"><div class="tc-shell tc-faq-layout"><div class="tc-heading-marker"><p class="tc-eyebrow">FAQ</p><h2>Frequently<br>Asked Questions</h2><a class="tc-text-link" href="<?php echo esc_url( home_url( '/faq/' ) ); ?>">View all questions <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a></div><div class="tc-faq-list"><?php foreach ( array(
+        'How do I receive my configs?' => 'Explore Free access or choose a VIP plan. Upgrade.chat manages checkout and Discord role delivery. Your Discord account determines your membership access.',
+        'Do I need a Cronus Zen or XIM Matrix?' => 'Yes. Each configuration lists its supported device, input method, and platform. Check these details before choosing a plan.',
+        'Which games are supported?' => 'Apex Legends is our current flagship collection. Find current releases and compatibility in the config library.',
+        'What does VIP Lifetime include?' => 'A one-time €100 license with access and updates defined by the Lifetime terms presented at checkout.',
+        'Do you offer refunds?' => 'Please review the Refund Policy for digital access, subscription cancellation, and how to request help. Your statutory consumer rights remain unaffected.',
+    ) as $question => $answer ) : ?><details><summary><?php echo esc_html( $question ); ?></summary><p><?php echo esc_html( $answer ); ?></p></details><?php endforeach; ?></div></div></section>
+    <section class="tc-final-cta tc-home-final"><div class="tc-shell tc-final-cta__inner"><div class="tc-heading-marker"><p class="tc-eyebrow">READY TO IMPROVE</p><h2>Take Your Setup to the Next Level</h2><p>Premium configs, regular updates, and an active community.</p></div><div class="tc-actions"><a class="tc-button" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Get Started <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a><?php if ( $discord_url ) : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( $discord_url ); ?>"><?php echo timonconfigs_icon( 'discord' ); // phpcs:ignore ?>Join Discord</a><?php endif; ?></div></div></section>
 </main>
 <?php get_footer(); ?>
-

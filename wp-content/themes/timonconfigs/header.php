@@ -15,11 +15,7 @@ defined( 'ABSPATH' ) || exit;
 <header class="tc-header" data-header>
 	<div class="tc-shell tc-header__inner">
 		<a class="tc-brand" href="<?php echo esc_url( home_url( '/' ) ); ?>" aria-label="<?php echo esc_attr__( 'TimonConfigs home', 'timonconfigs' ); ?>">
-			<?php if ( has_custom_logo() ) : ?>
-				<?php the_custom_logo(); ?>
-			<?php else : ?>
-				<span class="tc-brand__mark">T</span><span>TIMON<span>CONFIGS</span></span>
-			<?php endif; ?>
+			<?php get_template_part( 'template-parts/brand' ); ?>
 		</a>
 		<button class="tc-menu-toggle" type="button" aria-expanded="false" aria-controls="primary-menu" data-menu-toggle>
 			<span class="screen-reader-text"><?php esc_html_e( 'Toggle navigation', 'timonconfigs' ); ?></span>
@@ -37,7 +33,8 @@ defined( 'ABSPATH' ) || exit;
 				)
 			);
 			?>
-			<a class="tc-button tc-button--small" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>"><?php esc_html_e( 'Get VIP', 'timonconfigs' ); ?></a>
+			<?php if ( get_theme_mod( 'timonconfigs_discord_url', '' ) ) : ?><a class="tc-button tc-button--small tc-button--ghost tc-header-discord" href="<?php echo esc_url( get_theme_mod( 'timonconfigs_discord_url' ) ); ?>"><?php echo timonconfigs_icon( 'discord' ); // phpcs:ignore ?>Join Discord</a><?php endif; ?>
+			<a class="tc-button tc-button--small" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>"><?php esc_html_e( 'Get Started', 'timonconfigs' ); ?></a>
 		</nav>
 	</div>
 </header>

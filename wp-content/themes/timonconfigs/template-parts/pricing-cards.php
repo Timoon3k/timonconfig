@@ -11,8 +11,8 @@ $plans = array(
 <div class="tc-pricing-grid">
 	<?php foreach ( $plans as $plan ) : ?>
 		<article class="tc-price-card<?php echo ! empty( $plan['featured'] ) ? ' tc-price-card--featured' : ''; ?>">
-			<?php if ( ! empty( $plan['featured'] ) ) : ?><span class="tc-price-card__flag">MOST POPULAR</span><?php endif; ?>
-			<p class="tc-price-card__name"><?php echo esc_html( $plan['name'] ); ?></p>
+			<?php if ( ! empty( $plan['featured'] ) ) : ?><span class="tc-price-card__flag">RECOMMENDED</span><?php endif; ?>
+			<div class="tc-price-card__heading"><?php echo timonconfigs_icon( 'free' === $plan['slug'] ? 'gift' : 'crown' ); // phpcs:ignore ?><p class="tc-price-card__name"><?php echo esc_html( $plan['name'] ); ?></p></div>
 			<p class="tc-price"><strong><?php echo esc_html( $plan['price'] ); ?></strong><span><?php echo esc_html( $plan['suffix'] ); ?></span></p>
 			<p><?php echo esc_html( $plan['description'] ); ?></p>
 			<ul><?php foreach ( $plan['features'] as $feature ) : ?><li><?php echo timonconfigs_icon( 'check' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php echo esc_html( $feature ); ?></li><?php endforeach; ?></ul>

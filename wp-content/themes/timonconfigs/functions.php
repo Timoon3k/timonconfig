@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.2.0' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.3.0' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 
@@ -31,6 +31,7 @@ add_action(
 	'wp_enqueue_scripts',
 	static function (): void {
 		wp_enqueue_style( 'timonconfigs', get_template_directory_uri() . '/assets/css/main.css', array(), TIMONCONFIGS_THEME_VERSION );
+		wp_enqueue_style( 'timonconfigs-premium', get_template_directory_uri() . '/assets/css/premium.css', array( 'timonconfigs' ), TIMONCONFIGS_THEME_VERSION );
 		wp_enqueue_script( 'timonconfigs', get_template_directory_uri() . '/assets/js/main.js', array(), TIMONCONFIGS_THEME_VERSION, true );
 	}
 );
@@ -220,6 +221,18 @@ function timonconfigs_icon( string $name ): string {
 		'arrow' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="M4 10h11M11 5l5 5-5 5"/></svg>',
 		'check' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8"/></svg>',
 		'play'  => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m7 5 8 5-8 5Z"/></svg>',
+		'discord' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="M7 5 4 6 2 15l4 2 1-2m6-10 3 1 2 9-4 2-1-2M6 14c3 1 5 1 8 0"/><circle cx="7" cy="10" r="1"/><circle cx="13" cy="10" r="1"/></svg>',
+		'bolt' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m11 2-7 9h5l-1 7 8-10h-5Z"/></svg>',
+		'refresh' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="M16 6a7 7 0 1 0 1 7M16 2v5h-5"/></svg>',
+		'shield' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m10 2 7 3v5c0 4-4 7-7 8-3-1-7-4-7-8V5Z"/><path d="m6 10 3 3 5-6"/></svg>',
+		'users' => '<svg aria-hidden="true" viewBox="0 0 20 20"><circle cx="7" cy="6" r="3"/><path d="M1 18v-3a6 6 0 0 1 12 0v3M14 3a3 3 0 0 1 0 6m1 3a5 5 0 0 1 4 5"/></svg>',
+		'crosshair' => '<svg aria-hidden="true" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3"/><path d="M10 0v4m0 12v4M0 10h4m12 0h4"/></svg>',
+		'download' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="M10 2v11m-4-4 4 4 4-4M3 13v5h14v-5"/></svg>',
+		'search' => '<svg aria-hidden="true" viewBox="0 0 20 20"><circle cx="8" cy="8" r="5.5"/><path d="m12 12 6 6"/></svg>',
+		'settings' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m8 2 4 0 1 3 3 1 2 4-2 3-1 3-4 2-3-2-3-1-2-4 2-3 1-3Z"/><circle cx="10" cy="10" r="3"/></svg>',
+		'gamepad' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="M6 5h8c3 0 5 9 3 11-2 1-4-3-5-3H8c-1 0-3 4-5 3C1 14 3 5 6 5Z"/><path d="M5 9h4M7 7v4m6-2h1m1 2h1"/></svg>',
+		'crown' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m2 5 4 4 4-6 4 6 4-4-2 11H4Zm2 13h12"/></svg>',
+		'gift' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="M2 8h16v4H2Zm2 4v6h12v-6M10 8v10"/><path d="M10 8C2 8 3 1 7 3l3 5c8 0 7-7 3-5Z"/></svg>',
 		'menu'  => '<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
 	);
 	return $icons[ $name ] ?? '';
