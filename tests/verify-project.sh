@@ -10,11 +10,17 @@ required_files=(
   "$theme/functions.php"
   "$theme/front-page.php"
   "$theme/page-pricing.php"
+  "$theme/page-games.php"
+  "$theme/page-vip-monthly.php"
+  "$theme/page-vip-lifetime.php"
+  "$theme/archive-tc_config.php"
+  "$theme/single-tc_config.php"
   "$theme/assets/css/main.css"
   "$theme/assets/js/main.js"
   "$plugin/timonconfigs-core.php"
   "$plugin/includes/class-tc-checkout.php"
   "$plugin/includes/class-tc-settings.php"
+  "$plugin/includes/class-tc-catalog.php"
 )
 
 for file in "${required_files[@]}"; do
@@ -30,6 +36,9 @@ rg -q "manage_options" "$plugin/includes/class-tc-settings.php"
 rg -q "nocache_headers" "$plugin/includes/class-tc-checkout.php"
 rg -q "preload=\"none\"" "$theme/front-page.php"
 rg -q "prefers-reduced-motion" "$theme/assets/css/main.css"
+rg -q "register_post_type" "$plugin/includes/class-tc-catalog.php"
+rg -q "wp_verify_nonce" "$plugin/includes/class-tc-catalog.php"
+rg -q "BreadcrumbList" "$theme/functions.php"
 
 if rg -ni "10,000|100,000|4\.9/5|99% uptime|guaranteed|undetectable|bypass anti-cheat" "$theme" --glob '!assets/video/*'; then
   echo "Unverified marketing claim detected"

@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.1.0' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.2.0' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 
@@ -43,6 +43,90 @@ add_filter(
 	}
 );
 
+/**
+ * Build the canonical URL for the current public view.
+ */
+function timonconfigs_canonical_url(): string {
+	if ( is_singular() ) {
+		return (string) get_permalink();
+	}
+
+	if ( is_post_type_archive( 'tc_config' ) ) {
+		$base = (string) get_post_type_archive_link( 'tc_config' );
+	} elseif ( is_tax( array( 'tc_game', 'tc_device' ) ) ) {
+		$link = get_term_link( get_queried_object() );
+		$base = is_wp_error( $link ) ? home_url( '/' ) : $link;
+	} else {
+		$base = home_url( '/' );
+	}
+
+	$paged = max( 1, (int) get_query_var( 'paged' ) );
+	return $paged > 1 ? trailingslashit( $base ) . 'page/' . $paged . '/' : $base;
+}
+
+/**
+ * Return a concise page-specific description for the built-in SEO fallback.
+ */
+function timonconfigs_meta_description(): string {
+	if ( is_front_page() ) {
+		return 'Premium Cronus Zen and XIM Matrix configurations for Apex Legends, with Free, VIP Monthly, and VIP Lifetime access.';
+	}
+
+	if ( is_post_type_archive( 'tc_config' ) ) {
+		return 'Browse verified TimonConfigs releases by game, device, input method, and access tier.';
+	}
+
+	if ( is_tax( array( 'tc_game', 'tc_device' ) ) ) {
+		$term = get_queried_object();
+		if ( $term instanceof WP_Term && $term->description ) {
+			return wp_strip_all_tags( $term->description );
+		}
+		if ( $term instanceof WP_Term ) {
+			return sprintf( 'Explore verified %s configs, compatibility details, access options, and current release information.', $term->name );
+		}
+	}
+
+	$description = is_singular() ? wp_strip_all_tags( get_the_excerpt() ) : '';
+	return '' !== $description ? $description : (string) get_bloginfo( 'description' );
+}
+
+/**
+ * Breadcrumb items shared by visible navigation and structured data.
+ *
+ * @return array<int, array{name:string,url:string}>
+ */
+function timonconfigs_breadcrumb_items(): array {
+	$items = array( array( 'name' => 'Home', 'url' => home_url( '/' ) ) );
+
+	if ( is_post_type_archive( 'tc_config' ) ) {
+		$items[] = array( 'name' => 'Configs', 'url' => (string) get_post_type_archive_link( 'tc_config' ) );
+	} elseif ( is_tax( array( 'tc_game', 'tc_device' ) ) ) {
+		$items[] = array( 'name' => 'Configs', 'url' => (string) get_post_type_archive_link( 'tc_config' ) );
+		$items[] = array( 'name' => single_term_title( '', false ), 'url' => timonconfigs_canonical_url() );
+	} elseif ( is_singular( 'tc_config' ) ) {
+		$items[] = array( 'name' => 'Configs', 'url' => (string) get_post_type_archive_link( 'tc_config' ) );
+		$items[] = array( 'name' => get_the_title(), 'url' => (string) get_permalink() );
+	} elseif ( is_page() && ! is_front_page() ) {
+		$items[] = array( 'name' => get_the_title(), 'url' => (string) get_permalink() );
+	}
+
+	return $items;
+}
+
+function timonconfigs_breadcrumbs(): void {
+	$items = timonconfigs_breadcrumb_items();
+	if ( count( $items ) < 2 ) {
+		return;
+	}
+	?>
+	<nav class="tc-breadcrumbs" aria-label="Breadcrumb"><ol>
+		<?php foreach ( $items as $index => $item ) : ?>
+			<li><?php if ( $index < count( $items ) - 1 ) : ?><a href="<?php echo esc_url( $item['url'] ); ?>"><?php echo esc_html( $item['name'] ); ?></a><?php else : ?><span aria-current="page"><?php echo esc_html( $item['name'] ); ?></span><?php endif; ?></li>
+		<?php endforeach; ?>
+	</ol></nav>
+	<?php
+}
+
 add_action(
 	'wp_head',
 	static function (): void {
@@ -50,14 +134,8 @@ add_action(
 			return;
 		}
 
-		$description = is_front_page()
-			? 'Premium Cronus Zen and XIM Matrix configurations for Apex Legends, with Free, VIP Monthly, and VIP Lifetime access.'
-			: wp_strip_all_tags( get_the_excerpt() );
-		if ( '' === $description ) {
-			$description = get_bloginfo( 'description' );
-		}
-
-		$canonical = is_singular() ? get_permalink() : home_url( '/' );
+		$description = timonconfigs_meta_description();
+		$canonical   = timonconfigs_canonical_url();
 		?>
 		<meta name="description" content="<?php echo esc_attr( wp_trim_words( $description, 28, '' ) ); ?>">
 		<link rel="canonical" href="<?php echo esc_url( $canonical ); ?>">
@@ -73,17 +151,37 @@ add_action(
 add_action(
 	'wp_head',
 	static function (): void {
-		if ( ! is_front_page() ) {
-			return;
+		$schemas = array();
+		if ( is_front_page() ) {
+			$schemas[] = array(
+				'@context' => 'https://schema.org',
+				'@type'    => 'Organization',
+				'name'     => 'TimonConfigs',
+				'url'      => home_url( '/' ),
+			);
 		}
 
-		$schema = array(
-			'@context' => 'https://schema.org',
-			'@type'    => 'Organization',
-			'name'     => 'TimonConfigs',
-			'url'      => home_url( '/' ),
-		);
-		echo '<script type="application/ld+json">' . wp_json_encode( $schema, JSON_UNESCAPED_SLASHES ) . '</script>';
+		$crumbs = timonconfigs_breadcrumb_items();
+		if ( count( $crumbs ) > 1 ) {
+			$schemas[] = array(
+				'@context'        => 'https://schema.org',
+				'@type'           => 'BreadcrumbList',
+				'itemListElement' => array_map(
+					static fn( array $item, int $index ): array => array(
+						'@type'    => 'ListItem',
+						'position' => $index + 1,
+						'name'     => $item['name'],
+						'item'     => $item['url'],
+					),
+					$crumbs,
+					array_keys( $crumbs )
+				),
+			);
+		}
+
+		foreach ( $schemas as $schema ) {
+			echo '<script type="application/ld+json">' . wp_json_encode( $schema, JSON_UNESCAPED_SLASHES ) . '</script>';
+		}
 	},
 	20
 );

@@ -17,6 +17,7 @@ $plans = array(
 			<p><?php echo esc_html( $plan['description'] ); ?></p>
 			<ul><?php foreach ( $plan['features'] as $feature ) : ?><li><?php echo timonconfigs_icon( 'check' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php echo esc_html( $feature ); ?></li><?php endforeach; ?></ul>
 			<a class="tc-button<?php echo empty( $plan['featured'] ) ? ' tc-button--ghost' : ''; ?>" href="<?php echo esc_url( $plan['url'] ); ?>"><?php echo esc_html( $plan['cta'] ); ?><?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?></a>
+			<?php if ( in_array( $plan['slug'], array( 'monthly', 'lifetime' ), true ) ) : ?><a class="tc-plan-details" href="<?php echo esc_url( home_url( '/vip-' . $plan['slug'] . '/' ) ); ?>">View <?php echo esc_html( $plan['name'] ); ?> details</a><?php endif; ?>
 		</article>
 	<?php endforeach; ?>
 </div>

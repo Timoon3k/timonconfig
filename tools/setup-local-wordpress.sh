@@ -51,6 +51,25 @@ if [[ -z "$pricing_id" ]]; then
   pricing_id="$(wp post create --post_type=page --post_title=Pricing --post_name=pricing --post_status=publish --porcelain)"
 fi
 
+games_id="$(wp post list --post_type=page --name=games --field=ID --format=ids)"
+if [[ -z "$games_id" ]]; then
+  games_id="$(wp post create --post_type=page --post_title=Games --post_name=games --post_status=publish --porcelain)"
+fi
+
+for page_slug in vip-monthly vip-lifetime; do
+  page_id="$(wp post list --post_type=page --name="$page_slug" --field=ID --format=ids)"
+  if [[ "$page_slug" == "vip-monthly" ]]; then
+    page_title="VIP Monthly"
+  else
+    page_title="VIP Lifetime"
+  fi
+  if [[ -z "$page_id" ]]; then
+    wp post create --post_type=page --post_title="$page_title" --post_name="$page_slug" --post_status=publish >/dev/null
+  else
+    wp post update "$page_id" --post_title="$page_title" >/dev/null
+  fi
+done
+
 wp option update show_on_front page
 wp option update page_on_front "$home_id"
 
@@ -60,6 +79,9 @@ if ! wp menu list --fields=name --format=csv | grep -qx 'Primary'; then
   wp menu item add-post Primary "$pricing_id" --title=Pricing
   wp menu item add-custom Primary Configs http://127.0.0.1:8080/configs/
   wp menu item add-custom Primary FAQ http://127.0.0.1:8080/pricing/#faq
+fi
+if ! wp menu item list Primary --fields=title --format=csv | grep -qx 'Games'; then
+  wp menu item add-post Primary "$games_id" --title=Games
 fi
 wp menu location assign Primary primary
 
@@ -71,5 +93,8 @@ wp menu location assign Footer footer
 
 curl --silent --fail --output /dev/null http://127.0.0.1:8080/
 curl --silent --fail --output /dev/null http://127.0.0.1:8080/pricing/
+curl --silent --fail --output /dev/null http://127.0.0.1:8080/games/
+curl --silent --fail --output /dev/null http://127.0.0.1:8080/vip-monthly/
+curl --silent --fail --output /dev/null http://127.0.0.1:8080/vip-lifetime/
 echo "TimonConfigs local WordPress is ready on port 8080."
 
