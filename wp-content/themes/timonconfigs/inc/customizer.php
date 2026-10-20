@@ -22,7 +22,14 @@ add_action(
 		$fields = array(
 			'hero_eyebrow' => array( 'label' => __( 'Hero eyebrow', 'timonconfigs' ), 'default' => 'PRECISION × CONSISTENCY × REAL SETUPS' ),
 			'hero_title'   => array( 'label' => __( 'Hero title', 'timonconfigs' ), 'default' => 'Elite Configs for Serious Players' ),
+			'hero_tagline' => array( 'label' => __( 'Hero tagline', 'timonconfigs' ), 'default' => 'Play Smarter. Hit Different.' ),
 			'hero_copy'    => array( 'label' => __( 'Hero description', 'timonconfigs' ), 'default' => 'Professional configs for Cronus Zen and XIM Matrix. Find the right setup, explore real gameplay, and join the TimonConfigs community.' ),
+			'hero_cta'     => array( 'label' => __( 'Hero primary button label', 'timonconfigs' ), 'default' => 'Get Started' ),
+			'trust_access' => array( 'label' => __( 'Hero benefit 1', 'timonconfigs' ), 'default' => 'Instant Access' ),
+			'trust_updates'=> array( 'label' => __( 'Hero benefit 2', 'timonconfigs' ), 'default' => 'Regular Updates' ),
+			'trust_support'=> array( 'label' => __( 'Hero benefit 3', 'timonconfigs' ), 'default' => 'Active Support' ),
+			'final_title'  => array( 'label' => __( 'Final CTA title', 'timonconfigs' ), 'default' => 'Join Thousands of Serious Players' ),
+			'final_copy'   => array( 'label' => __( 'Final CTA description', 'timonconfigs' ), 'default' => 'Get access to premium configs, regular updates, and an active community.' ),
 			'discord_url'  => array( 'label' => __( 'Discord community URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
 			'x_url'        => array( 'label' => __( 'X profile URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
 			'youtube_url'  => array( 'label' => __( 'YouTube channel URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
@@ -43,7 +50,7 @@ add_action(
 				array(
 					'label'   => $field['label'],
 					'section' => 'timonconfigs_home',
-					'type'    => isset( $field['url'] ) ? 'url' : ( 'hero_copy' === $key ? 'textarea' : 'text' ),
+					'type'    => isset( $field['url'] ) ? 'url' : ( in_array( $key, array( 'hero_copy', 'final_copy' ), true ) ? 'textarea' : 'text' ),
 				)
 			);
 		}
@@ -78,6 +85,19 @@ add_action(
 				'label'   => sprintf( __( '%s cover artwork', 'timonconfigs' ), $game_name ),
 				'section' => 'timonconfigs_home',
 			) ) );
+		}
+
+		$plan_fields = array(
+			'free' => array( 'name' => 'Free', 'price' => '€0', 'suffix' => 'forever', 'description' => 'Explore selected configs and join the community.', 'features' => "Selected free configurations\nBasic config library\nCommunity Discord access", 'cta' => 'Explore free configs' ),
+			'monthly' => array( 'name' => 'VIP Monthly', 'price' => '€40', 'suffix' => 'per month', 'description' => 'Full premium access with ongoing updates and VIP support.', 'features' => "Premium configuration library\nRegular updates covered\nPrivate VIP Discord channels\nMonthly recurring access", 'cta' => 'Choose VIP Monthly' ),
+			'lifetime' => array( 'name' => 'VIP Lifetime', 'price' => '€100', 'suffix' => 'one time', 'description' => 'A one-time license for long-term access under the Lifetime terms.', 'features' => "Premium configuration library\nUpdates covered by your license\nPrivate VIP Discord channels\nOne-time payment", 'cta' => 'Choose VIP Lifetime' ),
+		);
+		foreach ( $plan_fields as $plan_slug => $values ) {
+			foreach ( $values as $field_name => $default ) {
+				$setting = 'timonconfigs_plan_' . $plan_slug . '_' . $field_name;
+				$manager->add_setting( $setting, array( 'default' => $default, 'sanitize_callback' => 'features' === $field_name ? 'sanitize_textarea_field' : 'sanitize_text_field' ) );
+				$manager->add_control( $setting, array( 'label' => sprintf( __( '%1$s — %2$s', 'timonconfigs' ), $values['name'], ucfirst( $field_name ) ), 'section' => 'timonconfigs_home', 'type' => in_array( $field_name, array( 'description', 'features' ), true ) ? 'textarea' : 'text' ) );
+			}
 		}
 
 		for ( $index = 1; $index <= 3; $index++ ) {

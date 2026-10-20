@@ -7,6 +7,14 @@ $plans = array(
 	array( 'slug' => 'monthly', 'name' => 'VIP Monthly', 'price' => '€40', 'suffix' => 'per month', 'description' => 'Full premium access with ongoing updates and VIP support.', 'features' => array( 'Premium configuration library', 'Regular updates covered', 'Private VIP Discord channels', 'Monthly recurring access' ), 'cta' => 'Choose VIP Monthly', 'url' => timonconfigs_plan_url( 'monthly' ), 'featured' => true ),
 	array( 'slug' => 'lifetime', 'name' => 'VIP Lifetime', 'price' => '€100', 'suffix' => 'one time', 'description' => 'A one-time license for long-term access under the Lifetime terms.', 'features' => array( 'Premium configuration library', 'Updates covered by your license', 'Private VIP Discord channels', 'One-time payment' ), 'cta' => 'Choose VIP Lifetime', 'url' => timonconfigs_plan_url( 'lifetime' ) ),
 );
+foreach ( $plans as &$plan ) {
+	foreach ( array( 'name', 'price', 'suffix', 'description', 'cta' ) as $field ) {
+		$plan[ $field ] = get_theme_mod( 'timonconfigs_plan_' . $plan['slug'] . '_' . $field, $plan[ $field ] );
+	}
+	$feature_text    = get_theme_mod( 'timonconfigs_plan_' . $plan['slug'] . '_features', implode( "\n", $plan['features'] ) );
+	$plan['features'] = array_values( array_filter( array_map( 'trim', preg_split( '/\R/', $feature_text ) ?: array() ) ) );
+}
+unset( $plan );
 ?>
 <div class="tc-pricing-grid">
 	<?php foreach ( $plans as $plan ) : ?>

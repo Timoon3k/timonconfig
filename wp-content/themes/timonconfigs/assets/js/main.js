@@ -49,4 +49,14 @@
       if (label) label.textContent = 'VIDEO UNAVAILABLE · RETRY';
     });
   });
+
+  document.querySelectorAll('[data-review-slider]').forEach((slider) => {
+    const track = slider.querySelector('[data-review-track]');
+    const previous = slider.querySelector('[data-review-prev]');
+    const next = slider.querySelector('[data-review-next]');
+    if (!track || !previous || !next) return;
+    const move = (direction) => track.scrollBy({ left: direction * Math.max(track.clientWidth * 0.82, 280), behavior: 'smooth' });
+    previous.addEventListener('click', () => move(-1));
+    next.addEventListener('click', () => move(1));
+  });
 })();

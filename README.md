@@ -54,11 +54,13 @@ find wp-content -name '*.php' -print0 | xargs -0 -n1 php -l
 The second command requires PHP CLI. A full WordPress staging smoke test remains required before deployment.
 
 
-## Visual reference and inline media (theme 0.4.0)
+## Visual reference and inline media (theme 0.5.0)
 
 The storefront follows the supplied mockup composition while retaining the real offer and omitting unverified statistics and invented reviews. The recreated wordmark and seven game covers are replaceable; use **Appearance → Customize** to provide final licensed production assets. Set the official logo under Site Identity when available.
 
 Home and Video Showcase use the same inline player cards. MP4 downloads begin on interaction and playback remains within the card. No modal is used. Public showcase videos are not premium download storage.
+
+Fresh installations show six compact review-layout samples. Every sample is visibly labelled **Sample Review · Demo Content** and is never emitted as review structured data. Add approved feedback under **Reviews** with Gutenberg, a featured image, rating, config label, demo status, publication state, and menu order. Hero and pricing starter patterns are available in the block inserter together with the CTA and FAQ patterns.
 
 Run the browser checks against the Docker WordPress with Playwright and Chromium available:
 

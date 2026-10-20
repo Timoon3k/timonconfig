@@ -1,6 +1,6 @@
 # TimonConfigs project progress
 
-Last updated: 2026-10-20
+Last updated: 2026-10-21
 
 ## Repository audit
 
@@ -53,6 +53,18 @@ The supplied visual reference is used only for layout and art direction. Its fic
 - Added the Reviews page and exact primary-menu order: Home, Configs, Games, Pricing, Reviews, FAQ, Contact.
 - Added global Customizer fields for Discord, X, YouTube, Instagram, and the creator URL. The footer now carries the requested 2026 TimonConfigs / majewskitomasz.pl credit.
 - Static checks, Docker PHP lint, and Playwright passed across Home, Games, Pricing, Reviews, FAQ, Video Showcase, and Configs at 1440, 768, and 390 px. The run also verified seven game covers, honest availability states, reviews empty state, search, keyboard controls, deferred inline video playback, pause coordination, and media-error retry.
+
+## Reference correction pass (theme 0.5.0 / Core 0.4.0)
+
+- Replaced the large review empty state with a compact mockup-style horizontal carousel containing six clearly marked `Sample Review · Demo Content` cards. They are presentation samples, not customer claims, and are excluded from Review/AggregateRating schema.
+- Extended the Reviews editor with a secured metadata panel for rating, config/device label, and demo status. Gutenberg content, featured image, publication state, order, and revisions remain available.
+- Added working previous/next controls, keyboard-scrollable review content, responsive three/two/one-card layouts, and an honest demo label inside every fallback card.
+- Every planned game cover now links to its matching Games roadmap anchor. It still says `Coming soon`, does not link to a fictional product, and cannot return a missing collection page.
+- Added editable pricing names, prices, suffixes, descriptions, feature lists, and CTA labels to the site Customizer. Upgrade.chat checkout targets remain owned by the validated Core settings.
+- Added editable hero tagline, CTA label, benefit labels, and final CTA copy. Added native Gutenberg patterns for the premium hero and three-plan pricing layout alongside the existing CTA and FAQ patterns.
+- Verified in live WordPress that the Review/FAQ post types support Gutenberg and that all four TimonConfigs patterns register successfully.
+- Full desktop comparison was refreshed at `artifacts/redesign-1440.png`; responsive browser tests and Docker PHP lint pass.
+- The repository contains only a flattened reference screenshot, not the original layered hero, original logo file, or brand favicon source. The current hero and fallback wordmark remain replaceable reconstructions and cannot honestly be called the original assets.
 
 ## Validation results
 

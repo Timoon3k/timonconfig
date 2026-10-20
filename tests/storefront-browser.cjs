@@ -35,10 +35,13 @@ const baseURL = process.env.TC_TEST_URL || 'http://127.0.0.1:8080';
           assert.equal(await page.locator('.tc-game-cover').count(), 7, 'Seven reference-led game covers');
           assert.equal(await page.locator('.tc-game-cover.is-available').count(), 1, 'One current collection');
           assert.equal(await page.locator('.tc-game-cover.is-coming').count(), 6, 'Six planned collections');
-          assert.equal(await page.locator('.tc-game-cover.is-coming[href]').count(), 0, 'Planned games do not link to unavailable products');
+          assert.equal(await page.locator('.tc-game-cover.is-coming[href*="/games/#game-"]').count(), 6, 'Planned games link to their honest roadmap anchors');
         }
         if (path === '/' || path === '/reviews/') {
-          assert.equal(await page.locator('.tc-review-card, .tc-review-empty').count() > 0, true, 'Reviews use verified entries or an honest empty state');
+          assert.equal(await page.locator('.tc-review-card').count(), 6, 'Empty installs show six clearly labelled sample cards');
+          assert.equal(await page.locator('.tc-review-demo').count(), 6, 'Every sample review is visibly identified as demo content');
+          await page.locator('[data-review-next]').click();
+          await page.waitForFunction(() => document.querySelector('[data-review-track]').scrollLeft > 20);
         }
         if (width === 390 && path === '/') {
           await page.locator('[data-menu-toggle]').click();

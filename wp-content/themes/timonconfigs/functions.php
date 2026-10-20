@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.4.0' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.5.0' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 
@@ -259,6 +259,40 @@ function timonconfigs_render_faqs( ?int $limit = null ): void {
 	foreach ( $items as $item ) {
 		echo '<details><summary>' . esc_html( $item['question'] ) . '</summary><div class="tc-faq-answer">' . wp_kses_post( $item['answer'] ) . '</div></details>';
 	}
+}
+
+/**
+ * Published reviews or clearly labelled layout samples for an empty site.
+ *
+ * @return array<int, array{name:string,quote:string,config:string,rating:int,demo:bool,image:string}>
+ */
+function timonconfigs_review_items(): array {
+	$posts = get_posts( array( 'post_type' => 'tc_review', 'post_status' => 'publish', 'posts_per_page' => 50, 'orderby' => array( 'menu_order' => 'ASC', 'date' => 'DESC' ) ) );
+	if ( $posts ) {
+		return array_map(
+			static fn( WP_Post $post ): array => array(
+				'name'   => get_the_title( $post ),
+				'quote'  => apply_filters( 'the_content', $post->post_content ),
+				'config' => (string) get_post_meta( $post->ID, 'tc_review_config', true ),
+				'rating' => min( 5, max( 1, (int) get_post_meta( $post->ID, 'tc_review_rating', true ) ) ),
+				'demo'   => (bool) get_post_meta( $post->ID, 'tc_review_demo', true ),
+				'image'  => (string) get_the_post_thumbnail_url( $post, 'thumbnail' ),
+			),
+			$posts
+		);
+	}
+	$samples = array(
+		array( 'Nova', 'This sample shows how a concise setup-focused customer quote will appear.', 'Apex Legends · Cronus Zen' ),
+		array( 'Vector', 'Replace this demonstration with approved feedback from your Discord community.', 'Apex Legends · XIM Matrix' ),
+		array( 'Orbit', 'Ratings, avatar, configuration label, order, and visibility are editable in WordPress.', 'XIM Matrix · Controller' ),
+		array( 'Pulse', 'The card layout supports short feedback while keeping the source label visible.', 'Cronus Zen · Controller' ),
+		array( 'Cipher', 'Use only feedback you have permission to publish and can identify internally.', 'Apex Legends · MnK' ),
+		array( 'Echo', 'Demo entries never produce Review or AggregateRating structured data.', 'TimonConfigs Community' ),
+	);
+	return array_map(
+		static fn( array $sample ): array => array( 'name' => $sample[0], 'quote' => $sample[1], 'config' => $sample[2], 'rating' => 5, 'demo' => true, 'image' => '' ),
+		$samples
+	);
 }
 
 function timonconfigs_icon( string $name ): string {
