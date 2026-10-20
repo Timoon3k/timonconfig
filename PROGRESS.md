@@ -66,6 +66,19 @@ The supplied visual reference is used only for layout and art direction. Its fic
 - Full desktop comparison was refreshed at `artifacts/redesign-1440.png`; responsive browser tests and Docker PHP lint pass.
 - The repository contains only a flattened reference screenshot, not the original layered hero, original logo file, or brand favicon source. The current hero and fallback wordmark remain replaceable reconstructions and cannot honestly be called the original assets.
 
+## Measured layout correction (theme 0.6.0 / Core 0.4.0)
+
+- Replaced the accumulating premium CSS overrides with section rules based on measured reference proportions. At 1440 px, the content grid now spans 1360 px instead of 1240 px; Hero retains a separate 110 px text inset.
+- Supplied Inter variable and Barlow Condensed WOFF2 fonts locally with their upstream licenses. The previous Inter declaration silently fell back to Arial.
+- Added a new 2.65:1 Hero reconstruction with both hands/devices visible on desktop. Existing administrator-selected imagery remains intact. The original brand source files are still missing.
+- Restored large central game-title treatments, compact icon/name/tagline pricing composition, Most Popular, and a filtered Free CTA. Added editable plan taglines and kept validated checkout routing unchanged.
+- Reduced Games, Pricing, Reviews, FAQ, and video presentation spacing. Kept all three first-party videos inline, deferred, and functional. Restored visible community actions and primary/footer navigation with configured social icons.
+- Added `tools/capture-storefront.cjs` for repeatable screenshots and geometry at 1440, 1024, 768, 390, and 320 px. Font loading and zero horizontal overflow were observed at all five widths.
+- Read-only access to timonconfigs.pl was blocked by the environment outbound proxy (`403 CONNECT`), including an escalated retry. This does not establish a fault in the public site. Added only timonconfigs.pl/www.timonconfigs.pl to the network configuration draft; live-site comparison remains pending configuration publication.
+- See `docs/DESIGN_CORRECTION_0.6.md` for measured section sizes, limitations, and the exact production-access blocker. No production files, database, payments, or roles were modified.
+- Validation: PHP lint and static checks passed; Playwright passed 35 route/viewport combinations (7 routes × 5 widths), including local font/art loading, wide desktop grid, mobile keyboard controls, carousel, search, and real inline video playback/retry. Read-only link QA checked 26 unique local links and found a legacy Pricing FAQ anchor. Added the anchor and fixed setup's WP-CLI option from `--url` (global request context) to `--link` (menu destination), then confirmed the rendered FAQ navigation uses `/faq/`.
+- Packaged `artifacts/timonconfigs-theme-0.6.0.zip`; archive integrity passed and all 61 payload files match the source tested in local WordPress. Refreshed current-theme ZIP copies. Core remains 0.4.0 and was not modified.
+
 ## Validation results
 
 - JavaScript syntax: passed with `node --check`.

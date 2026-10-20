@@ -96,7 +96,7 @@ if ! wp menu list --fields=name --format=csv | grep -qx 'Primary'; then
 fi
 faq_item_id="$(wp menu item list Primary --fields=db_id,title --format=csv | awk -F, '$2 == "FAQ" { print $1; exit }')"
 if [[ -n "$faq_item_id" ]]; then
-  wp menu item update "$faq_item_id" --url=http://127.0.0.1:8080/faq/ >/dev/null
+  wp menu item update "$faq_item_id" --link=http://127.0.0.1:8080/faq/ >/dev/null
 fi
 if ! wp menu item list Primary --fields=title --format=csv | grep -qx 'Games'; then
   wp menu item add-post Primary "$games_id" --title=Games

@@ -33,7 +33,7 @@ defined( 'ABSPATH' ) || exit;
 				)
 			);
 			?>
-			<?php if ( get_theme_mod( 'timonconfigs_discord_url', '' ) ) : ?><a class="tc-button tc-button--small tc-button--ghost tc-header-discord" href="<?php echo esc_url( get_theme_mod( 'timonconfigs_discord_url' ) ); ?>"><?php echo timonconfigs_icon( 'discord' ); // phpcs:ignore ?>Join Discord</a><?php endif; ?>
+			<a class="tc-button tc-button--small tc-button--ghost tc-header-discord" href="<?php echo esc_url( timonconfigs_community_url() ); ?>"><?php echo timonconfigs_icon( 'discord' ); // phpcs:ignore ?>Join Discord</a>
 			<a class="tc-button tc-button--small" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>"><?php esc_html_e( 'Get Started', 'timonconfigs' ); ?></a>
 		</nav>
 	</div>

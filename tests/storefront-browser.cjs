@@ -7,7 +7,7 @@ const baseURL = process.env.TC_TEST_URL || 'http://127.0.0.1:8080';
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
   const errors = [];
   try {
-    for (const width of [1440, 768, 390]) {
+    for (const width of [1440, 1024, 768, 390, 320]) {
       for (const path of ['/', '/games/', '/pricing/', '/reviews/', '/faq/', '/video-showcase/', '/configs/']) {
         const page = await browser.newPage({ viewport: { width, height: 1000 } });
         page.on('pageerror', (error) => errors.push(error.message));
@@ -16,6 +16,16 @@ const baseURL = process.env.TC_TEST_URL || 'http://127.0.0.1:8080';
         assert.equal(response.status(), 200, `${path} HTTP ${width}`);
         assert.equal(await page.locator('h1').count(), 1, `${path} one H1`);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${path} overflow at ${width}`);
+        if (path === '/') {
+          await page.evaluate(() => document.fonts.ready);
+          assert.equal(await page.evaluate(() => [...document.fonts].some(font => font.family === 'Inter' && font.status === 'loaded')), true, 'Local Inter font is loaded');
+          assert.equal(await page.locator('.tc-hero__art').evaluate(img => img.complete && img.naturalWidth > 0), true, 'Hero artwork loaded');
+          assert.equal(await page.locator('.tc-header-discord').count(), 1, 'Community action stays present without an invented invite');
+          if (width === 1440) {
+            const shell = await page.locator('.tc-supported .tc-shell').boundingBox();
+            assert.ok(shell.width / width > 0.94, 'Desktop grid follows the wide reference composition');
+          }
+        }
         if (path === '/' || path === '/video-showcase/') {
           assert.equal(await page.locator('dialog').count(), 0, 'No video modal');
           assert.equal(await page.locator('[data-inline-video]').count(), 3, 'Three inline cards');
@@ -43,7 +53,7 @@ const baseURL = process.env.TC_TEST_URL || 'http://127.0.0.1:8080';
           await page.locator('[data-review-next]').click();
           await page.waitForFunction(() => document.querySelector('[data-review-track]').scrollLeft > 20);
         }
-        if (width === 390 && path === '/') {
+        if ((width === 390 || width === 320 || width === 768) && path === '/') {
           await page.locator('[data-menu-toggle]').click();
           assert.equal(await page.locator('[data-menu-toggle]').getAttribute('aria-expanded'), 'true');
           await page.keyboard.press('Escape');

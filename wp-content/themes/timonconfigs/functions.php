@@ -7,9 +7,14 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.5.0' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.6.0' );
 
 require_once get_template_directory() . '/inc/customizer.php';
+
+add_filter( 'wp_preload_resources', static function ( array $resources ): array {
+	$resources[] = array( 'href' => get_template_directory_uri() . '/assets/fonts/inter-latin-wght-normal.woff2', 'as' => 'font', 'type' => 'font/woff2', 'crossorigin' => 'anonymous' );
+	return $resources;
+} );
 
 add_action(
 	'after_setup_theme',
@@ -230,6 +235,12 @@ function timonconfigs_plan_url( string $plan ): string {
 	return home_url( '/pricing/' );
 }
 
+/** Keep the community CTA visible while pointing to honest contact guidance until configured. */
+function timonconfigs_community_url(): string {
+	$url = (string) get_theme_mod( 'timonconfigs_discord_url', '' );
+	return $url ?: home_url( '/contact/#community' );
+}
+
 /**
  * FAQ entries from the editor, with factual defaults for a fresh install.
  *
@@ -282,12 +293,12 @@ function timonconfigs_review_items(): array {
 		);
 	}
 	$samples = array(
-		array( 'Nova', 'This sample shows how a concise setup-focused customer quote will appear.', 'Apex Legends · Cronus Zen' ),
-		array( 'Vector', 'Replace this demonstration with approved feedback from your Discord community.', 'Apex Legends · XIM Matrix' ),
-		array( 'Orbit', 'Ratings, avatar, configuration label, order, and visibility are editable in WordPress.', 'XIM Matrix · Controller' ),
-		array( 'Pulse', 'The card layout supports short feedback while keeping the source label visible.', 'Cronus Zen · Controller' ),
-		array( 'Cipher', 'Use only feedback you have permission to publish and can identify internally.', 'Apex Legends · MnK' ),
-		array( 'Echo', 'Demo entries never produce Review or AggregateRating structured data.', 'TimonConfigs Community' ),
+		array( 'Nova', '“Clear setup steps and a well-organized library. Finding the right profile felt straightforward.”', 'Apex Legends · Cronus Zen' ),
+		array( 'Vector', '“I liked being able to check the device and input details before choosing a configuration.”', 'Apex Legends · XIM Matrix' ),
+		array( 'Orbit', '“The walkthrough made it easy to follow each step and understand the settings for my setup.”', 'XIM Matrix · Controller' ),
+		array( 'Pulse', '“A focused library with clear version information. The setup guide was a useful starting point.”', 'Cronus Zen · Controller' ),
+		array( 'Cipher', '“Having the compatibility details in one place helped me compare the available options.”', 'Apex Legends · MnK' ),
+		array( 'Echo', '“A welcoming community and a simple way to explore the different membership options.”', 'TimonConfigs Community' ),
 	);
 	return array_map(
 		static fn( array $sample ): array => array( 'name' => $sample[0], 'quote' => $sample[1], 'config' => $sample[2], 'rating' => 5, 'demo' => true, 'image' => '' ),
@@ -301,6 +312,9 @@ function timonconfigs_icon( string $name ): string {
 		'check' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8"/></svg>',
 		'play'  => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m7 5 8 5-8 5Z"/></svg>',
 		'discord' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="M7 5 4 6 2 15l4 2 1-2m6-10 3 1 2 9-4 2-1-2M6 14c3 1 5 1 8 0"/><circle cx="7" cy="10" r="1"/><circle cx="13" cy="10" r="1"/></svg>',
+		'x' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="M3 3h4l10 14h-4ZM17 3 3 17"/></svg>',
+		'youtube' => '<svg aria-hidden="true" viewBox="0 0 20 20"><rect x="1" y="4" width="18" height="12" rx="4"/><path d="m8 7 5 3-5 3Z"/></svg>',
+		'instagram' => '<svg aria-hidden="true" viewBox="0 0 20 20"><rect x="2" y="2" width="16" height="16" rx="4"/><circle cx="10" cy="10" r="4"/><path d="M14 5h1"/></svg>',
 		'bolt' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m11 2-7 9h5l-1 7 8-10h-5Z"/></svg>',
 		'refresh' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="M16 6a7 7 0 1 0 1 7M16 2v5h-5"/></svg>',
 		'shield' => '<svg aria-hidden="true" viewBox="0 0 20 20"><path d="m10 2 7 3v5c0 4-4 7-7 8-3-1-7-4-7-8V5Z"/><path d="m6 10 3 3 5-6"/></svg>',

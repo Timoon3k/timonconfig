@@ -54,7 +54,7 @@ find wp-content -name '*.php' -print0 | xargs -0 -n1 php -l
 The second command requires PHP CLI. A full WordPress staging smoke test remains required before deployment.
 
 
-## Visual reference and inline media (theme 0.5.0)
+## Visual reference and inline media (theme 0.6.0)
 
 The storefront follows the supplied mockup composition while retaining the real offer and omitting unverified statistics and invented reviews. The recreated wordmark and seven game covers are replaceable; use **Appearance → Customize** to provide final licensed production assets. Set the official logo under Site Identity when available.
 
@@ -69,3 +69,5 @@ node tests/storefront-browser.cjs
 ```
 
 Set `TC_TEST_URL` for a staging URL and `CHROMIUM_PATH` for another Chromium executable. Tests interact with search, menus, FAQ, and the public video player; they do not purchase products or modify memberships.
+
+Run `node tools/capture-storefront.cjs` to capture the current Home at 1440, 1024, 768, 390, and 320 px with the real local fonts. Measured reference comparisons and unresolved original-asset/live-site limitations are documented in `docs/DESIGN_CORRECTION_0.6.md`.

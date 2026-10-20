@@ -28,7 +28,7 @@ add_action(
 			'trust_access' => array( 'label' => __( 'Hero benefit 1', 'timonconfigs' ), 'default' => 'Instant Access' ),
 			'trust_updates'=> array( 'label' => __( 'Hero benefit 2', 'timonconfigs' ), 'default' => 'Regular Updates' ),
 			'trust_support'=> array( 'label' => __( 'Hero benefit 3', 'timonconfigs' ), 'default' => 'Active Support' ),
-			'final_title'  => array( 'label' => __( 'Final CTA title', 'timonconfigs' ), 'default' => 'Join Thousands of Serious Players' ),
+			'final_title'  => array( 'label' => __( 'Final CTA title', 'timonconfigs' ), 'default' => 'Join the TimonConfigs Community' ),
 			'final_copy'   => array( 'label' => __( 'Final CTA description', 'timonconfigs' ), 'default' => 'Get access to premium configs, regular updates, and an active community.' ),
 			'discord_url'  => array( 'label' => __( 'Discord community URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
 			'x_url'        => array( 'label' => __( 'X profile URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
@@ -57,7 +57,7 @@ add_action(
 
 
 		$manager->add_setting( 'timonconfigs_hero_image', array(
-			'default' => get_template_directory_uri() . '/assets/images/hero-premium.webp',
+			'default' => get_template_directory_uri() . '/assets/images/hero-reference-wide.webp',
 			'sanitize_callback' => 'esc_url_raw',
 		) );
 		$manager->add_control( new WP_Customize_Image_Control( $manager, 'timonconfigs_hero_image', array(
@@ -88,9 +88,9 @@ add_action(
 		}
 
 		$plan_fields = array(
-			'free' => array( 'name' => 'Free', 'price' => '€0', 'suffix' => 'forever', 'description' => 'Explore selected configs and join the community.', 'features' => "Selected free configurations\nBasic config library\nCommunity Discord access", 'cta' => 'Explore free configs' ),
-			'monthly' => array( 'name' => 'VIP Monthly', 'price' => '€40', 'suffix' => 'per month', 'description' => 'Full premium access with ongoing updates and VIP support.', 'features' => "Premium configuration library\nRegular updates covered\nPrivate VIP Discord channels\nMonthly recurring access", 'cta' => 'Choose VIP Monthly' ),
-			'lifetime' => array( 'name' => 'VIP Lifetime', 'price' => '€100', 'suffix' => 'one time', 'description' => 'A one-time license for long-term access under the Lifetime terms.', 'features' => "Premium configuration library\nUpdates covered by your license\nPrivate VIP Discord channels\nOne-time payment", 'cta' => 'Choose VIP Lifetime' ),
+			'free' => array( 'name' => 'Free', 'tagline' => 'Perfect to get started', 'price' => '€0', 'suffix' => 'Forever', 'description' => 'Explore selected configs and join the community.', 'features' => "Selected free configurations\nBasic config library\nCommunity Discord access", 'cta' => 'Get Free Configs' ),
+			'monthly' => array( 'name' => 'VIP Monthly', 'tagline' => 'For serious players', 'price' => '€40', 'suffix' => '/ month', 'description' => 'Full premium access with ongoing updates and VIP support.', 'features' => "Premium configuration library\nRegular updates covered\nPrivate VIP Discord channels\nMonthly recurring access", 'cta' => 'Get Started' ),
+			'lifetime' => array( 'name' => 'VIP Lifetime', 'tagline' => 'One payment. Lifetime license.', 'price' => '€100', 'suffix' => 'one time', 'description' => 'A one-time license for long-term access under the Lifetime terms.', 'features' => "Premium configuration library\nUpdates covered by your license\nPrivate VIP Discord channels\nOne-time payment", 'cta' => 'Get Lifetime Access' ),
 		);
 		foreach ( $plan_fields as $plan_slug => $values ) {
 			foreach ( $values as $field_name => $default ) {
