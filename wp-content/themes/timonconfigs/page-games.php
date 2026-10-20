@@ -16,6 +16,12 @@ $apex_url = is_wp_error( $apex_url ) ? home_url( '/apex-legends-configs/' ) : $a
 			<p class="tc-lead">Explore current TimonConfigs collections with clear device, input, platform, and access details. New games appear here only when their releases are ready.</p>
 		</div>
 	</section>
+	<section class="tc-section tc-games-roadmap">
+		<div class="tc-shell">
+			<div class="tc-section-heading"><div><p class="tc-eyebrow"><span></span>COLLECTION ROADMAP</p><h2>Available and planned games</h2></div><p>Apex Legends is available now. Other artwork marks planned collections and does not promise a release date.</p></div>
+			<?php get_template_part( 'template-parts/game-strip' ); ?>
+		</div>
+	</section>
 	<section class="tc-section">
 		<div class="tc-shell">
 			<div class="tc-section-heading"><div><p class="tc-eyebrow"><span></span>AVAILABLE NOW</p><h2>Apex Legends</h2></div><p>Our flagship collection covers Cronus Zen and XIM Matrix setups for controller and mouse and keyboard players.</p></div>

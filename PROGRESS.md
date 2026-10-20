@@ -1,6 +1,6 @@
 # TimonConfigs project progress
 
-Last updated: 2026-10-17
+Last updated: 2026-10-20
 
 ## Repository audit
 
@@ -44,6 +44,16 @@ The supplied visual reference is used only for layout and art direction. Its fic
 - Validation: PHP lint passed for all theme PHP files; static checks, JavaScript syntax, and Git whitespace checks passed. The new `tests/storefront-browser.cjs` passed 12 route/viewport combinations at 1440, 768, and 390 px, real inline media playback, pause coordination, keyboard menu/FAQ behavior, homepage search, and media-failure retry UI. No console errors or horizontal overflow were detected in the normal cases.
 - Theme ZIP: `artifacts/timonconfigs-theme-0.3.0.zip`; Core remains 0.2.0. Both current ZIP copies are refreshed and archive-validated. No production deployment was performed.
 
+## Editable reference content (theme 0.4.0 / Core 0.3.0)
+
+- Added a replaceable TimonConfigs image wordmark and seven premium game covers based on the supplied visual direction: Apex Legends, Call of Duty, Fortnite, Rainbow Six Siege, Rust, EA Sports FC, and NBA 2K. The Finals was removed as explicitly requested.
+- Home and Games share one responsive game strip. Apex is the only active collection; future games are labelled “Coming soon” and have no misleading product links. Every cover can be replaced in the Customizer.
+- Added Gutenberg-enabled, non-public `Reviews` and `FAQs` content types. Approved entries can be ordered and published by an editor. Until a real review is approved, the site displays an honest empty state instead of fabricated testimonials.
+- Home now includes the reference Reviews row, while retaining the supplied first-party Apex video showcase with inline playback. FAQ content is shared by Home and the FAQ page and emits matching FAQPage structured data.
+- Added the Reviews page and exact primary-menu order: Home, Configs, Games, Pricing, Reviews, FAQ, Contact.
+- Added global Customizer fields for Discord, X, YouTube, Instagram, and the creator URL. The footer now carries the requested 2026 TimonConfigs / majewskitomasz.pl credit.
+- Static checks, Docker PHP lint, and Playwright passed across Home, Games, Pricing, Reviews, FAQ, Video Showcase, and Configs at 1440, 768, and 390 px. The run also verified seven game covers, honest availability states, reviews empty state, search, keyboard controls, deferred inline video playback, pause coordination, and media-error retry.
+
 ## Validation results
 
 - JavaScript syntax: passed with `node --check`.
@@ -74,7 +84,7 @@ The three catalogue entries currently visible in the Docker database are local-o
 - Confirm which supplied video corresponds to Cronus Zen S30, XIM Matrix Controller, and XIM Matrix MnK; then enter accurate device/config version/platform/recording metadata.
 - Supply the real VIP Monthly and VIP Lifetime Upgrade.chat checkout URLs.
 - Test theme and plugin activation on a WordPress staging installation with PHP 8.1+.
-- Complete Discord OAuth2, current guild-role verification, protected premium delivery, consent analytics, final legal review, and installation ZIP testing on an isolated staging WordPress.
+- Complete Discord OAuth2, current guild-role verification, protected premium delivery, consent analytics, and final legal/security review on an isolated staging WordPress. These are the agreed Astra Medium tasks.
 - Do not deploy to production or modify current payments/roles without explicit approval.
 
 ## Hostinger deployment preparation

@@ -8,7 +8,7 @@ const baseURL = process.env.TC_TEST_URL || 'http://127.0.0.1:8080';
   const errors = [];
   try {
     for (const width of [1440, 768, 390]) {
-      for (const path of ['/', '/pricing/', '/video-showcase/', '/configs/']) {
+      for (const path of ['/', '/games/', '/pricing/', '/reviews/', '/faq/', '/video-showcase/', '/configs/']) {
         const page = await browser.newPage({ viewport: { width, height: 1000 } });
         page.on('pageerror', (error) => errors.push(error.message));
         page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
@@ -30,6 +30,15 @@ const baseURL = process.env.TC_TEST_URL || 'http://127.0.0.1:8080';
           await page.waitForFunction(() => document.querySelectorAll('[data-video-player]')[1].currentTime > 0.15);
           assert.equal(await players.first().evaluate(video => video.paused), true, 'Second playback pauses first');
           await players.nth(1).evaluate(video => video.pause());
+        }
+        if (path === '/' || path === '/games/') {
+          assert.equal(await page.locator('.tc-game-cover').count(), 7, 'Seven reference-led game covers');
+          assert.equal(await page.locator('.tc-game-cover.is-available').count(), 1, 'One current collection');
+          assert.equal(await page.locator('.tc-game-cover.is-coming').count(), 6, 'Six planned collections');
+          assert.equal(await page.locator('.tc-game-cover.is-coming[href]').count(), 0, 'Planned games do not link to unavailable products');
+        }
+        if (path === '/' || path === '/reviews/') {
+          assert.equal(await page.locator('.tc-review-card, .tc-review-empty').count() > 0, true, 'Reviews use verified entries or an honest empty state');
         }
         if (width === 390 && path === '/') {
           await page.locator('[data-menu-toggle]').click();

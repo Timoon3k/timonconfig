@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.3.0' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.4.0' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 
@@ -179,6 +179,20 @@ add_action(
 				'url'      => home_url( '/' ),
 			);
 		}
+		if ( is_front_page() || is_page( 'faq' ) ) {
+			$schemas[] = array(
+				'@context'   => 'https://schema.org',
+				'@type'      => 'FAQPage',
+				'mainEntity' => array_map(
+					static fn( array $item ): array => array(
+						'@type'          => 'Question',
+						'name'           => $item['question'],
+						'acceptedAnswer' => array( '@type' => 'Answer', 'text' => wp_strip_all_tags( $item['answer'] ) ),
+					),
+					timonconfigs_faq_items()
+				),
+			);
+		}
 
 		$crumbs = timonconfigs_breadcrumb_items();
 		if ( count( $crumbs ) > 1 ) {
@@ -214,6 +228,37 @@ function timonconfigs_plan_url( string $plan ): string {
 	}
 
 	return home_url( '/pricing/' );
+}
+
+/**
+ * FAQ entries from the editor, with factual defaults for a fresh install.
+ *
+ * @return array<int, array{question:string,answer:string}>
+ */
+function timonconfigs_faq_items(): array {
+	$posts = get_posts( array( 'post_type' => 'tc_faq', 'post_status' => 'publish', 'posts_per_page' => 50, 'orderby' => array( 'menu_order' => 'ASC', 'date' => 'ASC' ) ) );
+	if ( $posts ) {
+		return array_map(
+			static fn( WP_Post $post ): array => array( 'question' => get_the_title( $post ), 'answer' => apply_filters( 'the_content', $post->post_content ) ),
+			$posts
+		);
+	}
+	return array(
+		array( 'question' => 'How do I receive my configs?', 'answer' => 'Explore Free access or choose a VIP plan. Upgrade.chat manages checkout and Discord role delivery.' ),
+		array( 'question' => 'Do I need a Cronus Zen or XIM Matrix?', 'answer' => 'Yes. Each configuration lists its supported device, input method, and platform. Check these details before choosing a plan.' ),
+		array( 'question' => 'Which games are supported?', 'answer' => 'Apex Legends is the current flagship collection. Additional releases appear only when their compatibility details are ready.' ),
+		array( 'question' => 'What does VIP Lifetime include?', 'answer' => 'A one-time €100 license with access and updates defined by the Lifetime terms presented at checkout.' ),
+		array( 'question' => 'Do you offer refunds?', 'answer' => 'Review the Refund Policy for digital access, subscription cancellation, and support. Statutory consumer rights remain unaffected.' ),
+	);
+}
+
+/** Render accessible FAQ disclosure rows. */
+function timonconfigs_render_faqs( ?int $limit = null ): void {
+	$items = timonconfigs_faq_items();
+	$items = null === $limit ? $items : array_slice( $items, 0, $limit );
+	foreach ( $items as $item ) {
+		echo '<details><summary>' . esc_html( $item['question'] ) . '</summary><div class="tc-faq-answer">' . wp_kses_post( $item['answer'] ) . '</div></details>';
+	}
 }
 
 function timonconfigs_icon( string $name ): string {

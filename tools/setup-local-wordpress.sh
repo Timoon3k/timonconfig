@@ -70,8 +70,8 @@ for page_slug in vip-monthly vip-lifetime; do
   fi
 done
 
-policy_slugs=(faq contact video-showcase terms-of-service privacy-policy refund-policy)
-policy_titles=(FAQ Contact "Video Showcase" "Terms of Service" "Privacy Policy" "Refund Policy")
+policy_slugs=(reviews faq contact video-showcase terms-of-service privacy-policy refund-policy)
+policy_titles=(Reviews FAQ Contact "Video Showcase" "Terms of Service" "Privacy Policy" "Refund Policy")
 for index in "${!policy_slugs[@]}"; do
   page_slug="${policy_slugs[$index]}"
   page_title="${policy_titles[$index]}"
@@ -105,6 +105,18 @@ if ! wp menu item list Primary --fields=title --format=csv | grep -qx 'Contact';
   contact_id="$(wp post list --post_type=page --name=contact --field=ID --format=ids)"
   wp menu item add-post Primary "$contact_id" --title=Contact
 fi
+if ! wp menu item list Primary --fields=title --format=csv | grep -qx 'Reviews'; then
+  reviews_id="$(wp post list --post_type=page --name=reviews --field=ID --format=ids)"
+  wp menu item add-post Primary "$reviews_id" --title=Reviews
+fi
+position=1
+for menu_title in Home Configs Games Pricing Reviews FAQ Contact; do
+  menu_item_id="$(wp menu item list Primary --fields=db_id,title --format=csv | awk -F, -v title="$menu_title" '$2 == title { print $1; exit }')"
+  if [[ -n "$menu_item_id" ]]; then
+    wp menu item update "$menu_item_id" --position="$position" >/dev/null
+  fi
+  position=$((position + 1))
+done
 wp menu location assign Primary primary
 
 if ! wp menu list --fields=name --format=csv | grep -qx 'Footer'; then
@@ -114,7 +126,7 @@ fi
 for page_slug in contact terms-of-service privacy-policy refund-policy; do
   page_id="$(wp post list --post_type=page --name="$page_slug" --field=ID --format=ids)"
   page_title="$(wp post get "$page_id" --field=post_title)"
-  if ! wp menu item list Footer --fields=title --format=csv | grep -Fxq "$page_title"; then
+  if ! wp menu item list Footer --fields=url --format=csv | grep -Fq "/$page_slug/"; then
     wp menu item add-post Footer "$page_id" --title="$page_title" >/dev/null
   fi
 done
@@ -126,6 +138,7 @@ curl --silent --fail --output /dev/null http://127.0.0.1:8080/games/
 curl --silent --fail --output /dev/null http://127.0.0.1:8080/vip-monthly/
 curl --silent --fail --output /dev/null http://127.0.0.1:8080/vip-lifetime/
 curl --silent --fail --output /dev/null http://127.0.0.1:8080/faq/
+curl --silent --fail --output /dev/null http://127.0.0.1:8080/reviews/
 curl --silent --fail --output /dev/null http://127.0.0.1:8080/contact/
 curl --silent --fail --output /dev/null http://127.0.0.1:8080/video-showcase/
 curl --silent --fail --output /dev/null http://127.0.0.1:8080/terms-of-service/

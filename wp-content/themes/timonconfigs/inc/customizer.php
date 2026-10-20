@@ -13,8 +13,8 @@ add_action(
 		$manager->add_section(
 			'timonconfigs_home',
 			array(
-				'title'       => __( 'TimonConfigs homepage', 'timonconfigs' ),
-				'description' => __( 'Core homepage copy and media. Pages remain editable in the block editor.', 'timonconfigs' ),
+				'title'       => __( 'TimonConfigs site content', 'timonconfigs' ),
+				'description' => __( 'Global links, homepage copy and replaceable media. FAQs and reviews use their own editor menus.', 'timonconfigs' ),
 				'priority'    => 30,
 			)
 		);
@@ -24,6 +24,10 @@ add_action(
 			'hero_title'   => array( 'label' => __( 'Hero title', 'timonconfigs' ), 'default' => 'Elite Configs for Serious Players' ),
 			'hero_copy'    => array( 'label' => __( 'Hero description', 'timonconfigs' ), 'default' => 'Professional configs for Cronus Zen and XIM Matrix. Find the right setup, explore real gameplay, and join the TimonConfigs community.' ),
 			'discord_url'  => array( 'label' => __( 'Discord community URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
+			'x_url'        => array( 'label' => __( 'X profile URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
+			'youtube_url'  => array( 'label' => __( 'YouTube channel URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
+			'instagram_url'=> array( 'label' => __( 'Instagram profile URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
+			'creator_url'  => array( 'label' => __( 'Website creator URL', 'timonconfigs' ), 'default' => 'https://majewskitomasz.pl/', 'url' => true ),
 		);
 
 		foreach ( $fields as $key => $field ) {
@@ -53,6 +57,28 @@ add_action(
 			'label' => __( 'Hero background artwork', 'timonconfigs' ),
 			'section' => 'timonconfigs_home',
 		) ) );
+
+		$game_images = array(
+			'apex_legends'      => 'Apex Legends',
+			'call_of_duty'      => 'Call of Duty',
+			'fortnite'          => 'Fortnite',
+			'rainbow_six_siege' => 'Rainbow Six Siege',
+			'rust'              => 'Rust',
+			'ea_sports_fc'      => 'EA Sports FC',
+			'nba_2k'            => 'NBA 2K',
+		);
+		foreach ( $game_images as $game_slug => $game_name ) {
+			$asset_slug = str_replace( '_', '-', $game_slug );
+			$setting    = 'timonconfigs_game_' . $game_slug . '_image';
+			$manager->add_setting( $setting, array(
+				'default'           => get_template_directory_uri() . '/assets/images/game-' . $asset_slug . '.webp',
+				'sanitize_callback' => 'esc_url_raw',
+			) );
+			$manager->add_control( new WP_Customize_Image_Control( $manager, $setting, array(
+				'label'   => sprintf( __( '%s cover artwork', 'timonconfigs' ), $game_name ),
+				'section' => 'timonconfigs_home',
+			) ) );
+		}
 
 		for ( $index = 1; $index <= 3; $index++ ) {
 			$manager->add_setting(
