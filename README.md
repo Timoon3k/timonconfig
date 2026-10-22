@@ -19,7 +19,7 @@ With Docker available, run:
 bash tools/setup-local-wordpress.sh
 ```
 
-This starts WordPress 6.8.3 with PHP 8.2 and MariaDB 11.4 on port `8080`, activates the theme and plugin, and creates the storefront, support, video, and policy pages plus navigation. The disposable local administrator is `timonadmin` with password `local-preview-only`. These credentials are local-only and must never be reused on staging or production.
+This starts WordPress 6.8.3 with PHP 8.2 and MariaDB 11.4 on port `8080`, activates the theme and plugin, and creates the storefront, support, video, and policy pages plus navigation. HTTP checks explicitly skip existing unpublished editorial pages, including WordPress's default draft Privacy Policy; other route errors fail setup. The disposable local administrator is `timonadmin` with password `local-preview-only`. These credentials are local-only and must never be reused on staging or production.
 
 Stop the services without deleting their database:
 

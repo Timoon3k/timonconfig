@@ -17,7 +17,8 @@ Last updated: 2026-10-22
 - Rebuilt theme 0.7.0 (79 files) and Core 0.5.0 (8 files) ZIPs. Archive integrity and byte-for-byte equality with the tested sources pass; both current ZIP copies were refreshed.
 - Repeated read-only public-site and invitation probes on 2026-10-22. Both remain blocked at the environment proxy. Public HTTP status, actual deployment, and invite validity are unknown; no purchase or production write was performed.
 - Added `tests/release-installation.sh`; actual ZIP installation and activation pass 62 additional assertions on a fresh, isolated WordPress 6.8.3/PHP 8.2. The test uses an internal network and its own database/filesystem, preserves the default draft Privacy Policy, and verifies repeated installation without content loss. All temporary resources were removed and the existing local stack remains healthy.
-- Logical checkpoints: `9374ce6` preserves the interrupted implementation; `6e7ddcb` records the review REST/platform filter fixes and refreshed validation. The release-installation test and final handoff documentation are saved in the following release checkpoint.
+- Logical checkpoints: `9374ce6` preserves the interrupted implementation; `6e7ddcb` records the review REST/platform filter fixes; `eb380d6` records ZIP-installation verification and handoff documentation. The setup-helper correction is saved separately after these checkpoints.
+- Fixed one additional onboarding mismatch: setup's HTTP smoke checks now report and skip intentionally unpublished known editorial pages instead of failing on WordPress's default draft Privacy Policy. Published and missing routes still fail on unexpected HTTP errors. The real local setup passes 25 routes; isolated script regressions verify draft-policy skipping and failure for unexpected HTTP 500/404 responses. No page status was changed for these checks.
 
 ## Repository audit
 

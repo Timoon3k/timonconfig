@@ -39,6 +39,8 @@ Two additional defects were fixed after the checkpoint:
 - Reviews registered REST metadata without WordPress `custom-fields` support. The existing review type now exposes its rating, config label, and demo flag to Gutenberg's REST API. Seventeen tests exercise authenticated create/update/read/delete, sanitization, malformed metadata rejection, and denied anonymous writes.
 - Platform collection filters displayed “All platforms” despite an active platform constraint. They now display the fixed current platform and submit it consistently with game/device collections. Query and browser regression checks verify that additional filters preserve all three collection contexts.
 
+The fresh-installation check also exposed a setup-helper mismatch: a deliberately preserved draft policy cannot return a public HTTP 200. The local setup script now explicitly logs/skips unpublished known editorial routes while still failing on unexpected errors from public or missing routes. Existing local setup passes 25 checks; isolated script regressions verify the draft-policy case (24 checked, one skipped) and expected failure for unrelated HTTP 500/404 responses. No policy was automatically published.
+
 The theme retains the 0.6 composition and artwork; this recovery does not replace the established frontend. The frontend regression, 217 integration assertions, 62 fresh-install assertions, and syntax checks pass. All running website changes are local. Public inspection remains blocked at the network proxy, and no Hostinger or production deployment was performed.
 
 ## External and production limitations
