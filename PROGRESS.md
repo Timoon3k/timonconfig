@@ -16,6 +16,8 @@ Last updated: 2026-10-22
 - Fresh browser verification passed 55 route/viewport checks across all 25 required URLs, the existing 35 storefront checks, and focused inline/optional-modal/YouTube playback tests. All 25 local URLs return HTTP 200; the unconfigured Monthly and Lifetime handoffs intentionally return HTTP 503.
 - Rebuilt theme 0.7.0 (79 files) and Core 0.5.0 (8 files) ZIPs. Archive integrity and byte-for-byte equality with the tested sources pass; both current ZIP copies were refreshed.
 - Repeated read-only public-site and invitation probes on 2026-10-22. Both remain blocked at the environment proxy. Public HTTP status, actual deployment, and invite validity are unknown; no purchase or production write was performed.
+- Added `tests/release-installation.sh`; actual ZIP installation and activation pass 62 additional assertions on a fresh, isolated WordPress 6.8.3/PHP 8.2. The test uses an internal network and its own database/filesystem, preserves the default draft Privacy Policy, and verifies repeated installation without content loss. All temporary resources were removed and the existing local stack remains healthy.
+- Logical checkpoints: `9374ce6` preserves the interrupted implementation; `6e7ddcb` records the review REST/platform filter fixes and refreshed validation. The release-installation test and final handoff documentation are saved in the following release checkpoint.
 
 ## Repository audit
 

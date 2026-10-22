@@ -27,6 +27,8 @@
 - Dedicated media browser tests exercise optional modal/Escape/focus restoration and YouTube request deferral; provider responses are locally fulfilled in the test, with no external video use or payment operation.
 - Local setup script completes its explicit install and 25 HTTP checks. Repeating installation preserves IDs, authored content, publication state, front-page settings, and existing menu assignments.
 - PHP syntax checks and JavaScript/static validation pass. Synthetic local LCP/CLS observations are recorded; they are not field Core Web Vitals or a verified production INP result.
+- Actual theme/Core ZIP installation passes 62 additional assertions in a fresh WordPress 6.8.3/PHP 8.2 with a separate database, filesystem, and internal Docker network. Activation, versions, 14 editorial records, seven games, two devices, three platforms, three unpublished Apex structures, ten rendered Home blocks, empty checkout settings, and repeat-install preservation are checked. The test removes its own temporary resources. WordPress's default draft Privacy Policy remains draft until deliberately reviewed and published.
+- Theme ZIP contains 79 files; Core ZIP contains eight. Integrity checks and byte-for-byte comparison against the tested source pass. Generated archives/manifests remain outside Git, and current ZIP copies are refreshed.
 
 ## Interrupted-session recovery — 2026-10-22
 
@@ -37,7 +39,7 @@ Two additional defects were fixed after the checkpoint:
 - Reviews registered REST metadata without WordPress `custom-fields` support. The existing review type now exposes its rating, config label, and demo flag to Gutenberg's REST API. Seventeen tests exercise authenticated create/update/read/delete, sanitization, malformed metadata rejection, and denied anonymous writes.
 - Platform collection filters displayed “All platforms” despite an active platform constraint. They now display the fixed current platform and submit it consistently with game/device collections. Query and browser regression checks verify that additional filters preserve all three collection contexts.
 
-The theme retains the 0.6 composition and artwork; this recovery does not replace the established frontend. All website and environment changes are local. Public inspection remains blocked at the network proxy, and no Hostinger or production deployment was performed.
+The theme retains the 0.6 composition and artwork; this recovery does not replace the established frontend. The frontend regression, 217 integration assertions, 62 fresh-install assertions, and syntax checks pass. All running website changes are local. Public inspection remains blocked at the network proxy, and no Hostinger or production deployment was performed.
 
 ## External and production limitations
 

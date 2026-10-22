@@ -16,6 +16,8 @@ If an existing Home has authored content, setup does not replace it. Insert **Ti
 
 Other editorial and legal pages use native paragraphs and headings. Existing premium templates keep their catalogue, pricing, media, and support components while rendering the authored page content. Do not add a second H1 inside the page body.
 
+Setup preserves existing publication states, including WordPress's default draft Privacy Policy on a fresh installation. Review legal content and deliberately publish the approved policies before checking their public URLs on staging.
+
 Use **Appearance → Customize → TimonConfigs site content** for shared pricing labels, amounts, descriptions, features, branding, background art, global links, and footer description. Set the original logo and site icon under **Site Identity** when the owner provides them.
 
 ## Game collections and configurations

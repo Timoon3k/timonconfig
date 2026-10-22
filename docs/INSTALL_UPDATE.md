@@ -17,11 +17,13 @@
 5. Confirm **Settings → Reading** uses the intended Home and inspect **Appearance → Menus**. Existing menu assignments remain authoritative. Set normal pretty permalinks if not already enabled.
 6. Enter actual Upgrade.chat URLs under **Settings → TimonConfigs**. Keep existing Stripe/PayPal products and Discord role automation unchanged. Test the redirect destination without completing a transaction.
 7. Review all 25 routes in `URL_STATUS.md`, configured Discord buttons, filters, editor previews, media playback, indexing, sitemap, and supported SEO-plugin behavior. Replace demo reviews and unpublished release drafts only with verified content.
-8. Review the policy drafts with the owner before production use; confirm entity, contact information, Lifetime scope, cancellation, refunds, privacy, and storage disclosures.
+8. Review the policy drafts with the owner before production use; confirm entity, contact information, Lifetime scope, cancellation, refunds, privacy, and storage disclosures. Setup preserves WordPress's existing draft Privacy Policy: publish approved legal pages deliberately before expecting their public URLs to respond.
 9. Purge the target site's page/CDN cache after a staging update so CSS/JS version 0.7.0 and the new artwork are served together. Compare screenshots with the approved reference.
 10. Production deployment requires the owner's explicit approval after staging validation. This session did not modify Hostinger production or any live payment/membership state.
 
 ## Current external limitations
+
+The current ZIPs have passed an isolated fresh local installation and activation with 62 assertions. Reproduce that check with `bash tests/release-installation.sh`; it uses only cached images and its own temporary internal Docker network, WordPress filesystem, and database, then cleans them up. This does not replace target-host staging checks with the actual plugin stack and owner-approved content.
 
 The environment proxy blocked read-only requests to timonconfigs.com and the Discord invitation API. This is not an observed 404 from the website. Required domains were added to the cloud environment draft; review/save/publication is needed before retrying access. No callable Hostinger hosting/WordPress tools were exposed in this session, so account state and remote backups could not be inspected.
 

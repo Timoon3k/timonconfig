@@ -17,3 +17,5 @@ node tests/website-browser.cjs
 ```
 
 Other existing integration suites are `seo`, `video`, `site`, `blocks`, and `checkout`. Browser suites also include `tests/storefront-browser.cjs` and `tests/video-browser.cjs`. Run checks appropriate to actual changes; generated results and private local backups belong only in ignored `artifacts/`.
+
+Release ZIPs are `artifacts/timonconfigs-theme-0.7.0.zip` and `artifacts/timonconfigs-core-0.5.0.zip`, with refreshed `*-current.zip` copies. Both match the tested sources. `bash tests/release-installation.sh` passed 62 fresh-install assertions and cleans up its isolated resources; it does not modify the existing local stack. On fresh WordPress, the existing Privacy Policy draft stays unpublished until reviewed deliberately.
