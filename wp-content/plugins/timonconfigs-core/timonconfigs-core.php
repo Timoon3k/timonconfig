@@ -16,6 +16,7 @@ define( 'TIMONCONFIGS_CORE_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-tc-checkout.php';
 require_once __DIR__ . '/includes/class-tc-catalog.php';
+require_once __DIR__ . '/includes/class-tc-private-files.php';
 require_once __DIR__ . '/includes/class-tc-settings.php';
 require_once __DIR__ . '/includes/class-tc-editorial.php';
 require_once __DIR__ . '/includes/class-tc-seo.php';
@@ -27,6 +28,7 @@ add_action(
 	static function (): void {
 		TC_Checkout::init();
 		TC_Catalog::init();
+		TC_Private_Files::init();
 		TC_Settings::init();
 		TC_Editorial::init();
 		TC_SEO::init();
