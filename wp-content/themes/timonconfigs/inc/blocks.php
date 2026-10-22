@@ -12,6 +12,9 @@ function timonconfigs_default_home_content(): string {
 
 /** Shared visibility check for schema: removed sections must not emit invisible content. */
 function timonconfigs_home_has_section( string $section ): bool {
+	if ( 'posts' === get_option( 'show_on_front' ) ) {
+		return array_key_exists( $section, timonconfigs_home_sections() );
+	}
 	$content = (string) get_post_field( 'post_content', (int) get_option( 'page_on_front' ) );
 	if ( '' === trim( $content ) ) {
 		return array_key_exists( $section, timonconfigs_home_sections() );

@@ -1,5 +1,7 @@
 # TimonConfigs website completion report — 0.7.0 / Core 0.5.0
 
+Follow-up: theme **0.7.1** fixes the latest-posts homepage regression reported after installation on Hostinger. It adds administrator setup guidance without changing Core or payment/role logic. See `HOME_FIX_0.7.1.md` and the latest `PROGRESS.md` entry for focused validation; the full 0.7.0 audit below is retained as its original evidence.
+
 ## Implemented in the existing project
 
 | Area | Result |

@@ -2,6 +2,16 @@
 
 Last updated: 2026-10-22
 
+## Homepage correction — theme 0.7.1 / Core 0.5.0
+
+- Investigated the supplied Hostinger screenshot showing only the default WordPress welcome post between the themed header/footer. WordPress uses `front-page.php` for both static Home and latest-posts mode; the old loop incorrectly used blog post content as the Home body.
+- Latest-posts mode now renders the existing ten premium Home sections. Authored static Home content remains authoritative, empty static Home keeps its default fallback, and a separate Blog page still shows posts. Schema section visibility follows the content actually rendered in latest-posts mode.
+- Added an administrator-only setup notice for inactive/outdated Core, missing pages, invalid static Home, and missing/stale navigation assignments. The notice links to the available Plugins/Tools/Reading/Menus screens and performs no writes.
+- Added `tests/front-page-browser.cjs`: ten cases across desktop/mobile passed, covering latest posts, authored Home, empty Home, separate Blog, and latest posts with Core inactive. Reading/plugin settings were restored and owned fixtures removed. Screenshots are in ignored `artifacts/front-page-posts-{1440,390}-after.png`.
+- Added `tests/setup-notice-integration.php`: 29 assertions passed across active, inactive, and outdated Core. No Reading settings, theme modifications, checkout settings, or publication states were changed by the notice.
+- Gutenberg visibility integration passes 14 assertions, including stale static-page metadata in latest-posts mode. PHP lint, JavaScript syntax, and static checks pass. Rebuilt theme 0.7.1 ZIP contains 80 files matching the tested source; fresh package installation passes 62 assertions with Core 0.5.0 unchanged. Refreshed current-theme ZIP copies.
+- See `docs/HOME_FIX_0.7.1.md` for the precise Hostinger admin steps. The preview host could not be inspected directly because its request was rejected at the environment proxy. No remote settings, files, database, payments, or roles were changed.
+
 ## Interrupted-session recovery — theme 0.7.0 / Core 0.5.0
 
 - Recovered the uncommitted 0.7.0 work in the existing checkout without resetting, cleaning, or replacing earlier implementation. The previous committed baseline was `1b71a32` (theme 0.6.0 / Core 0.4.0).

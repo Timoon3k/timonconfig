@@ -7,10 +7,11 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.7.0' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.7.1' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 require_once get_template_directory() . '/inc/seo.php';
+require_once get_template_directory() . '/inc/setup-notice.php';
 if ( file_exists( get_template_directory() . '/inc/blocks.php' ) ) {
 	require_once get_template_directory() . '/inc/blocks.php';
 }

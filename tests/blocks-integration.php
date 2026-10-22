@@ -32,6 +32,12 @@ try {
 		$assert( timonconfigs_home_has_section( 'hero' ), 'Schema sees a present Hero block.' );
 		$assert( ! timonconfigs_home_has_section( 'faq' ), 'A removed FAQ cannot produce invisible schema content.' );
 		$assert( ! timonconfigs_home_has_section( 'videos' ), 'A removed video section is absent from schema visibility.' );
+		$posts_override = static fn() => 'posts';
+		add_filter( 'pre_option_show_on_front', $posts_override );
+		try {
+			$assert( timonconfigs_home_has_section( 'faq' ) && timonconfigs_home_has_section( 'videos' ), 'Latest-posts mode uses the rendered default sections instead of stale static-page content.' );
+			$assert( ! timonconfigs_home_has_section( 'unknown-section' ), 'Default storefront visibility still rejects unknown sections.' );
+		} finally { remove_filter( 'pre_option_show_on_front', $posts_override ); }
 	} finally { remove_filter( 'pre_option_page_on_front', $home_override ); }
 	WP_CLI::success( sprintf( 'Gutenberg block integration: %d assertions passed.', $checks ) );
 } finally {
