@@ -1,5 +1,7 @@
 # TimonConfigs — następna zmiana panelu członka w Astra Medium
 
+**Status:** etap prezentacji został zaimplementowany w theme 0.9.0 / Core 0.7.0. Wyniki i zakres są w `MEMBER_DASHBOARD_0.9.md`. Poniższe wymagania pozostają referencją; testy rzeczywistego Discorda i hostingu nadal wymagają HTTPS stagingu oraz konfiguracji właściciela.
+
 ## Ustalenie właściciela i źródło referencji
 
 Właściciel wskazał coldz.pro oraz cztery zrzuty: przycisk Member login, kartę logowania, ekran zgody Discorda i zalogowany dashboard. Chce podobnego przepływu w późniejszym etapie Astra Medium. Ten dokument zapisuje wymaganie; nie oznacza wdrożenia nowego interfejsu ani aktywacji OAuth.

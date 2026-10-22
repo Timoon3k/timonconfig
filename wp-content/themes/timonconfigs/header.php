@@ -33,7 +33,7 @@ defined( 'ABSPATH' ) || exit;
 				)
 			);
 			?>
-			<?php if ( class_exists( 'TC_Member_Area' ) ) : ?><a class="tc-header-account" href="<?php echo esc_url( home_url( '/account/' ) ); ?>"><?php echo is_user_logged_in() ? esc_html__( 'Profile', 'timonconfigs' ) : esc_html__( 'Account', 'timonconfigs' ); ?></a><?php endif; ?>
+			<?php if ( class_exists( 'TC_Member_Area' ) ) : ?><a class="tc-header-account" href="<?php echo esc_url( home_url( '/account/' ) ); ?>"><?php echo timonconfigs_icon( 'users' ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?><?php echo is_user_logged_in() ? esc_html__( 'Profile', 'timonconfigs' ) : esc_html__( 'Member login', 'timonconfigs' ); ?></a><?php endif; ?>
 			<a class="tc-button tc-button--small tc-button--ghost tc-header-discord" href="<?php echo esc_url( timonconfigs_community_url() ); ?>"><?php echo timonconfigs_icon( 'discord' ); // phpcs:ignore ?>Join Discord</a>
 			<a class="tc-button tc-button--small" href="<?php echo esc_url( get_theme_mod( 'timonconfigs_hero_cta_url', home_url( '/pricing/' ) ) ); ?>"><?php echo esc_html( get_theme_mod( 'timonconfigs_hero_cta', 'Get Started' ) ); ?></a>
 		</nav>

@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.8.0' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.9.0' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 require_once get_template_directory() . '/inc/seo.php';
@@ -55,6 +55,10 @@ add_filter(
 	'body_class',
 	static function ( array $classes ): array {
 		$classes[] = 'tc-site';
+		if ( class_exists( 'TC_Member_Area' ) && TC_Member_Area::is_member_request() ) {
+			$classes[] = 'tc-member-page';
+			$classes[] = is_user_logged_in() ? 'tc-member-page--owner' : 'tc-member-page--guest';
+		}
 		return $classes;
 	}
 );

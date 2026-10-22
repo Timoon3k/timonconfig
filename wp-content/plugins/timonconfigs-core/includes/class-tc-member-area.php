@@ -111,12 +111,59 @@ final class TC_Member_Area {
 	private static function navigation( bool $downloads ): void {
 		?>
 		<nav class="tc-member-nav" aria-label="Member navigation">
-			<a href="<?php echo esc_url( self::account_url() ); ?>" <?php if ( ! $downloads ) : ?>aria-current="page"<?php endif; ?>>Profile</a>
+			<a href="<?php echo esc_url( self::account_url() ); ?>" <?php if ( ! $downloads ) : ?>aria-current="page"<?php endif; ?>>Dashboard</a>
+			<a href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">Configs</a>
 			<a href="<?php echo esc_url( home_url( '/my-downloads/' ) ); ?>" <?php if ( $downloads ) : ?>aria-current="page"<?php endif; ?>>My Downloads</a>
 			<a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Browse Memberships</a>
 			<a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Support</a>
 			<?php if ( is_user_logged_in() && class_exists( 'TC_Discord' ) && is_callable( array( 'TC_Discord', 'logout_url' ) ) ) : ?><a href="<?php echo esc_url( TC_Discord::logout_url() ); ?>">Logout</a><?php endif; ?>
 		</nav>
+		<?php
+	}
+
+	/** Decorative icons are optional when the plugin is used with another theme. */
+	private static function icon( string $name ): string {
+		return function_exists( 'timonconfigs_icon' ) ? timonconfigs_icon( $name ) : '';
+	}
+
+	private static function login_card(): void {
+		?>
+		<div class="tc-member-login">
+			<section class="tc-member-login__card" aria-labelledby="tc-member-login-heading">
+				<p class="tc-eyebrow">PRIVATE MEMBER AREA</p>
+				<div class="tc-member-login__brand"><?php
+					if ( locate_template( 'template-parts/brand.php' ) ) { get_template_part( 'template-parts/brand' ); }
+					else { echo esc_html( get_bloginfo( 'name' ) ); }
+				?></div>
+				<h2 id="tc-member-login-heading">Your setup. Your library.</h2>
+				<p>Sign in to explore your configs, access protected releases and manage your member profile.</p>
+				<div class="tc-member-login__action">
+					<?php if ( self::ready() ) : ?><a class="tc-button" href="<?php echo esc_url( TC_Discord::login_url() ); ?>"><?php echo self::icon( 'discord' ); ?>Continue with Discord</a>
+					<?php else : ?><button class="tc-button" disabled aria-describedby="tc-discord-unavailable"><?php echo self::icon( 'discord' ); ?>Continue with Discord</button><?php endif; ?>
+				</div>
+				<?php if ( ! self::ready() ) : ?><p id="tc-discord-unavailable" class="tc-member-note" role="status">Discord sign-in is not available yet. You can still browse configs and membership options.</p><?php endif; ?>
+				<p class="tc-member-login__verification"><?php echo self::icon( 'shield' ); ?><span>Access is verified through your TimonConfigs Discord roles.</span></p>
+			</section>
+			<nav class="tc-member-login__links" aria-label="Member navigation"><a href="<?php echo esc_url( home_url( '/' ) ); ?>">← Back to homepage</a><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Browse Memberships</a></nav>
+			<p class="tc-member-login__legal"><a href="<?php echo esc_url( home_url( '/privacy-policy/' ) ); ?>">Privacy Policy</a><span aria-hidden="true"> · </span><a href="<?php echo esc_url( home_url( '/terms-of-service/' ) ); ?>">Terms of Service</a></p>
+		</div>
+		<?php
+	}
+
+	private static function quick_actions(): void {
+		$actions = array(
+			array( 'gamepad', 'View Configs', 'Find your next setup by game and device.', home_url( '/configs/' ) ),
+			array( 'download', 'My Downloads', 'Open the releases available to your membership.', home_url( '/my-downloads/' ) ),
+			array( 'users', 'Your Profile', 'Check your Discord connection and access.', self::account_url() . '#tc-member-profile' ),
+			array( 'discord', 'Support', 'Get help with your setup or membership.', home_url( '/contact/' ) ),
+		);
+		?>
+		<section class="tc-member-quick" aria-labelledby="tc-member-quick-heading">
+			<div class="tc-member-section-heading"><h2 id="tc-member-quick-heading">Quick actions</h2></div>
+			<div class="tc-member-quick__grid"><?php foreach ( $actions as $action ) : ?>
+				<a class="tc-member-quick__card" href="<?php echo esc_url( $action[3] ); ?>"><span class="tc-member-quick__icon"><?php echo self::icon( $action[0] ); ?></span><span><strong><?php echo esc_html( $action[1] ); ?></strong><span><?php echo esc_html( $action[2] ); ?></span></span><span class="tc-member-quick__arrow"><?php echo self::icon( 'arrow' ); ?></span></a>
+			<?php endforeach; ?></div>
+		</section>
 		<?php
 	}
 
@@ -127,26 +174,21 @@ final class TC_Member_Area {
 		$art = (string) get_theme_mod( 'timonconfigs_member_hero_image', '' );
 		?>
 		<div class="tc-member-area" data-member-area>
-			<?php self::navigation( $downloads ); ?>
 			<?php if ( ! is_user_logged_in() ) : ?>
-				<section class="tc-member-welcome">
-					<?php if ( $art ) : ?><img src="<?php echo esc_url( $art ); ?>" alt="" width="1200" height="420" decoding="async"><?php endif; ?>
-					<div><p class="tc-eyebrow">YOUR TIMONCONFIGS ACCOUNT</p><h2>Your setup. Your library.</h2><p>Connect the Discord account used for your TimonConfigs membership. Your current server roles determine access to protected releases.</p>
-					<div class="tc-actions"><?php if ( self::ready() ) : ?><a class="tc-button" href="<?php echo esc_url( TC_Discord::login_url() ); ?>">Continue with Discord</a><?php else : ?><button class="tc-button" disabled aria-describedby="tc-discord-unavailable">Continue with Discord</button><?php endif; ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Browse Memberships</a></div>
-					<?php if ( ! self::ready() ) : ?><p id="tc-discord-unavailable" class="tc-member-note">Discord sign-in is not available yet. You can still browse the public catalogue and membership options.</p><?php endif; ?>
-					<p class="tc-member-note">Upgrade.chat manages purchases and VIP roles. Signing in or returning from checkout does not confirm a purchase.</p></div>
-				</section>
+				<?php self::login_card(); ?>
 			<?php else : $status = self::status(); $state = (string) ( $status['state'] ?? 'unverified' ); $user = wp_get_current_user(); $name = (string) ( $status['display_name'] ?? '' ) ?: $user->display_name; $labels = array( 'unverified' => 'Verification required', 'free' => 'Free Member', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime', 'unavailable' => 'Verification unavailable' ); ?>
-				<section class="tc-member-profile" aria-labelledby="tc-profile-heading">
+				<?php self::navigation( $downloads ); ?>
+				<section id="tc-member-profile" class="tc-member-profile" aria-labelledby="tc-profile-heading" tabindex="-1">
 					<?php if ( $art ) : ?><img class="tc-member-profile__art" src="<?php echo esc_url( $art ); ?>" alt="" width="1200" height="420" decoding="async"><?php endif; ?>
-					<div class="tc-member-identity"><?php if ( ! empty( $status['avatar'] ) ) : ?><img class="tc-member-avatar" src="<?php echo esc_url( $status['avatar'], array( 'https' ) ); ?>" alt="" width="80" height="80" referrerpolicy="no-referrer"><?php else : ?><span class="tc-member-avatar tc-member-avatar--placeholder" aria-hidden="true"><?php echo esc_html( strtoupper( function_exists( 'mb_substr' ) ? mb_substr( $name, 0, 1 ) : substr( $name, 0, 1 ) ) ); ?></span><?php endif; ?><div><p class="tc-eyebrow">MEMBER PROFILE</p><h2 id="tc-profile-heading"><?php echo esc_html( $name ); ?></h2><span class="tc-member-state"><?php echo esc_html( $labels[ $state ] ?? 'Verification required' ); ?></span></div></div>
+					<div class="tc-member-identity"><?php if ( ! empty( $status['avatar'] ) ) : ?><img class="tc-member-avatar" src="<?php echo esc_url( $status['avatar'], array( 'https' ) ); ?>" alt="" width="80" height="80" referrerpolicy="no-referrer"><?php else : ?><span class="tc-member-avatar tc-member-avatar--placeholder" aria-hidden="true"><?php echo esc_html( strtoupper( function_exists( 'mb_substr' ) ? mb_substr( $name, 0, 1 ) : substr( $name, 0, 1 ) ) ); ?></span><?php endif; ?><div><p class="tc-eyebrow">WELCOME BACK</p><h2 id="tc-profile-heading"><?php echo esc_html( $name ); ?></h2><p class="tc-member-profile__intro">Your home for configs, updates and member access.</p><span class="tc-member-state" data-state="<?php echo esc_attr( $state ); ?>"><?php echo self::icon( in_array( $state, array( 'free', 'monthly', 'lifetime' ), true ) ? 'shield' : 'users' ); ?><?php echo esc_html( $labels[ $state ] ?? 'Verification required' ); ?></span></div></div>
 					<dl class="tc-member-details"><?php if ( ! empty( $status['discord_id'] ) ) : ?><div><dt>Discord User ID</dt><dd><?php echo esc_html( (string) $status['discord_id'] ); ?></dd></div><?php endif; ?><div><dt>Last Checked</dt><dd><?php echo ! empty( $status['checked_at'] ) ? esc_html( wp_date( 'j M Y, H:i T', (int) $status['checked_at'] ) ) : 'Not checked yet'; ?></dd></div><div><dt>Access verification</dt><dd><?php echo in_array( $state, array( 'free', 'monthly', 'lifetime' ), true ) ? 'Verified with Discord' : 'Required before protected downloads'; ?></dd></div></dl>
 					<div class="tc-actions"><?php if ( self::ready() ) : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( TC_Discord::refresh_url() ); ?>">Refresh Roles</a><?php if ( empty( $status['discord_id'] ) || in_array( $state, array( 'unverified', 'unavailable' ), true ) ) : ?><a class="tc-button" href="<?php echo esc_url( TC_Discord::login_url() ); ?>"><?php echo empty( $status['discord_id'] ) ? 'Continue with Discord' : 'Reconnect Discord'; ?></a><?php endif; ?><?php endif; ?><a class="tc-text-link" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Browse Memberships</a></div>
 					<?php if ( ! empty( $status['error'] ) || 'unavailable' === $state ) : ?><p class="tc-member-message" role="status"><?php echo esc_html( ! empty( $status['error'] ) ? (string) $status['error'] : 'Membership verification is temporarily unavailable. Protected files remain locked. Please try again shortly.' ); ?></p><?php elseif ( 'unverified' === $state ) : ?><p class="tc-member-note"><?php if ( ! self::ready() ) { echo 'Discord sign-in is not available yet. '; } ?>Complete verification in the TimonConfigs Discord server using the existing verification flow. Access is checked again before a protected file is served.</p><?php endif; ?>
 				</section>
+				<?php if ( ! $downloads ) { self::quick_actions(); } ?>
+				<?php if ( $downloads ) { self::library( $state ); } else { self::recent(); } ?>
 				<?php self::memberships( $state ); ?>
 				<section class="tc-member-management"><div class="tc-member-section-heading"><h2>Membership management</h2></div><p>Manage an existing subscription in the Upgrade.chat account used for your purchase. Cancellation and billing stay with Upgrade.chat and its payment providers. For a missing role or account mismatch, contact support.</p><div class="tc-actions"><a class="tc-button tc-button--ghost" href="https://upgrade.chat/" rel="noopener noreferrer">Open Upgrade.chat</a><a class="tc-text-link" href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Get membership support</a></div></section>
-				<?php if ( $downloads ) { self::library( $state ); } else { self::recent(); } ?>
 			<?php endif; ?>
 		</div>
 		<?php

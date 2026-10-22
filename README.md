@@ -55,7 +55,7 @@ find wp-content -name '*.php' -print0 | xargs -0 -n1 php -l
 The second command requires PHP CLI. A full WordPress staging smoke test remains required before deployment.
 
 
-## Visual reference and inline media (theme 0.8.0 / Core 0.6.0)
+## Visual reference and inline media (theme 0.9.0 / Core 0.7.0)
 
 The storefront follows the supplied mockup composition while retaining the real offer and omitting unverified statistics and invented reviews. The recreated wordmark and seven game covers are replaceable; use **Appearance → Customize** to provide final licensed production assets. Set the official logo under Site Identity when available.
 
@@ -81,7 +81,7 @@ After building the release ZIPs, run `bash tests/release-installation.sh` to ins
 
 ## Member library
 
-Read [member-library handoff](docs/MEMBER_LIBRARY_0.8.md) and [PR #1 review](docs/PR_1_REVIEW.md). Private uploads use a separate Docker volume outside the web root. The explicit setup provisions Profile and My Downloads in addition to the original fourteen pages. OAuth is **off** until actual client/guild/role configuration and isolated HTTPS staging tests; no secrets are bundled. Existing payment providers and Discord automation remain unchanged.
+Read [member dashboard update](docs/MEMBER_DASHBOARD_0.9.md), [member-library handoff](docs/MEMBER_LIBRARY_0.8.md) and [PR #1 review](docs/PR_1_REVIEW.md). Private uploads use a separate Docker volume outside the web root. The explicit setup provisions Profile and My Downloads in addition to the original fourteen pages. OAuth is **off** until actual client/guild/role configuration and isolated HTTPS staging tests; no secrets are bundled. Existing payment providers and Discord automation remain unchanged.
 
 New focused suites are `discord`, `private-files`, and `downloads` integration files. `tests/member-catalog-integration.php` uses service doubles and requires `--skip-plugins=timonconfigs-core`; flush rewrites with the real plugin after isolated presentation tests if needed. Browser tests are `tests/private-files-browser.cjs` and `tests/member-area-browser.cjs`; `node tests/download-stream.cjs` verifies delivery bytes and descriptor integrity. These mutate only disposable localhost data. No actual provider consent or purchase is automated.
 

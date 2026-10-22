@@ -2,6 +2,14 @@
 
 Last updated: 2026-10-22
 
+## Member login and dashboard — theme 0.9.0 / Core 0.7.0
+
+- Zrealizowano etap UI z `docs/ASTRA_MEMBER_UX_HANDOFF.md` na istniejącym module: Member login w nagłówku, centralna karta Discord z logo i linkami powrotu, dashboard Welcome back z prawdziwym statusem oraz kafelkami Configs/My Downloads/Profile/Support. Biblioteka pobrań jest przed ofertą członkostwa. Zachowano edycję treści, grafikę profilu i dostępny dla czytników tytuł strony.
+- Przejrzano rzeczywiste zrzuty lokalnego WordPressa. Odświeżono screenshot motywu 1200×900; nowe widoki członka są w ignorowanych artifacts. Wygląd wykorzystuje istniejący branding TimonConfigs.
+- Testy tego etapu: 37 nowych asercji renderowania z rzeczywistą usługą ról (mock transportu Discord), 60 OAuth, 59 pobierania; 12 przypadków HTTP panelu, 4 szerokości nagłówka, 18 widoków stanów testowych i 35 kontroli storefront. Wszystkie przeszły, podobnie PHP lint, JS/static oraz git diff --check. Sprawdzono długie nazwy, brak avatara, niedostępność API, fokus i brak wycieku prywatnych danych.
+- ZIP motywu 0.9.0 (82 pliki) i Core 0.7.0 (12 plików) są zgodne bajtowo ze źródłami. Instalacja tych paczek na oddzielnym WordPressie 6.8.3/PHP 8.2 przeszła **68 asercji**, w tym nową kartę logowania i domyślnie wyłączony OAuth; środowisko testowe usunięto. Manifest: `artifacts/dashboard-release-manifest.json`; aktualne kopie ZIP odświeżone. Nieznane pozostają rzeczywiste wyniki na Hostingerze i Discordzie.
+- OAuth pozostaje OFF do konfiguracji/testów prawdziwej aplikacji. Nie zmieniono usług autoryzacji, płatności ani nadawania ról; produkcyjny hosting pozostaje bez zmian. Raport: `docs/MEMBER_DASHBOARD_0.9.md`. Następny etap integracji: izolowany HTTPS staging i realne konta/role.
+
 ## Wymaganie następnej sesji Astra Medium — panel członka
 
 - Na polecenie właściciela kod 0.8.0 / Core 0.6.0 wypchnięto na `main` (`4138b9b`), zachowując historię. Hosting i działająca baza WordPress nie zostały wdrożone ani zmienione przez ten push.

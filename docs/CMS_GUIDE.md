@@ -32,7 +32,7 @@ The legacy access URL remains public-Free metadata for compatibility; it is not 
 
 The three Apex structures (Cronus Zen S30, XIM Matrix Controller, XIM Matrix MnK) start as drafts without fabricated files, platforms, versions, or dates.
 
-## Member library — theme 0.8.0 / Core 0.6.0
+## Member library — theme 0.9.0 / Core 0.7.0
 
 Each script is a separate Config post. Publisher, creator, release date, verified-update date, cover, description and compatibility are editable. Catalogue sorting supports upload/publication date, updated date and title; it shows twelve records per page in a 3/2/1 responsive grid. No invented download counts are displayed.
 
@@ -40,7 +40,7 @@ Open the private-file management link from a Config editor, or **Configs → Pri
 
 Configure `TIMONCONFIGS_PRIVATE_STORAGE_DIR` in wp-config to an existing writable directory outside every public web root. Local Docker provides `/var/lib/timonconfigs-private` through a separate private volume; this local path is not a Hostinger path recommendation. The module enforces 20 MB/file, 100 files/100 MB per Config and 1 GB/library, plus the host's PHP limits. GPC/JSON/TXT receive structural/content checks. Archives/executables are rejected. Binary ZNBK/XIMMR requires an approved format/malware inspector through `timonconfigs_private_file_scan`; structural checks do not certify files malware-free.
 
-The explicit setup also creates **Member Profile** (`/account/`) and **My Downloads** (`/my-downloads/`) with native shortcode blocks. Existing authored pages are preserved; insert `[timonconfigs_member_area]` or `[timonconfigs_member_downloads]` yourself if those slugs already contain custom content. Profile artwork is editable in the Customizer. The member navigation links to Profile, My Downloads, Browse Memberships, Support and nonce-protected Logout.
+The explicit setup also creates **Member Profile** (`/account/`) and **My Downloads** (`/my-downloads/`) with native shortcode blocks. Existing authored pages are preserved; insert `[timonconfigs_member_area]` or `[timonconfigs_member_downloads]` yourself if those slugs already contain custom content. Profile artwork is editable in the Customizer. The member navigation links to Dashboard, Configs, My Downloads, Browse Memberships, Support and nonce-protected Logout. Guests see a centered Discord login card; signed-in members see their welcome banner, actual access status and quick actions. The public header uses Member login / Profile. The Your Profile card returns to the profile banner; no additional account system is created.
 
 Under **Settings → Discord membership**, enter the actual client ID, secret, guild ID and immutable Free/Monthly/Lifetime role IDs. The secret field stays blank/redacted on subsequent visits; a wp-config `TIMONCONFIGS_DISCORD_CLIENT_SECRET` constant can supply it instead. OAuth starts disabled. Use an isolated HTTPS site with `WP_ENVIRONMENT_TYPE` set to `staging` for real account tests before confirming production readiness. Register the exact callback displayed by the settings screen. Enable optional PKCE only after verifying support for that Discord application.
 

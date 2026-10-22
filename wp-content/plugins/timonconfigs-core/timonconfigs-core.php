@@ -2,7 +2,7 @@
 /**
  * Plugin Name: TimonConfigs Core
  * Description: Business features for TimonConfigs, including managed Upgrade.chat checkout links.
- * Version: 0.6.0
+ * Version: 0.7.0
  * Author: TimonConfigs
  * Text Domain: timonconfigs-core
  * Requires at least: 6.5
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_CORE_VERSION', '0.6.0' );
+define( 'TIMONCONFIGS_CORE_VERSION', '0.7.0' );
 define( 'TIMONCONFIGS_CORE_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-tc-checkout.php';

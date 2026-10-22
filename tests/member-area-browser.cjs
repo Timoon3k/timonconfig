@@ -10,10 +10,22 @@ const directory = path.resolve(__dirname, '../artifacts');
 
 (async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
-  const report = { passed: false, publicChecks: [], ownerChecks: [], errors: [] };
+  const report = { passed: false, publicChecks: [], ownerChecks: [], headerChecks: [], errors: [] };
   try {
     await mkdir(directory, { recursive: true });
-    for (const width of [1440, 390]) {
+    for (const width of [1024, 1100, 1280, 1440]) {
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      await page.goto(new URL('/', baseURL).href, { waitUntil: 'domcontentloaded' });
+      const fits = await page.evaluate(() => {
+        const brand = document.querySelector('.tc-brand').getBoundingClientRect();
+        const nav = document.querySelector('.tc-nav').getBoundingClientRect();
+        return brand.right <= nav.left && nav.right <= innerWidth && document.documentElement.scrollWidth <= innerWidth;
+      });
+      assert.equal(fits, true, `Member login fits the public header at ${width}`);
+      report.headerChecks.push({ width, fits });
+      await page.close();
+    }
+    for (const width of [1440, 768, 390]) {
       const page = await browser.newPage({ viewport: { width, height: 1000 } });
       page.on('pageerror', error => report.errors.push(error.message));
       for (const route of ['/account/', '/my-downloads/']) {
@@ -27,6 +39,10 @@ const directory = path.resolve(__dirname, '../artifacts');
         assert.equal(await page.locator('h1').count(), 1);
         assert.equal(await page.locator('[data-member-area]').count(), 1);
         assert.equal(await page.getByRole('navigation', { name: 'Member navigation' }).count(), 1);
+        assert.equal(await page.locator('.tc-member-login__card').count(), 1);
+        assert.equal(await page.locator('.tc-member-login__brand img').evaluate(img => img.complete && img.naturalWidth > 0), true, 'The actual brand image loads');
+        assert.equal(await page.locator('.tc-header-account').innerText(), 'Member login');
+        assert.equal(new URL(await page.getByRole('link', { name: '← Back to homepage', exact: true }).getAttribute('href')).pathname, '/');
         const browse = page.getByRole('link', { name: 'Browse Memberships', exact: true }).first();
         assert.equal(new URL(await browse.getAttribute('href'), baseURL).pathname, '/pricing/');
         assert.equal(await page.getByRole('link', { name: 'Logout', exact: true }).count(), 0, 'Guests never receive member logout actions');
@@ -54,13 +70,20 @@ const directory = path.resolve(__dirname, '../artifacts');
       await owner.locator('#user_login').fill(process.env.TC_TEST_ADMIN_USER || 'timonadmin');
       await owner.locator('#user_pass').fill(process.env.TC_TEST_ADMIN_PASSWORD || 'local-preview-only');
       await Promise.all([owner.waitForURL(url => url.pathname.startsWith('/wp-admin/')), owner.locator('#wp-submit').click()]);
-      for (const width of [1440, 390]) {
+      for (const width of [1440, 768, 390]) {
         await owner.setViewportSize({ width, height: 1000 });
         for (const route of ['/account/?member_id=999999999', '/my-downloads/?member_id=999999999']) {
           const response = await owner.goto(new URL(route, baseURL).href, { waitUntil: 'networkidle' });
           assert.equal(response.status(), 200);
           assert.match(response.headers()['cache-control'] || '', /no-store/);
           assert.equal(await owner.locator('.tc-member-identity').count(), 1);
+          assert.equal(await owner.locator('.tc-member-login__card').count(), 0);
+          const isDownloads = route.startsWith('/my-downloads/');
+          assert.equal(await owner.locator('.tc-member-quick__card').count(), isDownloads ? 0 : 4);
+          if (!isDownloads) {
+            const destinations = await owner.locator('.tc-member-quick__card').evaluateAll(links => links.map(link => new URL(link.href).pathname + new URL(link.href).hash));
+            assert.deepEqual(destinations, ['/configs/', '/my-downloads/', '/account/#tc-member-profile', '/contact/']);
+          }
           assert.equal(await owner.locator('.tc-member-plan').count(), 3);
           assert.equal(await owner.getByRole('link', { name: 'Logout', exact: true }).count(), 1);
           assert.equal(await owner.locator('.tc-member-state').innerText(), 'Verification required', 'The disposable admin is not granted a simulated VIP membership');
@@ -69,15 +92,20 @@ const directory = path.resolve(__dirname, '../artifacts');
           assert.equal(await owner.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
           const schemas = await owner.locator('script[type="application/ld+json"]').allTextContents();
           assert.equal(/discord_id|Last Checked|tc-member-state/.test(schemas.join('\n')), false, 'Owner-specific membership details are absent from schema');
+          if (!isDownloads) {
+            await owner.locator('.tc-member-quick__card').nth(2).click();
+            assert.equal(new URL(owner.url()).hash, '#tc-member-profile');
+          }
           report.ownerChecks.push({ route, width, status: 200, state: 'unverified', ownerOnly: true });
+          await owner.evaluate(() => { document.activeElement?.blur(); window.scrollTo({ top: 0, behavior: 'instant' }); });
+          await owner.screenshot({ path: path.join(directory, `member-${isDownloads ? 'downloads' : 'profile'}-owner-${width}.png`), fullPage: true });
         }
       }
-      await owner.screenshot({ path: path.join(directory, 'member-profile-owner-390.png'), fullPage: true });
       await owner.close();
     }
     assert.deepEqual(report.errors, []);
     report.passed = true;
-    console.log(JSON.stringify({ passed: true, publicChecks: report.publicChecks.length, ownerChecks: report.ownerChecks.length }, null, 2));
+    console.log(JSON.stringify({ passed: true, publicChecks: report.publicChecks.length, ownerChecks: report.ownerChecks.length, headerChecks: report.headerChecks.length }, null, 2));
   } finally {
     await browser.close();
     await mkdir(directory, { recursive: true });
