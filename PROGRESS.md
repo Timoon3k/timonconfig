@@ -2,6 +2,13 @@
 
 Last updated: 2026-10-22
 
+## Wymaganie następnej sesji Astra Medium — panel członka
+
+- Na polecenie właściciela kod 0.8.0 / Core 0.6.0 wypchnięto na `main` (`4138b9b`), zachowując historię. Hosting i działająca baza WordPress nie zostały wdrożone ani zmienione przez ten push.
+- Właściciel wskazał zrzuty coldz.pro jako wzorzec późniejszej zmiany UX: Member login → centralna karta → autoryzacja Discord → dashboard z avatarem/nazwą, aktualnym statusem i szybkimi akcjami.
+- Zapisano konkretny handoff i kryteria odbioru w `docs/ASTRA_MEMBER_UX_HANDOFF.md`. Należy rozszerzyć istniejący moduł, użyć stylistyki TimonConfigs i zachować faktyczne plany Free/Monthly/Lifetime oraz integracje. Nie dodano nowego UI, nie aktywowano OAuth ani nie zmieniono płatności.
+- Bezpośrednie odczyty publicznych coldz.pro i /login odrzuciło proxy (`403` przy zestawianiu tunelu). Analiza dotyczy dostarczonych zrzutów, nie zweryfikowanego działania obcego zaplecza. Zmiana obejmuje wyłącznie dokumentację; sprawdzenie: linki lokalne i `git diff --check`.
+
 ## Member library implementation checkpoint — theme 0.8.0 / Core 0.6.0
 
 - Continued PR #1 on `feature/member-library-oauth-handoff`, preserving the 0.7.1 storefront and original private-upload work. The PR head was read from Git; GitHub's GraphQL API was unavailable. Review findings are in `docs/PR_1_REVIEW.md`.
