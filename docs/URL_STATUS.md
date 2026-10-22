@@ -2,7 +2,7 @@
 
 This report records observed checks. Local responses do not establish deployment to the public website. A CONNECT/proxy failure is an environment access failure, not an observed WordPress HTTP response.
 
-Local run: 2026-10-22T01:18:08.571Z.
+Local run: 2026-10-22T19:33:46.170Z.
 Public run: 2026-10-22T01:21:08.869Z.
 
 | Route | Local HTTP | H1 | Canonical count | Robots | Public result |
@@ -49,7 +49,7 @@ These are single local browser observations under the current machine load. They
 
 | Viewport | LCP (ms) | CLS | Observed interaction duration (ms) |
 | --- | ---: | ---: | ---: |
-| 1440px | 112 | 0 | 56 |
+| 1440px | 124 | 0 | 56 |
 | 390px | 88 | 0 | 56 |
 
 ## Additional Gutenberg UI verification

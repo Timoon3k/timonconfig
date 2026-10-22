@@ -158,6 +158,8 @@ final class TC_Downloads {
 
 	public static function cleanup(): void {
 		global $wpdb;
-		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s AND CAST(option_value AS UNSIGNED) < %d", $wpdb->esc_like( self::CLAIM_PREFIX ) . '%', time() ) );
+		$names = $wpdb->get_col( $wpdb->prepare( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s AND CAST(option_value AS UNSIGNED) < %d LIMIT 1000", $wpdb->esc_like( self::CLAIM_PREFIX ) . '%', time() ) );
+		foreach ( $names as $name ) { delete_option( $name ); } // Also evicts persistent object-cache entries.
+		if ( 1000 === count( $names ) && ! wp_next_scheduled( 'tc_download_cleanup' ) ) { wp_schedule_single_event( time() + 30, 'tc_download_cleanup' ); }
 	}
 }

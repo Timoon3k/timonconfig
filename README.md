@@ -5,7 +5,7 @@ Custom WordPress theme and business plugin for `timonconfigs.com`.
 ## Components
 
 - `wp-content/themes/timonconfigs` — premium marketing theme with Home, Pricing, Games, VIP plan landings, video showcase, FAQ, Contact, policy pages, config catalogue templates, block patterns, responsive navigation, and SEO metadata.
-- `wp-content/plugins/timonconfigs-core` — validated Upgrade.chat checkout redirects, site provisioning, editable config/game/device/platform models, FAQs, videos, reviews, and SEO indexing settings.
+- `wp-content/plugins/timonconfigs-core` — existing Upgrade.chat redirects, editable catalogue/CMS/SEO, private multi-file management, disabled-by-default Discord OAuth/role checks, member pages and protected session-bound downloads.
 
 The production site needs WordPress 6.5+ and PHP 8.1+. No Node.js server is required at runtime.
 
@@ -55,7 +55,7 @@ find wp-content -name '*.php' -print0 | xargs -0 -n1 php -l
 The second command requires PHP CLI. A full WordPress staging smoke test remains required before deployment.
 
 
-## Visual reference and inline media (theme 0.7.1 / Core 0.5.0)
+## Visual reference and inline media (theme 0.8.0 / Core 0.6.0)
 
 The storefront follows the supplied mockup composition while retaining the real offer and omitting unverified statistics and invented reviews. The recreated wordmark and seven game covers are replaceable; use **Appearance → Customize** to provide final licensed production assets. Set the official logo under Site Identity when available.
 
@@ -78,3 +78,11 @@ Run `node tools/capture-storefront.cjs` to capture the current Home at 1440, 102
 See [CMS guide](docs/CMS_GUIDE.md), [installation and update steps](docs/INSTALL_UPDATE.md), and [observed URL results](docs/URL_STATUS.md). Full route/SEO/CMS browser checks run with `node tests/website-browser.cjs`; integration tests run with `docker compose -f docker-compose.local.yml run --rm -T cli wp eval-file - < tests/<name>-integration.php` for `catalog`, `seo`, `video`, `site`, `blocks`, `editorial`, and `checkout`. The checkout suite performs validation only and never starts a purchase. Run `node tests/video-browser.cjs` for focused inline/modal playback tests.
 
 After building the release ZIPs, run `bash tests/release-installation.sh` to install and activate the actual packages in a separate, disposable WordPress. It uses cached Docker images and an internal network, checks the fresh content model and repeat installation, then removes its own test resources. It never uses the existing local database. Optional arguments select another theme ZIP and Core ZIP, in that order.
+
+## Member library
+
+Read [member-library handoff](docs/MEMBER_LIBRARY_0.8.md) and [PR #1 review](docs/PR_1_REVIEW.md). Private uploads use a separate Docker volume outside the web root. The explicit setup provisions Profile and My Downloads in addition to the original fourteen pages. OAuth is **off** until actual client/guild/role configuration and isolated HTTPS staging tests; no secrets are bundled. Existing payment providers and Discord automation remain unchanged.
+
+New focused suites are `discord`, `private-files`, and `downloads` integration files. `tests/member-catalog-integration.php` uses service doubles and requires `--skip-plugins=timonconfigs-core`; flush rewrites with the real plugin after isolated presentation tests if needed. Browser tests are `tests/private-files-browser.cjs` and `tests/member-area-browser.cjs`; `node tests/download-stream.cjs` verifies delivery bytes and descriptor integrity. These mutate only disposable localhost data. No actual provider consent or purchase is automated.
+
+`node tools/capture-theme-screenshot.cjs` creates the real 1200x900 WordPress screenshot and separately retains untouched full-page captures; its compact-preview mode is documented in the tool/report.

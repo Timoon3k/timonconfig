@@ -28,9 +28,27 @@ Empty, unavailable, and archived-only collections are automatically excluded fro
 
 Config fields include title, short/full description, featured image, Game, Device, Platform, input method, access tier, config version, supported game version, last update, confirmed compatibility, tutorial URL, changelog, and release status.
 
-The access URL is a **public Free resource only**. It is omitted from REST metadata, cleared when saving a premium tier in the admin form, and rendered only for an available published Free release. Premium files must not be uploaded to the public Media Library or entered as public access URLs. The protected membership-download service remains a separate implementation task.
+The legacy access URL remains public-Free metadata for compatibility; it is not the new member download pipeline and is no longer rendered as a protected script link. Store member files through **Configs → Private files**, outside the public Media Library. Premium files must not be entered as public access URLs.
 
 The three Apex structures (Cronus Zen S30, XIM Matrix Controller, XIM Matrix MnK) start as drafts without fabricated files, platforms, versions, or dates.
+
+## Member library — theme 0.8.0 / Core 0.6.0
+
+Each script is a separate Config post. Publisher, creator, release date, verified-update date, cover, description and compatibility are editable. Catalogue sorting supports upload/publication date, updated date and title; it shows twelve records per page in a 3/2/1 responsive grid. No invented download counts are displayed.
+
+Open the private-file management link from a Config editor, or **Configs → Private files**, and select the Config. Upload up to ten files per operation. Duplicate original names create separate opaque records. Edit version, notes and numeric order; replacement/deletion require explicit confirmation and append audit events. Replacing a file gives it a new ID. Existing ZIP/unsupported records are not offered for download; legacy files without checksums require revalidation/re-upload.
+
+Configure `TIMONCONFIGS_PRIVATE_STORAGE_DIR` in wp-config to an existing writable directory outside every public web root. Local Docker provides `/var/lib/timonconfigs-private` through a separate private volume; this local path is not a Hostinger path recommendation. The module enforces 20 MB/file, 100 files/100 MB per Config and 1 GB/library, plus the host's PHP limits. GPC/JSON/TXT receive structural/content checks. Archives/executables are rejected. Binary ZNBK/XIMMR requires an approved format/malware inspector through `timonconfigs_private_file_scan`; structural checks do not certify files malware-free.
+
+The explicit setup also creates **Member Profile** (`/account/`) and **My Downloads** (`/my-downloads/`) with native shortcode blocks. Existing authored pages are preserved; insert `[timonconfigs_member_area]` or `[timonconfigs_member_downloads]` yourself if those slugs already contain custom content. Profile artwork is editable in the Customizer. The member navigation links to Profile, My Downloads, Browse Memberships, Support and nonce-protected Logout.
+
+Under **Settings → Discord membership**, enter the actual client ID, secret, guild ID and immutable Free/Monthly/Lifetime role IDs. The secret field stays blank/redacted on subsequent visits; a wp-config `TIMONCONFIGS_DISCORD_CLIENT_SECRET` constant can supply it instead. OAuth starts disabled. Use an isolated HTTPS site with `WP_ENVIRONMENT_TYPE` set to `staging` for real account tests before confirming production readiness. Register the exact callback displayed by the settings screen. Enable optional PKCE only after verifying support for that Discord application.
+
+New Discord members receive subscriber accounts with opaque WordPress logins, linked by verified Discord ID. Existing WordPress accounts are never automatically linked by email or username; any existing-account migration needs a separate deliberate process. Use a logged-out/private browser when testing a new member identity.
+
+Access policy: verified Free/Monthly/Lifetime can download Free; Monthly or Lifetime can download Monthly; only Lifetime can download Lifetime. All releases must be published, password-free and explicitly marked Available. Roles are read from the configured Discord guild, cached for at most 60 seconds, and denied on failed/expired verification. Upgrade.chat remains responsible for paid roles; Security Bot remains responsible for verification. Refresh Roles is rate-limited to ten seconds.
+
+Download buttons submit a nonce-protected POST and receive a one-use, session-bound signed link valid for sixty seconds. Delivery rechecks current bounded authorization, file ownership/path/integrity and the opened file descriptor's checksum. Recent downloads record completed server delivery, not a claim that the client successfully installed a script. Account/download responses are private/no-store/noindex; exclude these paths and OAuth/download query endpoints from host/CDN caching before staging acceptance. See `MEMBER_LIBRARY_0.8.md` for deployment requirements and rollback.
 
 ## Video showcase
 

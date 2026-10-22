@@ -11,9 +11,9 @@ $https = static fn() => 'https://localhost:8080';
 $roles = array(); $mode = 'ok'; $requests = array(); $id = '900000000000000001';
 $http = static function ( $pre, $args, $url ) use ( &$roles, &$mode, &$requests, $id ) {
     $requests[] = array( $url, $args );
-    if ( ! str_starts_with( $url, 'https://discord.com/api/v10/' ) ) { throw new RuntimeException( 'Unexpected outbound request blocked.' ); }
+    if ( ! str_starts_with( $url, 'https://discord.com/api/v10/users/' ) && ! in_array( $url, array( 'https://discord.com/api/oauth2/token', 'https://discord.com/api/oauth2/token/revoke' ), true ) ) { throw new RuntimeException( 'Unexpected outbound request blocked.' ); }
     if ( 'error' === $mode ) { return new WP_Error( 'fake', 'Never expose upstream details' ); }
-    if ( str_ends_with( $url, '/oauth2/token' ) ) { $body = array( 'access_token' => 'fake-access-new', 'refresh_token' => 'fake-refresh-new', 'token_type' => 'Bearer', 'scope' => 'identify guilds.members.read', 'expires_in' => 3600 ); }
+    if ( str_ends_with( $url, '/oauth2/token' ) ) { $body = array( 'access_token' => 'fake-access-new', 'refresh_token' => 'fake-refresh-new', 'token_type' => 'Bearer', 'scope' => 'identify guilds.members.read', 'expires_in' => 3600 ); if ( 'scope-array' === $mode ) { $body['scope'] = array( 'identify' ); } if ( 'expiry-negative' === $mode ) { $body['expires_in'] = -1; } }
     else { $body = array( 'user' => array( 'id' => 'wrong-user' === $mode ? '900000000000000099' : $id ), 'roles' => $roles ); if ( 'wrong-guild' === $mode ) { $body['guild_id'] = '900000000000000099'; } }
     return array( 'response' => array( 'code' => 200 ), 'body' => wp_json_encode( $body ), 'headers' => array() );
 };
@@ -24,6 +24,8 @@ try {
     $settings = array( 'enabled' => 1, 'staging_confirmed' => 1, 'pkce' => 1, 'client_id' => '900000000000000002', 'guild_id' => '900000000000000003', 'free_role' => '900000000000000004', 'monthly_role' => '900000000000000005', 'lifetime_role' => '900000000000000006', 'secret_encrypted' => $call( 'encrypt', 'fake-client-secret' ) );
     update_option( 'timonconfigs_discord', $settings, false );
     $assert( TC_Discord::is_ready(), 'Explicit fake configured staging is ready.' );
+    foreach ( array( 'scope-array', 'expiry-negative' ) as $bad_response ) { $mode = $bad_response; $assert( is_wp_error( $call( 'token_request', array( 'grant_type' => 'authorization_code', 'code' => 'synthetic' ) ) ), 'Malformed provider response fails closed without PHP diagnostics: ' . $mode ); }
+    $mode = 'ok';
     $cipher = $call( 'encrypt', 'secret-test' );
     $assert( ! str_contains( $cipher, 'secret-test' ) && 'secret-test' === $call( 'decrypt', $cipher ), 'Authenticated encryption round-trip.' );
     $assert( '' === $call( 'decrypt', substr( $cipher, 0, -4 ) . 'AAAA' ), 'Tampering rejected.' );
@@ -41,6 +43,7 @@ try {
     $assert( is_wp_error( $call( 'validate_state', $state['state'], $state['cookie'] ) ), 'Expired state denied.' );
     $uid = $call( 'bind', array( 'id' => $id, 'username' => 'Fake tester' ) );
     $assert( is_int( $uid ), 'Snowflake-only user created.' ); $uids[] = $uid;
+    $assert( ! str_contains( get_userdata( $uid )->user_login, $id ) && ! str_contains( get_userdata( $uid )->user_nicename, $id ), 'Discord ID does not leak through WordPress login or public author slug.' );
     $assert( $uid === $call( 'bind', array( 'id' => $id, 'username' => 'Renamed' ) ), 'Stable unique identity binding.' );
     $assert( is_wp_error( $call( 'bind', array( 'id' => 'bad', 'email' => get_userdata( $uid )->user_email ) ) ), 'Malformed identity cannot email-link.' );
     wp_set_current_user( $uid );
@@ -63,6 +66,7 @@ try {
     $roles = array( $settings['lifetime_role'] ); $seed( 1 );
     $assert( 'lifetime' === TC_Discord::status()['state'], 'Expiring token proactively refreshed.' );
     $assert( 'fake-access-new' === json_decode( $call( 'decrypt', get_user_meta( $uid, '_tc_discord_token', true ) ), true )['access_token'], 'Rotated token persisted encrypted.' );
+    $assert( in_array( 'https://discord.com/api/oauth2/token', array_column( $requests, 0 ), true ), 'Token exchange uses the documented OAuth endpoint.' );
     foreach ( array( 'error', 'wrong-guild', 'wrong-user' ) as $failure ) { $mode = $failure; $seed(); $assert( 'unavailable' === TC_Discord::status()['state'], 'Fail closed: ' . $failure ); $assert( is_wp_error( TC_Discord::can_access( $post ) ), 'Unavailable is explicit WP_Error.' ); }
     $mode = 'ok'; $seed(); add_option( '_tc_discord_lock_' . $uid, time() + 30, '', false );
     $assert( 'unavailable' === TC_Discord::status()['state'], 'Concurrent refresh never serves stale roles.' ); delete_option( '_tc_discord_lock_' . $uid );
@@ -90,6 +94,8 @@ try {
     remove_filter( 'pre_http_request', $race, 9 );
     $state = $call( 'create_state' ); $states[] = $state['state']; wp_set_current_user( 0 );
     $assert( is_wp_error( $call( 'validate_state', $state['state'], $state['cookie'] ) ), 'State bound to initiating WordPress session.' );
+    $settings['staging_confirmed'] = 0; update_option( 'timonconfigs_discord', $settings, false );
+    $assert( TC_Discord::is_ready() === in_array( wp_get_environment_type(), array( 'local', 'development', 'staging' ), true ), 'Unconfirmed OAuth is restricted to explicitly configured test environments.' );
     $settings['enabled'] = 0; update_option( 'timonconfigs_discord', $settings, false );
     $assert( ! TC_Discord::is_ready() && TC_Discord::login_url() === home_url( '/account/' ), 'Disabled mode has no OAuth handoff.' );
     WP_CLI::success( "Discord integration: $checks assertions; fake HTTP only, no real Discord verification." );

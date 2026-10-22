@@ -9,6 +9,9 @@ final class TC_Discord {
     private const API = 'https://discord.com/api/v10';
 
     public static function init(): void {
+        add_action( 'init', static function (): void {
+            if ( array_intersect( array( 'tc_discord_start', 'tc_discord_callback', 'tc_discord_logout', 'tc_discord_refresh' ), array_keys( $_GET ) ) && ! defined( 'DONOTCACHEPAGE' ) ) { define( 'DONOTCACHEPAGE', true ); }
+        }, 0 );
         add_action( 'template_redirect', array( __CLASS__, 'route' ), 0 );
         add_action( 'admin_menu', static function () { add_options_page( 'Discord membership', 'Discord membership', 'manage_options', 'tc-discord', array( __CLASS__, 'settings_page' ) ); } );
         add_action( 'admin_init', static function () { register_setting( 'tc_discord', self::OPTION, array( 'sanitize_callback' => array( __CLASS__, 'sanitize_settings' ), 'show_in_rest' => false ) ); } );
@@ -23,7 +26,8 @@ final class TC_Discord {
     private static function snowflake( mixed $v ): bool { return is_string( $v ) && 1 === preg_match( '/^[1-9][0-9]{16,19}$/D', $v ); }
     public static function is_ready(): bool {
         $s = self::settings();
-        if ( empty( $s['enabled'] ) || empty( $s['staging_confirmed'] ) || empty( $s['client_secret'] ) || 'https' !== wp_parse_url( home_url( '/' ), PHP_URL_SCHEME ) || ! function_exists( 'openssl_encrypt' ) ) { return false; }
+        $testing = in_array( wp_get_environment_type(), array( 'local', 'development', 'staging' ), true );
+        if ( empty( $s['enabled'] ) || ( ! $testing && empty( $s['staging_confirmed'] ) ) || ! is_string( $s['client_secret'] ) || '' === $s['client_secret'] || 'https' !== wp_parse_url( home_url( '/' ), PHP_URL_SCHEME ) || ! function_exists( 'openssl_encrypt' ) ) { return false; }
         foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role' ) as $k ) { if ( ! self::snowflake( $s[ $k ] ?? null ) ) { return false; } }
         return 3 === count( array_unique( array( $s['free_role'], $s['monthly_role'], $s['lifetime_role'] ) ) );
     }
@@ -43,7 +47,7 @@ final class TC_Discord {
     public static function settings_page(): void {
         if ( ! current_user_can( 'manage_options' ) ) { return; }
         $s = self::settings();
-        echo '<div class="wrap"><h1>Discord membership</h1><p>Disabled until credentials, guild, roles and real staging account tests are confirmed. Scope: identify guilds.members.read. No role writes. Free accepts all verified plans; Monthly accepts Monthly or Lifetime; Lifetime accepts Lifetime only. Role cache expires after 60 seconds; API errors deny access.</p><p>Register this exact callback: <code>' . esc_html( home_url( '/?tc_discord_callback=1' ) ) . '</code></p><form method="post" action="options.php">';
+        echo '<div class="wrap"><h1>Discord membership</h1><p>Disabled until configured. Production additionally requires confirmed real staging account tests. Set WP_ENVIRONMENT_TYPE to staging on an isolated HTTPS staging site to run those tests before production confirmation. Scope: identify guilds.members.read. No role writes. Free accepts all verified plans; Monthly accepts Monthly or Lifetime; Lifetime accepts Lifetime only. Role cache expires after 60 seconds; API errors deny access.</p><p>Register this exact callback: <code>' . esc_html( home_url( '/?tc_discord_callback=1' ) ) . '</code></p><form method="post" action="options.php">';
         settings_fields( 'tc_discord' );
         foreach ( array( 'enabled' => 'Enable OAuth', 'staging_confirmed' => 'I confirmed IDs, policy and real account tests on isolated staging', 'pkce' => 'Send PKCE S256 (enable only after Discord application support is verified; not live verified by this code)' ) as $k => $label ) { echo '<p><label><input type="checkbox" name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="1" ' . checked( ! empty( $s[ $k ] ), true, false ) . '> ' . esc_html( $label ) . '</label></p>'; }
         foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role' ) as $k ) { echo '<p><label>' . esc_html( ucwords( str_replace( '_', ' ', $k ) ) ) . ' <input name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="' . esc_attr( $s[ $k ] ?? '' ) . '" pattern="[0-9]{17,20}"></label></p>'; }
@@ -99,7 +103,8 @@ final class TC_Discord {
         $args = array( 'timeout' => 12, 'redirection' => 0, 'limit_response_size' => 65536, 'headers' => array( 'Accept' => 'application/json' ) );
         if ( null !== $body ) { $args['method'] = 'POST'; $args['body'] = $body; }
         if ( $token ) { $args['headers']['Authorization'] = 'Bearer ' . $token; }
-        $r = wp_remote_request( self::API . $path, $args );
+        $endpoint = str_starts_with( $path, '/oauth2/' ) ? 'https://discord.com/api' . $path : self::API . $path;
+        $r = wp_remote_request( $endpoint, $args );
         if ( is_wp_error( $r ) || 200 !== wp_remote_retrieve_response_code( $r ) ) { return self::error(); }
         $data = json_decode( wp_remote_retrieve_body( $r ), true );
         return is_array( $data ) ? $data : self::error();
@@ -107,7 +112,7 @@ final class TC_Discord {
     private static function token_request( array $params ): array|WP_Error {
         $s = self::settings();
         $r = self::request( '/oauth2/token', array_merge( array( 'client_id' => $s['client_id'], 'client_secret' => $s['client_secret'] ), $params ) );
-        if ( is_wp_error( $r ) || ! is_string( $r['access_token'] ?? null ) || ! is_string( $r['refresh_token'] ?? null ) || empty( $r['expires_in'] ) || 'Bearer' !== ( $r['token_type'] ?? '' ) ) { return self::error(); }
+        if ( is_wp_error( $r ) || ! is_string( $r['access_token'] ?? null ) || '' === $r['access_token'] || ! is_string( $r['refresh_token'] ?? null ) || '' === $r['refresh_token'] || ! is_int( $r['expires_in'] ?? null ) || $r['expires_in'] <= 0 || ! is_string( $r['scope'] ?? null ) || 'Bearer' !== ( $r['token_type'] ?? '' ) ) { return self::error(); }
         $scopes = explode( ' ', $r['scope'] ?? '' );
         if ( array_diff( array( 'identify', 'guilds.members.read' ), $scopes ) || array_diff( $scopes, array( 'identify', 'guilds.members.read' ) ) ) { return self::error(); }
         return array( 'access_token' => $r['access_token'], 'refresh_token' => $r['refresh_token'], 'expires' => time() + min( 604800, absint( $r['expires_in'] ) ) );
@@ -121,7 +126,8 @@ final class TC_Discord {
         if ( $bound ) { return get_userdata( $bound ) && ( ! $current || $current === $bound ) && $id === get_user_meta( $bound, '_tc_discord_id', true ) ? $bound : self::error(); }
         // Existing WordPress accounts require a separate administrative migration; no implicit attachment.
         if ( $current || ! add_option( $key, -1, '', false ) ) { return self::error(); }
-        $uid = wp_insert_user( array( 'user_login' => 'tc_discord_' . $id, 'user_pass' => wp_generate_password( 64, true, true ), 'display_name' => sanitize_text_field( $identity['global_name'] ?? $identity['username'] ?? 'Discord member' ), 'role' => 'subscriber' ) );
+        // Keep the Discord snowflake out of potentially public WordPress author slugs.
+        $uid = wp_insert_user( array( 'user_login' => 'tc_member_' . bin2hex( random_bytes( 12 ) ), 'user_pass' => wp_generate_password( 64, true, true ), 'display_name' => sanitize_text_field( $identity['global_name'] ?? $identity['username'] ?? 'Discord member' ), 'role' => 'subscriber' ) );
         if ( is_wp_error( $uid ) ) { delete_option( $key ); return self::error(); }
         update_user_meta( $uid, '_tc_discord_id', $id ); update_option( $key, $uid, false );
         return $uid;

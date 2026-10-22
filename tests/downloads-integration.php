@@ -78,6 +78,10 @@ try {
     }
     $token = $mint(); wp_update_post( array( 'ID' => $config, 'post_status' => 'draft' ) ); $assert( is_wp_error( TC_Downloads::prepare( $token ) ), 'Unpublishing invalidates existing signed download.' );
     $assert( array() === TC_Downloads::recent( $uid + 1 ), 'Recent downloads owner-only.' );
+    $expired_claim = '_tc_download_claim_' . hash( 'sha256', wp_generate_uuid4() ); $active_claim = '_tc_download_claim_' . hash( 'sha256', wp_generate_uuid4() ); $claims[] = $expired_claim; $claims[] = $active_claim;
+    add_option( $expired_claim, time() - 5, '', false ); add_option( $active_claim, time() + 60, '', false );
+    TC_Downloads::cleanup();
+    $assert( false === get_option( $expired_claim ) && false !== get_option( $active_claim ), 'Expired replay claims are removed through cache-aware option deletion without dropping active claims.' );
     WP_CLI::success( "Private downloads integration: $checks assertions; real private storage and WP sessions, mocked Discord only." );
 } finally {
     remove_filter( 'option_home', $https ); remove_filter( 'pre_http_request', $http, 10 );

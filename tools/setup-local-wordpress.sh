@@ -62,13 +62,14 @@ routes=(
   /apex-legends-configs/ /call-of-duty-configs/ /fortnite-configs/
   /rainbow-six-siege-configs/ /rust-configs/ /ea-sports-fc-configs/ /nba-2k-configs/
   /cronus-zen-configs/ /xim-matrix-configs/
+  /account/ /my-downloads/
   /terms-of-service/ /privacy-policy/ /cookie-policy/ /refund-policy/ /lifetime-license-terms/
 )
 
 # Existing editorial drafts stay unpublished. Only their exact known public paths
 # are exempt from the HTTP smoke check; missing pages and other routes must pass.
 unpublished_pages="$(wp eval '
-foreach (TC_Site::pages() as $slug => $title) {
+foreach (array_merge(TC_Site::pages(), array("account" => "Member Profile", "my-downloads" => "My Downloads")) as $slug => $title) {
     $page = get_page_by_path($slug, OBJECT, "page");
     if ($page instanceof WP_Post && "publish" !== $page->post_status) {
         $path = "/" . $slug . "/";

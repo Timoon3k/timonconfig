@@ -1,10 +1,11 @@
-# Installation and update — theme 0.7.1 / Core 0.5.0
+# Installation and update — theme 0.8.0 / Core 0.6.0
 
 ## Environment requirements
 
 - WordPress 6.5+ with PHP 8.1+; local verification uses WordPress 6.8.3/PHP 8.2/MariaDB 11.4.
 - Standard WordPress permalinks and writable uploads for public artwork only.
 - No production Node server, WooCommerce installation, or parallel payment processor is required.
+- For the new member library, also follow `MEMBER_LIBRARY_0.8.md`: OpenSSL/fileinfo, private storage outside all public roots, actual Discord configuration, cache exclusions, and real HTTPS staging tests. OAuth starts disabled.
 - Provide the real Monthly/Lifetime Upgrade.chat checkout URLs, a working support email, the current Discord invite, owner-approved legal identity/terms, and original brand assets.
 - For future Discord sign-in, obtain real client/guild/role configuration separately; do not place secrets in the theme, plugin ZIP, public uploads, or repository.
 
@@ -18,7 +19,7 @@
 6. Enter actual Upgrade.chat URLs under **Settings → TimonConfigs**. Keep existing Stripe/PayPal products and Discord role automation unchanged. Test the redirect destination without completing a transaction.
 7. Review all 25 routes in `URL_STATUS.md`, configured Discord buttons, filters, editor previews, media playback, indexing, sitemap, and supported SEO-plugin behavior. Replace demo reviews and unpublished release drafts only with verified content.
 8. Review the policy drafts with the owner before production use; confirm entity, contact information, Lifetime scope, cancellation, refunds, privacy, and storage disclosures. Setup preserves WordPress's existing draft Privacy Policy: publish approved legal pages deliberately before expecting their public URLs to respond.
-9. Purge the target site's page/CDN cache after a staging update so CSS/JS version 0.7.1 and the artwork are served together. Compare screenshots with the approved reference. If Home showed the default welcome post, follow the targeted steps in `HOME_FIX_0.7.1.md`.
+9. Purge the target site's page/CDN cache after a staging update so CSS/JS version 0.8.0 and the artwork are served together. Compare screenshots with the approved reference. If Home showed the default welcome post, follow the targeted steps in `HOME_FIX_0.7.1.md`. An update of an already active Core still needs the explicit setup to create missing member pages; no existing content is overwritten.
 10. Production deployment requires the owner's explicit approval after staging validation. This session did not modify Hostinger production or any live payment/membership state.
 
 ## Current external limitations

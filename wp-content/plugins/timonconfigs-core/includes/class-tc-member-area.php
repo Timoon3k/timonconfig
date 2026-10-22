@@ -7,6 +7,7 @@ final class TC_Member_Area {
 	private const PAGES = array( 'account' => array( 'Member Profile', 'timonconfigs_member_area' ), 'my-downloads' => array( 'My Downloads', 'timonconfigs_member_downloads' ) );
 
 	public static function init(): void {
+		add_action( 'admin_notices', array( __CLASS__, 'setup_notice' ) );
 		add_shortcode( 'timonconfigs_member_area', static fn(): string => self::render( false ) );
 		add_shortcode( 'timonconfigs_member_downloads', static fn(): string => self::render( true ) );
 		add_action( 'template_redirect', array( __CLASS__, 'protect_response' ), 0 );
@@ -18,6 +19,18 @@ final class TC_Member_Area {
 		add_filter( 'wpseo_sitemap_entry', array( __CLASS__, 'sitemap_entry' ), 20, 3 );
 		add_filter( 'rank_math/sitemap/entry', array( __CLASS__, 'sitemap_entry' ), 20, 3 );
 		add_action( 'save_post_page', array( __CLASS__, 'mark_member_page' ), 40 );
+	}
+
+	/** Updating an already active plugin does not run its activation installer. */
+	public static function setup_notice(): void {
+		if ( ! current_user_can( 'manage_options' ) || is_network_admin() ) { return; }
+		foreach ( array_keys( self::PAGES ) as $slug ) {
+			$page = get_page_by_path( $slug, OBJECT, 'page' );
+			if ( ! $page instanceof WP_Post || 'publish' !== get_post_status( $page ) ) {
+				echo '<div class="notice notice-warning"><p>Member pages need setup or publication. Run <a href="' . esc_url( admin_url( 'tools.php?page=timonconfigs-setup' ) ) . '">Tools → TimonConfigs setup</a>, then review the Member Profile and My Downloads pages. Existing content and publication states are preserved.</p></div>';
+				return;
+			}
+		}
 	}
 
 	/** Explicit provisioning only; never overwrites authored content or publication status. */
