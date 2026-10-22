@@ -31,7 +31,7 @@ final class TC_Editorial {
 				'show_in_rest'       => true,
 				'publicly_queryable' => false,
 				'menu_icon'          => 'dashicons-star-filled',
-				'supports'           => array( 'title', 'editor', 'excerpt', 'thumbnail', 'page-attributes', 'revisions' ),
+				'supports'           => array( 'title', 'editor', 'excerpt', 'thumbnail', 'page-attributes', 'custom-fields', 'revisions' ),
 			)
 		);
 

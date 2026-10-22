@@ -22,11 +22,22 @@
 - Full URL table: `docs/URL_STATUS.md`. It distinguishes local HTTP responses from inaccessible public endpoints.
 - 25 routes × desktop/mobile, plus five narrow 320 px cases: 55 checks, with one H1/canonical, unique metadata, valid JSON-LD, no horizontal overflow, and no frontend application errors.
 - Existing storefront suite: 35 route/viewport combinations with actual inline playback, source deferral, pause coordination, media retry, mobile keyboard controls, search, review carousel, and local font/image checks.
-- Native WordPress integration suites: catalogue 40, SEO 21, media 24, installer 87, blocks 12, checkout validation 14 — 198 assertions. Temporary fixture records are cleaned after each run.
+- Native WordPress integration suites: catalogue 42, SEO 21, media 24, installer 87, blocks 12, editorial 17, checkout validation 14 — 217 assertions. Temporary fixture records are cleaned after each run.
 - Gutenberg UI: 10 valid Home section blocks, all 10 server-rendered previews loaded, Hero heading controls available, and config/review/FAQ/video types exposed through the authenticated editor API. Draft block content also passes a create/render/delete round trip.
 - Dedicated media browser tests exercise optional modal/Escape/focus restoration and YouTube request deferral; provider responses are locally fulfilled in the test, with no external video use or payment operation.
 - Local setup script completes its explicit install and 25 HTTP checks. Repeating installation preserves IDs, authored content, publication state, front-page settings, and existing menu assignments.
 - PHP syntax checks and JavaScript/static validation pass. Synthetic local LCP/CLS observations are recorded; they are not field Core Web Vitals or a verified production INP result.
+
+## Interrupted-session recovery — 2026-10-22
+
+All recovered source, test, and documentation changes were checked for accidentally included secrets and saved in checkpoint `9374ce6`. Private database/source backups and generated artifacts remain ignored. No reset, clean, or destructive migration was performed.
+
+Two additional defects were fixed after the checkpoint:
+
+- Reviews registered REST metadata without WordPress `custom-fields` support. The existing review type now exposes its rating, config label, and demo flag to Gutenberg's REST API. Seventeen tests exercise authenticated create/update/read/delete, sanitization, malformed metadata rejection, and denied anonymous writes.
+- Platform collection filters displayed “All platforms” despite an active platform constraint. They now display the fixed current platform and submit it consistently with game/device collections. Query and browser regression checks verify that additional filters preserve all three collection contexts.
+
+The theme retains the 0.6 composition and artwork; this recovery does not replace the established frontend. All website and environment changes are local. Public inspection remains blocked at the network proxy, and no Hostinger or production deployment was performed.
 
 ## External and production limitations
 

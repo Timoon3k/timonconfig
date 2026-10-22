@@ -9,7 +9,13 @@ Last updated: 2026-10-22
 - `docs/COMPLETION_REPORT_0.7.md`, `docs/CMS_GUIDE.md`, `docs/INSTALL_UPDATE.md`, and the 25-route `docs/URL_STATUS.md` preserve the implementation and prior observed checks. These are evidence of local verification, not a production deployment.
 - Local WordPress 6.8.3/PHP 8.2 and MariaDB 11.4 remain running. Recovery checks confirmed Home HTTP 200, static validation, JavaScript syntax, and native PHP lint for all 57 theme/plugin PHP files.
 - Private local database/source backups remain in ignored `artifacts/backups/`; they are excluded from commits and release archives. No production database, billing state, or Discord configuration was accessed or changed.
-- The previously observed full suites passed 198 WordPress assertions, 35 storefront viewport checks, and 55 checks over 25 required routes. The resumed session will record fresh focused validation and a safe Git checkpoint below.
+- Saved the recovered source, tests, and documentation in checkpoint `9374ce6` after a targeted secret/private-data check. Generated archives and private backups were excluded.
+- Fixed review metadata registration: rating, config label, and demo status now work through the authenticated WordPress REST API. Added 17 create/update/read/delete, sanitization, malformed-input, and authorization assertions.
+- Fixed platform collection forms to display and retain the current platform, matching game/device behavior. Added query and browser regression checks for all three collection contexts.
+- Fresh WordPress integration verification passed 217 assertions: catalogue 42, SEO 21, media 24, installer 87, blocks 12, editorial 17, and checkout validation 14. Checkout tests do not contact a payment provider or change billing state.
+- Fresh browser verification passed 55 route/viewport checks across all 25 required URLs, the existing 35 storefront checks, and focused inline/optional-modal/YouTube playback tests. All 25 local URLs return HTTP 200; the unconfigured Monthly and Lifetime handoffs intentionally return HTTP 503.
+- Rebuilt theme 0.7.0 (79 files) and Core 0.5.0 (8 files) ZIPs. Archive integrity and byte-for-byte equality with the tested sources pass; both current ZIP copies were refreshed.
+- Repeated read-only public-site and invitation probes on 2026-10-22. Both remain blocked at the environment proxy. Public HTTP status, actual deployment, and invite validity are unknown; no purchase or production write was performed.
 
 ## Repository audit
 

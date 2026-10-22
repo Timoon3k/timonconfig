@@ -87,6 +87,8 @@ try {
 	$tc_test_expect( $tc_test_query( array(), array( 'game' => $slug, 'tier' => 'monthly', 'device' => 'cronus-zen', 'input' => 'controller', 'platform' => 'pc' ) ) === array( $ids['monthly'] ), 'combined catalogue filters' );
 	$tc_test_expect( $tc_test_query( array( 'tc_game' => $slug ), array( 'tier' => 'free', 'platform' => 'xbox' ) ) === array( $ids['free'] ), 'filters work on game collection' );
 	$tc_test_expect( $tc_test_query( array( 'tc_device' => 'cronus-zen' ), array( 'game' => $slug, 'input' => 'mnk' ) ) === array( $ids['legacy'] ), 'device collection preserves base term and applies input/game filters' );
+	$tc_test_expect( $tc_test_query( array( 'tc_platform' => 'pc' ), array( 'game' => $slug, 'tier' => 'monthly' ) ) === array( $ids['monthly'] ), 'platform collection retains its term while filtering game and tier' );
+	$tc_test_expect( $tc_test_query( array( 'tc_platform' => 'pc' ), array( 'game' => $slug, 'platform' => 'xbox' ) ) === array(), 'a platform parameter cannot replace the current platform collection' );
 	$tc_test_expect( $tc_test_query( array( 'tc_game' => $slug ), array( 'game' => 'apex-legends' ) ) === array(), 'filtering cannot erase the current collection constraint' );
 	$tc_test_expect( $tc_test_query( array( 'tc_game' => $slug ), array( 'config_search' => $slug . ' free' ) ) === array( $ids['free'] ), 'catalogue search' );
 	$tc_test_expect( $tc_test_query( array( 'tc_game' => $slug ), array( 'tier' => array( 'free' ), 'input' => array( 'mnk' ), 'platform' => array( 'pc' ), 'config_search' => array( 'bad' ) ) ) === $visible, 'array-shaped query arguments are safely ignored' );

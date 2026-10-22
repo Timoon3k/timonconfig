@@ -87,10 +87,19 @@ async function verifyFilters(page) {
   await page.locator('select[name="tier"]').selectOption('free');
   await Promise.all([page.waitForURL(url => url.searchParams.get('input') === 'controller' && url.searchParams.get('tier') === 'free'), page.locator('.tc-catalog-filter button[type="submit"]').click()]);
   check(new URL(page.url()).pathname === '/configs/', 'Filters leave the catalogue unexpectedly');
-  await page.goto(new URL('/apex-legends-configs/', baseURL).href, { waitUntil: 'networkidle' });
-  await page.locator('select[name="input"]').selectOption('mnk');
-  await Promise.all([page.waitForURL(url => url.searchParams.get('input') === 'mnk'), page.locator('.tc-catalog-filter button[type="submit"]').click()]);
-  check(new URL(page.url()).pathname === '/apex-legends-configs/', 'Collection filtering loses its game context');
+  for (const collection of [
+    { route: '/apex-legends-configs/', key: 'game', slug: 'apex-legends' },
+    { route: '/cronus-zen-configs/', key: 'device', slug: 'cronus-zen' },
+    { route: '/platforms/pc/', key: 'platform', slug: 'pc' },
+  ]) {
+    await page.goto(new URL(collection.route, baseURL).href, { waitUntil: 'networkidle' });
+    const control = page.locator(`select[name="${collection.key}"]`);
+    check(await control.inputValue() === collection.slug && await control.isDisabled(), `Collection filter does not display its fixed ${collection.key}`);
+    check(await page.locator(`input[type="hidden"][name="${collection.key}"]`).inputValue() === collection.slug, `Collection form loses its ${collection.key}`);
+    await page.locator('select[name="input"]').selectOption('mnk');
+    await Promise.all([page.waitForURL(url => url.searchParams.get('input') === 'mnk'), page.locator('.tc-catalog-filter button[type="submit"]').click()]);
+    check(new URL(page.url()).pathname === collection.route && new URL(page.url()).searchParams.get(collection.key) === collection.slug, `Collection filtering loses its ${collection.key} context`);
+  }
   for (const route of ['/configs/?game[]=apex-legends&device[]=cronus-zen&tier[]=free&input[]=mnk&platform[]=pc&config_search[]=Apex', '/configs/?game=not-a-game&device=not-a-device&tier=not-a-tier&input=not-an-input&platform=not-a-platform']) {
     const response = await page.goto(new URL(route, baseURL).href, { waitUntil: 'networkidle' });
     check(response.status() === 200, `Invalid scalar/array filters return ${response.status()}`);

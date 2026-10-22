@@ -1,8 +1,19 @@
 # Next session
 
-1. Read `PROGRESS.md` and `docs/DESIGN_CORRECTION_0.6.md`; preserve theme 0.6.0 / Core 0.4.0. Start the preview with `bash tools/setup-local-wordpress.sh`.
-2. Obtain and configure the verified production values: Discord invite, support email, VIP Monthly and VIP Lifetime Upgrade.chat checkout URLs, social links, and the correct Cronus/XIM mapping of the three supplied Apex videos.
-3. Review the current frontend at `http://127.0.0.1:8080/`. Game covers, hero copy, plan content, final CTA, and global links are replaceable under **Appearance → Customize → TimonConfigs site content**. FAQs and reviews have dedicated Gutenberg admin menus; remove or replace demo reviews before presenting real testimonials.
-4. Complete the live visual comparison first: timonconfigs.pl currently fails at the outbound proxy with 403 CONNECT. The network draft includes timonconfigs.pl/www.timonconfigs.pl but must be published before retrying. Capture the public site read-only and compare which theme version/assets it serves; do not claim the local changes are deployed. Original logo and source artwork remain needed for exact asset matching.
-5. After frontend acceptance, the requested Astra Medium boundary covers Discord OAuth2 Authorization Code Flow with state and PKCE, current guild-role verification, protected premium download delivery, and security tests. Do not invent client secrets, guild IDs, role IDs, or Upgrade.chat values.
-6. After that security stage, perform final staging installation tests, owner/legal review, and a Hostinger staging deployment. Do not change production, payments, or live Discord roles without the owner’s explicit approval.
+1. Read `PROGRESS.md`, `docs/COMPLETION_REPORT_0.7.md`, and `docs/URL_STATUS.md`. Preserve theme **0.7.0 / Core 0.5.0** and the existing `tc_config` records. Do not regenerate the project or repeat a full audit without new evidence. Start local WordPress with `bash tools/setup-local-wordpress.sh` if stopped.
+2. Configure the owner's actual **Monthly and Lifetime product checkout URLs**, support email, social links, approved legal identity/terms, and confirmed video-to-device mapping. The supplied Discord invite `https://discord.gg/RyvzSqrF6` is already the editable default; external verification remains blocked. Unconfigured checkout intentionally returns HTTP 503 and never grants access.
+3. Review the local frontend and CMS with `docs/CMS_GUIDE.md`. Home has ten reorderable Gutenberg sections; collection art, configs, FAQs, reviews, videos, shared prices, and purchase links have admin controls. Review metadata now passes real authenticated REST round-trip tests. Replace labelled demo reviews and publish Apex draft configs only with approved release content. Original logo/Hero source assets remain needed for exact asset matching.
+4. Retry the public-site/Discord checks once the saved network configuration is published. Current access failures are environment proxy failures, not observed public-site HTTP failures. The draft retains timonconfigs.pl/www.timonconfigs.pl, timonconfigs.com/www.timonconfigs.com, discord.com, and discord.gg. Check which version the public site actually serves before claiming deployment.
+5. The next agreed **Astra Medium** stage is Discord OAuth2 Authorization Code Flow (state/PKCE where supported), account binding, token/session handling and logout, current guild/role verification, protected premium delivery outside public uploads, and authorization/revocation/security tests. Do not start that stage with invented secrets, guild/role IDs, or a second role/payment system. Security Bot, Ticket Tool, Upgrade.chat, Stripe, and PayPal remain authoritative for their existing responsibilities.
+6. Before production: test archive installation and supported SEO plugins on isolated staging, finish owner/legal review, measure staging performance, inspect Hostinger backups/access when callable hosting tools are available, and obtain explicit production approval. No live database, subscription, customer, or Discord-role changes are authorized.
+
+Useful targeted checks:
+
+```bash
+bash tests/verify-project.sh
+docker compose -f docker-compose.local.yml run --rm -T cli wp eval-file - < tests/catalog-integration.php
+docker compose -f docker-compose.local.yml run --rm -T cli wp eval-file - < tests/editorial-integration.php
+node tests/website-browser.cjs
+```
+
+Other existing integration suites are `seo`, `video`, `site`, `blocks`, and `checkout`. Browser suites also include `tests/storefront-browser.cjs` and `tests/video-browser.cjs`. Run checks appropriate to actual changes; generated results and private local backups belong only in ignored `artifacts/`.

@@ -27,6 +27,7 @@ $devices = is_wp_error( $devices ) ? array() : $devices;
 $platforms = is_wp_error( $platforms ) ? array() : $platforms;
 $selected_game = $is_game ? $term->slug : $get_filter( 'game' );
 $selected_device = $is_device ? $term->slug : $get_filter( 'device' );
+$selected_platform = $is_platform ? $term->slug : $get_filter( 'platform' );
 $archive_url = (string) get_post_type_archive_link( 'tc_config' );
 $form_url = $term instanceof WP_Term ? get_term_link( $term ) : $archive_url;
 $form_url = is_wp_error( $form_url ) ? $archive_url : $form_url;
@@ -56,7 +57,8 @@ $form_url = is_wp_error( $form_url ) ? $archive_url : $form_url;
 				<label><span>Device</span><select name="device" <?php disabled( $is_device ); ?>><option value="">All devices</option><?php foreach ( $devices as $device ) : ?><option value="<?php echo esc_attr( $device->slug ); ?>" <?php selected( $selected_device, $device->slug ); ?>><?php echo esc_html( $device->name ); ?></option><?php endforeach; ?></select></label>
 				<?php if ( $is_device ) : ?><input type="hidden" name="device" value="<?php echo esc_attr( $term->slug ); ?>"><?php endif; ?>
 				<label><span>Input</span><select name="input"><option value="">All inputs</option><option value="controller" <?php selected( $get_filter( 'input' ), 'controller' ); ?>>Controller</option><option value="mnk" <?php selected( $get_filter( 'input' ), 'mnk' ); ?>>Mouse &amp; keyboard</option></select></label>
-				<label><span>Platform</span><select name="platform"><option value="">All platforms</option><?php foreach ( $platforms as $platform ) : ?><option value="<?php echo esc_attr( $platform->slug ); ?>" <?php selected( $get_filter( 'platform' ), $platform->slug ); ?>><?php echo esc_html( $platform->name ); ?></option><?php endforeach; ?></select></label>
+				<label><span>Platform</span><select name="platform" <?php disabled( $is_platform ); ?>><option value="">All platforms</option><?php foreach ( $platforms as $platform ) : ?><option value="<?php echo esc_attr( $platform->slug ); ?>" <?php selected( $selected_platform, $platform->slug ); ?>><?php echo esc_html( $platform->name ); ?></option><?php endforeach; ?></select></label>
+				<?php if ( $is_platform ) : ?><input type="hidden" name="platform" value="<?php echo esc_attr( $term->slug ); ?>"><?php endif; ?>
 				<label><span>Access</span><select name="tier"><option value="">All tiers</option><?php foreach ( array( 'free' => 'Free', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' ) as $value => $label ) : ?><option value="<?php echo esc_attr( $value ); ?>" <?php selected( $get_filter( 'tier' ), $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select></label>
 				<button class="tc-button" type="submit">Apply filters</button>
 			</form>
