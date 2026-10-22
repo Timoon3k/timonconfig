@@ -68,6 +68,8 @@ try {
 	$navigate( array( 'post_type' => 'tc_config' ) );
 	$_GET['tier'] = 'free';
 	$assert( TC_SEO::should_noindex(), 'Filtered catalogue is noindex.' );
+	$_GET = array( 'sort' => 'title' );
+	$assert( TC_SEO::should_noindex(), 'Sorted catalogue variants remain noindex with the canonical library URL.' );
 	$_GET = array();
 	$navigate( array( 'page_id' => (int) get_option( 'page_on_front' ) ) );
 	$graph = timonconfigs_schema_graph();

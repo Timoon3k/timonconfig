@@ -162,6 +162,7 @@ final class TC_Site {
 			set_theme_mod( 'timonconfigs_discord_url', self::DISCORD_INVITE );
 		}
 		self::install_unassigned_menus( $ids );
+		if ( class_exists( 'TC_Member_Area' ) ) { TC_Member_Area::install(); }
 		return $ids;
 	}
 

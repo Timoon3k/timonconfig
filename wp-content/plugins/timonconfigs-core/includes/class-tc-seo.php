@@ -120,7 +120,7 @@ final class TC_SEO {
 	public static function should_noindex(): bool {
 		if ( is_404() || is_search() || is_preview() ) { return true; }
 		if ( is_post_type_archive( 'tc_config' ) || is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) {
-			foreach ( array( 'config_search', 'game', 'device', 'tier', 'input', 'platform' ) as $key ) {
+			foreach ( array( 'config_search', 'game', 'device', 'tier', 'input', 'platform', 'sort' ) as $key ) {
 				if ( isset( $_GET[ $key ] ) && ( ! is_scalar( $_GET[ $key ] ) || '' !== (string) $_GET[ $key ] ) ) { return true; }
 			}
 		}

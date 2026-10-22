@@ -33,10 +33,12 @@ services:
       WORDPRESS_DB_PASSWORD: local-wordpress
       WORDPRESS_DB_NAME: wordpress
       WORDPRESS_DEBUG: "1"
+      WORDPRESS_CONFIG_EXTRA: "define('TIMONCONFIGS_PRIVATE_STORAGE_DIR', '/var/lib/timonconfigs-private');"
     volumes:
       - wp_data:/var/www/html
       - ./wp-content/themes/timonconfigs:/var/www/html/wp-content/themes/timonconfigs
       - ./wp-content/plugins/timonconfigs-core:/var/www/html/wp-content/plugins/timonconfigs-core
+      - private_data:/var/lib/timonconfigs-private
 
   cli:
     image: wordpress:cli-php8.2
@@ -50,14 +52,18 @@ services:
       WORDPRESS_DB_USER: wordpress
       WORDPRESS_DB_PASSWORD: local-wordpress
       WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_CONFIG_EXTRA: "define('TIMONCONFIGS_PRIVATE_STORAGE_DIR', '/var/lib/timonconfigs-private');"
     volumes:
       - wp_data:/var/www/html
       - ./wp-content/themes/timonconfigs:/var/www/html/wp-content/themes/timonconfigs
       - ./wp-content/plugins/timonconfigs-core:/var/www/html/wp-content/plugins/timonconfigs-core
+      - private_data:/var/lib/timonconfigs-private
 
 volumes:
   db_data:
     name: timonconfigs_db_data
   wp_data:
     name: timonconfigs_wp_data
+  private_data:
+    name: timonconfigs_private_data
 

@@ -8,6 +8,7 @@ find "$project_root/wp-content/themes/timonconfigs" "$project_root/wp-content/pl
 find "$project_root/wp-content/themes/timonconfigs" "$project_root/wp-content/plugins/timonconfigs-core" -type f -exec chmod 644 {} +
 
 docker compose -f "$compose_file" up -d db wordpress
+docker compose -f "$compose_file" exec -T --user root wordpress sh -c 'chown 33:33 /var/lib/timonconfigs-private && chmod 700 /var/lib/timonconfigs-private'
 
 for attempt in $(seq 1 40); do
   if curl --silent --fail --output /dev/null http://127.0.0.1:8080/wp-admin/install.php; then

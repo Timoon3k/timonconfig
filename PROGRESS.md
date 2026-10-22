@@ -2,6 +2,16 @@
 
 Last updated: 2026-10-22
 
+## Member library implementation checkpoint — theme 0.8.0 / Core 0.6.0
+
+- Continued PR #1 on `feature/member-library-oauth-handoff`, preserving the 0.7.1 storefront and original private-upload work. The PR head was read from Git; GitHub's GraphQL API was unavailable. Review findings are in `docs/PR_1_REVIEW.md`.
+- Hardened the existing private-file module: multipart management, 0/1/10-file handling, actual byte/type/content checks, archive rejection, quotas, storage locks, confirmation, order/version/notes, checksum and audit history. Local Docker has a separate private volume outside the public web root. Database/source backups are ignored under `artifacts/backups/member-library-*`.
+- Added disabled-by-default Discord OAuth2 with encrypted tokens, single-use state, optional explicitly verified PKCE, unique Discord identity binding, read-only guild-role checks, a 60-second role cache and fail-closed errors. Upgrade.chat remains the source of paid roles. Existing WordPress accounts are not linked by email/name or implicitly attached to another Discord identity.
+- Added session-bound, signed, one-use downloads, short expiry, replay/IDOR checks, fresh bounded server authorization and descriptor checksum verification. Public filenames are separate from opaque storage names. Legacy checksumless files must be revalidated.
+- Extended catalogue cards/metadata/sorting and member Profile/My Downloads pages, Browse Memberships, role refresh/reconnect/logout, noindex/cache protections and owner-only data. Draft releases remain drafts; no real licensed script was invented.
+- Real browser screenshot is saved at `wp-content/themes/timonconfigs/screenshot.png`, exactly 1200x900. It captures actual WordPress DOM with documented browser-only compact Home styling to include Header/Hero/Pricing/Footer; untouched full-page 1440/390 screenshots are retained in ignored artifacts.
+- Observed so far: OAuth 55 assertions; private files 61; download/session/storage 58; catalogue presentation 24 plus existing catalogue 42; member browser 8 checks; real multipart browser suite passes. Final regression/release checks and stream verification are in progress. This is a local development checkpoint, not production approval or a live OAuth test.
+
 ## Homepage correction — theme 0.7.1 / Core 0.5.0
 
 - Investigated the supplied Hostinger screenshot showing only the default WordPress welcome post between the themed header/footer. WordPress uses `front-page.php` for both static Home and latest-posts mode; the old loop incorrectly used blog post content as the Home body.

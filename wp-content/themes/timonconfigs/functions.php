@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.7.1' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.8.0' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 require_once get_template_directory() . '/inc/seo.php';
@@ -42,7 +42,7 @@ add_action(
 	static function (): void {
 		wp_enqueue_style( 'timonconfigs', get_template_directory_uri() . '/assets/css/main.css', array(), TIMONCONFIGS_THEME_VERSION );
 		wp_enqueue_style( 'timonconfigs-premium', get_template_directory_uri() . '/assets/css/premium.css', array( 'timonconfigs' ), TIMONCONFIGS_THEME_VERSION );
-		foreach ( array( 'catalog', 'media' ) as $stylesheet ) {
+		foreach ( array( 'catalog', 'media', 'member' ) as $stylesheet ) {
 			if ( file_exists( get_template_directory() . '/assets/css/' . $stylesheet . '.css' ) ) {
 				wp_enqueue_style( 'timonconfigs-' . $stylesheet, get_template_directory_uri() . '/assets/css/' . $stylesheet . '.css', array( 'timonconfigs-premium' ), TIMONCONFIGS_THEME_VERSION );
 			}

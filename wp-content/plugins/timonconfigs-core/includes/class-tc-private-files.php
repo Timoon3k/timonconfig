@@ -1,124 +1,338 @@
 <?php
-/**
- * Private script-file uploads for admin-managed Config posts.
- *
- * The files are stored outside the web root. This class does not expose a
- * download URL; member authentication and entitlement checks are required
- * before a download endpoint can be enabled.
- *
- * @package TimonConfigs_Core
- */
+/** Private multi-file storage and administrator management. @package TimonConfigs_Core */
 defined( 'ABSPATH' ) || exit;
 
 final class TC_Private_Files {
-    private const META_KEY = '_tc_private_files';
-    private const NONCE = 'tc_private_files_nonce';
-    private const EXTENSIONS = array( 'znbk', 'gpc', 'ximmr', 'zip', 'json', 'txt' );
-    private const MAX_BYTES = 20971520;
-    private const MAX_PER_UPLOAD = 10;
+	private const META_KEY = '_tc_private_files';
+	private const NONCE = 'tc_private_files_nonce';
+	private const EXTENSIONS = array( 'znbk', 'gpc', 'ximmr', 'json', 'txt' );
+	private const MAX_BYTES = 20971520;
+	private const MAX_PER_UPLOAD = 10;
+	private const MAX_FILES = 100;
+	private const CONFIG_QUOTA = 104857600;
+	private const STORAGE_QUOTA = 1073741824;
 
-    public static function init(): void {
-        add_action( 'add_meta_boxes_tc_config', array( __CLASS__, 'add_box' ) );
-        add_action( 'post_edit_form_tag', array( __CLASS__, 'enctype' ) );
-        add_action( 'save_post_tc_config', array( __CLASS__, 'save' ), 30, 2 );
-    }
+	public static function init(): void {
+		add_action( 'add_meta_boxes_tc_config', array( __CLASS__, 'add_box' ) );
+		add_action( 'post_edit_form_tag', array( __CLASS__, 'enctype' ) );
+		add_action( 'save_post_tc_config', array( __CLASS__, 'save' ), 30, 2 );
+		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
+		add_action( 'admin_post_tc_private_files_manage', array( __CLASS__, 'handle' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'notice' ) );
+	}
 
-    public static function enctype(): void {
-        global $post;
-        if ( $post instanceof WP_Post && 'tc_config' === $post->post_type && current_user_can( 'manage_options' ) ) {
-            echo ' enctype="multipart/form-data"';
-        }
-    }
+	public static function enctype(): void {
+		global $post;
+		if ( $post instanceof WP_Post && 'tc_config' === $post->post_type && current_user_can( 'manage_options' ) ) { echo ' enctype="multipart/form-data"'; }
+	}
 
-    public static function add_box(): void {
-        if ( current_user_can( 'manage_options' ) ) {
-            add_meta_box( 'tc_private_script_files', 'Private script files', array( __CLASS__, 'render' ), 'tc_config', 'normal', 'default' );
-        }
-    }
+	public static function add_box(): void {
+		if ( current_user_can( 'manage_options' ) ) { add_meta_box( 'tc_private_script_files', 'Private script files', array( __CLASS__, 'render' ), 'tc_config', 'normal', 'default' ); }
+	}
 
-    /** @return string|WP_Error */
-    private static function root(): string|WP_Error {
-        if ( ! defined( 'TIMONCONFIGS_PRIVATE_STORAGE_DIR' ) || ! is_string( TIMONCONFIGS_PRIVATE_STORAGE_DIR ) ) {
-            return new WP_Error( 'tc_private_storage_unconfigured', 'Set TIMONCONFIGS_PRIVATE_STORAGE_DIR in wp-config.php to an existing directory outside the web root.' );
-        }
-        $root = realpath( TIMONCONFIGS_PRIVATE_STORAGE_DIR );
-        if ( false === $root || ! is_dir( $root ) || ! is_writable( $root ) ) {
-            return new WP_Error( 'tc_private_storage_missing', 'The configured private directory is missing or not writable.' );
-        }
-        foreach ( array( ABSPATH, WP_CONTENT_DIR, $_SERVER['DOCUMENT_ROOT'] ?? '' ) as $public ) {
-            if ( ! is_string( $public ) || '' === $public ) { continue; }
-            $canonical = realpath( $public );
-            if ( false !== $canonical && ( $root === $canonical || str_starts_with( $root . DIRECTORY_SEPARATOR, rtrim( $canonical, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR ) ) ) {
-                return new WP_Error( 'tc_private_storage_public', 'Private storage cannot be inside the public website or WordPress directory.' );
-            }
-        }
-        return $root;
-    }
+	public static function menu(): void {
+		add_submenu_page( 'edit.php?post_type=tc_config', 'Private script files', 'Private files', 'manage_options', 'tc-private-files', array( __CLASS__, 'page' ) );
+	}
 
-    public static function render( WP_Post $post ): void {
-        wp_nonce_field( 'tc_private_files_' . $post->ID, self::NONCE );
-        $root = self::root();
-        if ( is_wp_error( $root ) ) {
-            echo '<p><strong>Private uploads disabled.</strong> ' . esc_html( $root->get_error_message() ) . '</p>';
-        } else {
-            echo '<p>Upload script files to private storage. No public download links are created until Discord membership authorization is ready.</p>';
-            echo '<p><input type="file" name="tc_private_files[]" multiple accept=".znbk,.gpc,.ximmr,.zip,.json,.txt"></p>';
-            echo '<p class="description">Up to 10 files per save, each up to 20 MB. Allowed: ZNBK, GPC, XIMMR, ZIP, JSON, TXT.</p>';
-        }
-        $files = get_post_meta( $post->ID, self::META_KEY, true );
-        if ( is_array( $files ) && $files ) {
-            echo '<strong>Stored private files (not yet downloadable):</strong><ul>';
-            foreach ( $files as $file ) {
-                if ( ! is_array( $file ) ) { continue; }
-                echo '<li>' . esc_html( $file['name'] ?? 'unnamed file' ) . ' — ' . esc_html( $file['uploaded_at'] ?? '' ) . '</li>';
-            }
-            echo '</ul>';
-        }
-    }
+	/** Absolute server-only path. Never print it or register it as REST metadata. */
+	public static function root(): string|WP_Error {
+		$configured = apply_filters( 'timonconfigs_private_storage_directory', defined( 'TIMONCONFIGS_PRIVATE_STORAGE_DIR' ) ? TIMONCONFIGS_PRIVATE_STORAGE_DIR : '' );
+		if ( ! is_string( $configured ) || '' === $configured ) {
+			return new WP_Error( 'tc_storage_unconfigured', 'Configure TIMONCONFIGS_PRIVATE_STORAGE_DIR outside every public document root before uploading.' );
+		}
+		$root = realpath( $configured );
+		if ( false === $root || DIRECTORY_SEPARATOR === $root || is_link( $configured ) || ! is_dir( $root ) || ! is_writable( $root ) || ( fileperms( $root ) & 0022 ) ) {
+			return new WP_Error( 'tc_storage_unavailable', 'Private storage must exist, be writable by PHP, and not be a symlink or writable by other users.' );
+		}
+		$uploads = wp_get_upload_dir();
+		foreach ( array( ABSPATH, WP_CONTENT_DIR, $uploads['basedir'] ?? '', $_SERVER['DOCUMENT_ROOT'] ?? '' ) as $public ) {
+			if ( ! is_string( $public ) || '' === $public ) { continue; }
+			$canonical = realpath( $public );
+			if ( false !== $canonical && ( $root === $canonical || str_starts_with( $root . DIRECTORY_SEPARATOR, rtrim( $canonical, DIRECTORY_SEPARATOR ) . DIRECTORY_SEPARATOR ) ) ) {
+				return new WP_Error( 'tc_storage_public', 'Private storage cannot be located inside public WordPress, uploads, or document-root directories.' );
+			}
+		}
+		return rtrim( $root, DIRECTORY_SEPARATOR );
+	}
 
-    public static function save( int $post_id, WP_Post $post ): void {
-        if ( 'tc_config' !== $post->post_type || ! current_user_can( 'manage_options' ) || ! current_user_can( 'edit_post', $post_id ) || wp_is_post_revision( $post_id ) || ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) ) {
-            return;
-        }
-        if ( ! isset( $_POST[ self::NONCE ] ) || ! is_string( $_POST[ self::NONCE ] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST[ self::NONCE ] ) ), 'tc_private_files_' . $post_id ) ) {
-            return;
-        }
-        if ( ! isset( $_FILES['tc_private_files'] ) || ! is_array( $_FILES['tc_private_files'] ) ) {
-            return;
-        }
-        $uploads = $_FILES['tc_private_files'];
-        if ( ! isset( $uploads['name'], $uploads['error'], $uploads['size'], $uploads['tmp_name'] ) || ! is_array( $uploads['name'] ) || count( $uploads['name'] ) > self::MAX_PER_UPLOAD ) {
-            return;
-        }
-        $root = self::root();
-        if ( is_wp_error( $root ) ) { return; }
-        $destination = $root . DIRECTORY_SEPARATOR . $post_id;
-        if ( ! is_dir( $destination ) && ! wp_mkdir_p( $destination ) ) { return; }
-        @chmod( $destination, 0700 );
-        $canonical_destination = realpath( $destination );
-        if ( false === $canonical_destination || ! str_starts_with( $canonical_destination . DIRECTORY_SEPARATOR, $root . DIRECTORY_SEPARATOR ) ) { return; }
-        $records = get_post_meta( $post_id, self::META_KEY, true );
-        $records = is_array( $records ) ? $records : array();
-        foreach ( $uploads['name'] as $i => $raw_name ) {
-            if ( ! is_string( $raw_name ) || ! isset( $uploads['error'][ $i ], $uploads['size'][ $i ], $uploads['tmp_name'][ $i ] ) ) { continue; }
-            if ( UPLOAD_ERR_OK !== (int) $uploads['error'][ $i ] || (int) $uploads['size'][ $i ] <= 0 || (int) $uploads['size'][ $i ] > self::MAX_BYTES ) { continue; }
-            $name = sanitize_file_name( $raw_name );
-            $ext = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
-            if ( '' === $name || ! in_array( $ext, self::EXTENSIONS, true ) ) { continue; }
-            $temporary = (string) $uploads['tmp_name'][ $i ];
-            if ( ! is_uploaded_file( $temporary ) ) { continue; }
-            $file_id = wp_generate_uuid4();
-            $stored = $canonical_destination . DIRECTORY_SEPARATOR . $file_id . '.' . $ext;
-            if ( ! move_uploaded_file( $temporary, $stored ) ) { continue; }
-            @chmod( $stored, 0600 );
-            $records[] = array(
-                'id' => $file_id,
-                'name' => $name,
-                'stored_name' => basename( $stored ),
-                'size' => filesize( $stored ),
-                'uploaded_at' => current_time( 'mysql', true ),
-            );
-        }
-        update_post_meta( $post_id, self::META_KEY, $records );
-    }
+	private static function records( int $config_id ): array|WP_Error {
+		$value = get_post_meta( $config_id, self::META_KEY, true );
+		if ( '' === $value ) { return array(); }
+		if ( ! is_array( $value ) || array_filter( $value, static fn( $record ): bool => ! is_array( $record ) ) ) {
+			return new WP_Error( 'tc_storage_metadata', 'Private-file metadata needs administrator repair; existing records have not been overwritten.' );
+		}
+		return array_values( $value );
+	}
+
+	/** Safe display metadata only; this is not a REST endpoint or an authorization decision. */
+	public static function files( int $config_id ): array {
+		if ( 'tc_config' !== get_post_type( $config_id ) ) { return array(); }
+		$records = self::records( $config_id );
+		if ( is_wp_error( $records ) ) { return array(); }
+		$files = array();
+		foreach ( $records as $index => $record ) {
+			if ( ! self::uuid( $record['id'] ?? null ) || ! is_string( $record['name'] ?? null ) || ! in_array( strtolower( pathinfo( $record['name'], PATHINFO_EXTENSION ) ), self::EXTENSIONS, true ) ) { continue; }
+			$files[] = array( 'id' => $record['id'], 'name' => sanitize_file_name( $record['name'] ), 'size' => max( 0, (int) ( $record['size'] ?? 0 ) ), 'version' => self::text( $record['version'] ?? '', 80 ), 'notes' => self::text( $record['notes'] ?? '', 2000, true ), 'checksum' => is_string( $record['checksum'] ?? null ) && preg_match( '/^[a-f0-9]{64}$/D', $record['checksum'] ) ? $record['checksum'] : '', 'uploaded_at' => self::text( $record['uploaded_at'] ?? '', 30 ), 'order' => max( 0, (int) ( $record['order'] ?? $index ) ) );
+		}
+		usort( $files, static fn( array $a, array $b ): int => ( $a['order'] <=> $b['order'] ) ?: strcmp( $a['id'], $b['id'] ) );
+		return $files;
+	}
+
+	/** Resolve only this config's opaque ID, rechecking path, bytes, and integrity server-side. */
+	public static function resolve( int $config_id, string $file_id ): string|WP_Error {
+		if ( 'tc_config' !== get_post_type( $config_id ) || ! self::uuid( $file_id ) ) { return new WP_Error( 'tc_file_missing', 'This private file is unavailable.' ); }
+		$records = self::records( $config_id );
+		if ( is_wp_error( $records ) ) { return $records; }
+		$matches = array_values( array_filter( $records, static fn( array $record ): bool => ( $record['id'] ?? null ) === $file_id ) );
+		if ( 1 !== count( $matches ) ) { return new WP_Error( 'tc_file_missing', 'This private file is unavailable.' ); }
+		$record = $matches[0];
+		$root = self::root();
+		if ( is_wp_error( $root ) ) { return $root; }
+		$directory = $root . DIRECTORY_SEPARATOR . $config_id;
+		$stored_name = $record['stored_name'] ?? '';
+		if ( ! is_string( $stored_name ) || ! preg_match( '/^' . preg_quote( $file_id, '/' ) . '\.(znbk|gpc|ximmr|json|txt)$/D', $stored_name ) || is_link( $directory ) || realpath( $directory ) !== $directory ) { return new WP_Error( 'tc_file_unsafe', 'This private file failed its storage checks.' ); }
+		$path = $directory . DIRECTORY_SEPARATOR . $stored_name;
+		if ( is_link( $path ) || ! is_file( $path ) || ! is_readable( $path ) || realpath( $path ) !== $path ) { return new WP_Error( 'tc_file_missing', 'This private file is unavailable.' ); }
+		$inspection = self::inspect( $path, $record['name'] ?? '' );
+		if ( is_wp_error( $inspection ) || (int) ( $record['size'] ?? 0 ) !== $inspection['size'] || ( ! empty( $record['checksum'] ) && ! hash_equals( (string) $record['checksum'], $inspection['checksum'] ) ) ) { return new WP_Error( 'tc_file_integrity', 'This private file failed its integrity checks.' ); }
+		return $path;
+	}
+
+	private static function uuid( mixed $value ): bool { return is_string( $value ) && 1 === preg_match( '/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/D', $value ); }
+	private static function text( mixed $value, int $max, bool $multiline = false ): string { return is_string( $value ) ? substr( $multiline ? sanitize_textarea_field( $value ) : sanitize_text_field( $value ), 0, $max ) : ''; }
+
+	/** Structural/type checks, not a malware-free certification. Optional scanner can veto. */
+	private static function inspect( string $path, mixed $raw_name ): array|WP_Error {
+		$bad = static fn( string $message ): WP_Error => new WP_Error( 'tc_upload_invalid', $message );
+		if ( ! is_string( $raw_name ) || '' === $raw_name || strlen( $raw_name ) > 200 || preg_match( '/[\\\\\/\x00-\x1f\x7f]/', $raw_name ) || preg_match( '/\.(php\d*|phtml|phar|exe|dll|com|bat|cmd|ps1|sh|cgi|js|html?)(\.|$)/i', $raw_name ) ) { return $bad( 'Use a simple script filename without paths or executable extensions.' ); }
+		$name = sanitize_file_name( $raw_name );
+		$extension = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
+		if ( ! in_array( $extension, self::EXTENSIONS, true ) ) { return $bad( 'Allowed files: GPC, ZNBK, XIMMR, JSON, TXT. Archives and executable files are disabled.' ); }
+		$size = is_file( $path ) && ! is_link( $path ) ? filesize( $path ) : false;
+		if ( ! is_int( $size ) || $size < 1 || $size > self::MAX_BYTES ) { return $bad( 'Each file must contain between 1 byte and 20 MB of actual data.' ); }
+		$content = file_get_contents( $path );
+		if ( false === $content || strlen( $content ) !== $size || ! class_exists( 'finfo' ) ) { return $bad( 'File inspection is unavailable; the upload was not accepted.' ); }
+		$mime = ( new finfo( FILEINFO_MIME_TYPE ) )->buffer( $content );
+		$signatures = array( "PK\x03\x04", "PK\x05\x06", "PK\x07\x08", "Rar!\x1a\x07", "7z\xbc\xaf\x27\x1c", "\x1f\x8b", 'BZh', "\xfd7zXZ\x00", 'MZ', "\x7fELF", "\xcf\xfa\xed\xfe", "\xfe\xed\xfa\xcf", '#!' );
+		foreach ( $signatures as $signature ) { if ( str_starts_with( $content, $signature ) ) { return $bad( 'Archive, executable, and shell payloads are not accepted.' ); } }
+		foreach ( array_slice( $signatures, 0, 6 ) as $archive_signature ) { if ( str_contains( $content, $archive_signature ) ) { return $bad( 'Embedded archive payloads are not accepted.' ); } }
+		if ( 'ustar' === substr( $content, 257, 5 ) || preg_match( '/<\?(?:php\b|=|\s*\$)|<script\b/i', $content ) ) { return $bad( 'Executable or archive content is not accepted inside script files.' ); }
+		$text = 1 === preg_match( '//u', $content ) && ! preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $content );
+		$allowed_mime = array( 'text/plain', 'application/json', 'text/x-c', 'text/x-c++', 'text/x-csrc', 'text/x-c++src' );
+		if ( in_array( $extension, array( 'znbk', 'ximmr' ), true ) ) { $allowed_mime[] = 'application/octet-stream'; }
+		if ( ! in_array( $mime, $allowed_mime, true ) || ( in_array( $extension, array( 'gpc', 'json', 'txt' ), true ) && ! $text ) ) { return $bad( 'The actual content does not match an allowed script format.' ); }
+		if ( 'json' === $extension ) { json_decode( $content, true, 64 ); if ( JSON_ERROR_NONE !== json_last_error() ) { return $bad( 'JSON uploads must contain valid JSON.' ); } }
+		$scan = apply_filters( 'timonconfigs_private_file_scan', null, $path, $extension, $mime );
+		if ( is_wp_error( $scan ) || ( null !== $scan && true !== $scan ) ) { return $bad( 'The configured file scanner did not approve this file.' ); }
+		if ( ! $text && true !== $scan ) { return $bad( 'Binary backups require an approved scanner or format inspector. Text scripts remain available without this integration.' ); }
+		return array( 'name' => $name, 'extension' => $extension, 'size' => $size, 'checksum' => hash( 'sha256', $content ), 'inspection' => true === $scan ? 'scanner-approved' : 'structural-only' );
+	}
+
+	/** One filesystem lock serializes all writes and quota calculations. */
+	private static function locked( callable $callback ): mixed {
+		$root = self::root();
+		if ( is_wp_error( $root ) ) { return $root; }
+		$lock_path = $root . DIRECTORY_SEPARATOR . '.tc-private.lock';
+		if ( is_link( $lock_path ) ) { return new WP_Error( 'tc_storage_unsafe', 'Private storage failed its lock checks.' ); }
+		$lock = fopen( $lock_path, 'c' );
+		if ( ! $lock || ! chmod( $lock_path, 0600 ) ) { if ( $lock ) { fclose( $lock ); } return new WP_Error( 'tc_storage_lock', 'Private storage could not be locked.' ); }
+		if ( ! flock( $lock, LOCK_EX | LOCK_NB ) ) { fclose( $lock ); return new WP_Error( 'tc_storage_busy', 'Another private-file operation is running. Please retry.' ); }
+		try { return $callback( $root ); } finally { flock( $lock, LOCK_UN ); fclose( $lock ); }
+	}
+
+	private static function usage( string $root ): int|WP_Error {
+		$size = 0;
+		$count = 0;
+		try {
+			$iterator = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS ) );
+			foreach ( $iterator as $entry ) {
+				if ( ++$count > 50000 || $entry->isLink() ) { return new WP_Error( 'tc_storage_unsafe', 'Storage contains unsafe entries or needs administrator maintenance.' ); }
+				if ( $entry->isFile() ) { $size += $entry->getSize(); }
+			}
+		} catch ( UnexpectedValueException $error ) { return new WP_Error( 'tc_storage_usage', 'Storage usage could not be verified.' ); }
+		return $size;
+	}
+
+	/** Append-only database audit; no paths, tokens, or file contents. */
+	private static function audit( int $config_id, string $action, string $file_id, array $details = array() ): void {
+		add_post_meta( $config_id, '_tc_private_file_audit', array( 'at' => gmdate( 'c' ), 'actor' => get_current_user_id(), 'action' => $action, 'file_id' => $file_id, 'details' => $details ) );
+	}
+
+	private static function authorise( int $config_id ): bool { return 'tc_config' === get_post_type( $config_id ) && current_user_can( 'manage_options' ) && current_user_can( 'edit_post', $config_id ); }
+
+	private static function uploads( mixed $input ): array|WP_Error {
+		if ( null === $input ) { return array(); }
+		if ( ! is_array( $input ) ) { return new WP_Error( 'tc_upload_shape', 'Malformed upload request.' ); }
+		foreach ( array( 'name', 'error', 'size', 'tmp_name' ) as $key ) { if ( ! isset( $input[ $key ] ) || ! is_array( $input[ $key ] ) ) { return new WP_Error( 'tc_upload_shape', 'Malformed upload request.' ); } }
+		$keys = array_keys( $input['name'] );
+		if ( count( $keys ) > self::MAX_PER_UPLOAD ) { return new WP_Error( 'tc_upload_count', 'Upload at most 10 files in one operation.' ); }
+		foreach ( array( 'error', 'size', 'tmp_name' ) as $key ) { if ( $keys !== array_keys( $input[ $key ] ) ) { return new WP_Error( 'tc_upload_shape', 'Upload fields do not match.' ); } }
+		$result = array();
+		foreach ( $keys as $key ) {
+			if ( ! is_int( $input['error'][ $key ] ) || ! is_int( $input['size'][ $key ] ) || ! is_string( $input['tmp_name'][ $key ] ) || ! is_string( $input['name'][ $key ] ) ) { return new WP_Error( 'tc_upload_shape', 'Upload values have invalid types.' ); }
+			if ( UPLOAD_ERR_NO_FILE === $input['error'][ $key ] ) { continue; }
+			if ( UPLOAD_ERR_OK !== $input['error'][ $key ] ) { return new WP_Error( 'tc_upload_failed', 'PHP rejected an upload. Check the host upload limits and retry.' ); }
+			if ( ! is_uploaded_file( $input['tmp_name'][ $key ] ) ) { return new WP_Error( 'tc_upload_http', 'Only files received through a real HTTP upload are accepted.' ); }
+			$inspection = self::inspect( $input['tmp_name'][ $key ], $input['name'][ $key ] );
+			if ( is_wp_error( $inspection ) ) { return $inspection; }
+			$result[] = array_merge( $inspection, array( 'temporary' => $input['tmp_name'][ $key ] ) );
+		}
+		return $result;
+	}
+
+	/** All mutation entry points pass capability/nonce first; this method stays server-only. */
+	private static function mutate( int $config_id, string $operation, array $request, mixed $incoming ): true|WP_Error {
+		if ( ! self::authorise( $config_id ) ) { return new WP_Error( 'tc_private_forbidden', 'Administrator permission and config edit access are required.' ); }
+		if ( ! in_array( $operation, array( 'upload', 'update', 'replace', 'delete' ), true ) ) { return new WP_Error( 'tc_private_operation', 'Unknown private-file operation.' ); }
+		if ( in_array( $operation, array( 'replace', 'delete' ), true ) && '1' !== ( $request['confirm'] ?? '' ) ) { return new WP_Error( 'tc_private_confirm', 'Confirm this file replacement or deletion before continuing.' ); }
+		$uploads = in_array( $operation, array( 'upload', 'replace' ), true ) ? self::uploads( $incoming ) : array();
+		if ( is_wp_error( $uploads ) ) { return $uploads; }
+		if ( 'replace' === $operation && 1 !== count( $uploads ) ) { return new WP_Error( 'tc_private_replace', 'Choose exactly one replacement file.' ); }
+		if ( 'upload' === $operation && ! $uploads ) { return new WP_Error( 'tc_private_empty', 'Choose at least one script file.' ); }
+		return self::locked( static function ( string $root ) use ( $config_id, $operation, $request, $uploads ): true|WP_Error {
+			$records = self::records( $config_id );
+			if ( is_wp_error( $records ) ) { return $records; }
+			$index = null;
+			$file_id = is_string( $request['file_id'] ?? null ) ? $request['file_id'] : '';
+			if ( 'upload' !== $operation ) {
+				if ( ! self::uuid( $file_id ) ) { return new WP_Error( 'tc_file_missing', 'This private file is unavailable.' ); }
+				foreach ( $records as $key => $record ) { if ( ( $record['id'] ?? null ) === $file_id ) { if ( null !== $index ) { return new WP_Error( 'tc_storage_metadata', 'Duplicate private-file IDs require administrator repair.' ); } $index = $key; } }
+				if ( null === $index ) { return new WP_Error( 'tc_file_missing', 'This private file is unavailable.' ); }
+			}
+			if ( 'update' === $operation ) {
+				$records[ $index ]['version'] = self::text( $request['version'] ?? '', 80 );
+				$records[ $index ]['notes'] = self::text( $request['notes'] ?? '', 2000, true );
+				$order = $request['order'] ?? '0';
+				$records[ $index ]['order'] = is_scalar( $order ) ? min( 9999, max( 0, (int) $order ) ) : 0;
+				if ( ! update_post_meta( $config_id, self::META_KEY, $records ) && self::records( $config_id ) !== $records ) { return new WP_Error( 'tc_storage_save', 'File details could not be saved.' ); }
+				self::audit( $config_id, 'metadata-updated', $file_id );
+				return true;
+			}
+			if ( 'delete' === $operation ) {
+				$path = self::raw_path( $root, $config_id, $records[ $index ] );
+				if ( is_wp_error( $path ) ) { return $path; }
+				$old = $records;
+				array_splice( $records, $index, 1 );
+				if ( ! update_post_meta( $config_id, self::META_KEY, $records ) ) { return new WP_Error( 'tc_storage_save', 'The file record could not be deleted.' ); }
+				if ( is_file( $path ) && ! unlink( $path ) ) { update_post_meta( $config_id, self::META_KEY, $old ); return new WP_Error( 'tc_storage_delete', 'The stored file could not be deleted; its record was restored.' ); }
+				self::audit( $config_id, 'deleted', $file_id );
+				return true;
+			}
+			$usage = self::usage( $root );
+			if ( is_wp_error( $usage ) ) { return $usage; }
+			$directory = $root . DIRECTORY_SEPARATOR . $config_id;
+			if ( ! is_dir( $directory ) && ! mkdir( $directory, 0700 ) ) { return new WP_Error( 'tc_storage_directory', 'The private config directory could not be created.' ); }
+			if ( is_link( $directory ) || realpath( $directory ) !== $directory || ! chmod( $directory, 0700 ) ) { return new WP_Error( 'tc_storage_unsafe', 'The config directory failed its privacy checks.' ); }
+			$config_usage = self::usage( $directory );
+			if ( is_wp_error( $config_usage ) ) { return $config_usage; }
+			$new_bytes = array_sum( array_column( $uploads, 'size' ) );
+			if ( count( $records ) + count( $uploads ) - ( 'replace' === $operation ? 1 : 0 ) > self::MAX_FILES || $config_usage + $new_bytes > self::CONFIG_QUOTA || $usage + $new_bytes > self::STORAGE_QUOTA ) { return new WP_Error( 'tc_storage_quota', 'Private storage quota reached: 100 files / 100 MB per config and 1 GB across the library.' ); }
+			$old_path = 'replace' === $operation ? self::raw_path( $root, $config_id, $records[ $index ] ) : null;
+			if ( is_wp_error( $old_path ) ) { return $old_path; }
+			$created = array();
+			$new_records = $records;
+			foreach ( $uploads as $upload ) {
+				$id = wp_generate_uuid4();
+				$stored_name = $id . '.' . $upload['extension'];
+				$path = $directory . DIRECTORY_SEPARATOR . $stored_name;
+				if ( file_exists( $path ) ) { foreach ( $created as $created_path ) { unlink( $created_path ); } return new WP_Error( 'tc_storage_collision', 'A storage identifier collision occurred; existing files were preserved.' ); }
+				if ( ! move_uploaded_file( $upload['temporary'], $path ) || ! chmod( $path, 0600 ) ) { foreach ( $created as $created_path ) { unlink( $created_path ); } if ( is_file( $path ) ) { unlink( $path ); } return new WP_Error( 'tc_storage_move', 'The upload could not be stored; no file records were changed.' ); }
+				$created[] = $path;
+				$new = array( 'id' => $id, 'stored_name' => $stored_name, 'name' => $upload['name'], 'size' => $upload['size'], 'checksum' => $upload['checksum'], 'inspection' => $upload['inspection'], 'uploaded_at' => current_time( 'mysql', true ), 'version' => self::text( $request['version'] ?? '', 80 ), 'notes' => self::text( $request['notes'] ?? '', 2000, true ), 'order' => count( $new_records ) );
+				if ( 'replace' === $operation ) { $new['order'] = $records[ $index ]['order'] ?? $index; $new_records[ $index ] = $new; } else { $new_records[] = $new; }
+			}
+			if ( ! update_post_meta( $config_id, self::META_KEY, $new_records ) ) { foreach ( $created as $path ) { unlink( $path ); } return new WP_Error( 'tc_storage_save', 'File records could not be saved; new files were removed.' ); }
+			if ( is_string( $old_path ) && is_file( $old_path ) && ! unlink( $old_path ) ) { update_post_meta( $config_id, self::META_KEY, $records ); foreach ( $created as $path ) { unlink( $path ); } return new WP_Error( 'tc_storage_replace', 'The old file could not be removed; its original record was restored.' ); }
+			foreach ( $new_records as $record ) { if ( in_array( $directory . DIRECTORY_SEPARATOR . ( $record['stored_name'] ?? '' ), $created, true ) ) { self::audit( $config_id, 'replace' === $operation ? 'replaced' : 'uploaded', $record['id'], array( 'replaced_id' => 'replace' === $operation ? $file_id : '', 'bytes' => $record['size'], 'checksum' => $record['checksum'], 'inspection' => $record['inspection'] ) ); } }
+			return true;
+		} );
+	}
+
+	/** Management may remove an unsupported legacy archive, but never follow an arbitrary path. */
+	private static function raw_path( string $root, int $config_id, array $record ): string|WP_Error {
+		$id = $record['id'] ?? '';
+		$name = $record['stored_name'] ?? '';
+		$directory = $root . DIRECTORY_SEPARATOR . $config_id;
+		if ( ! self::uuid( $id ) || ! is_string( $name ) || ! preg_match( '/^' . preg_quote( $id, '/' ) . '\.[a-z0-9]{1,8}$/D', $name ) || is_link( $directory ) || realpath( $directory ) !== $directory ) { return new WP_Error( 'tc_file_unsafe', 'The stored file location failed its containment checks.' ); }
+		$path = $directory . DIRECTORY_SEPARATOR . $name;
+		if ( is_link( $path ) || ( file_exists( $path ) && ( ! is_file( $path ) || realpath( $path ) !== $path ) ) ) { return new WP_Error( 'tc_file_unsafe', 'The stored file failed its containment checks.' ); }
+		return $path;
+	}
+
+	public static function save( int $post_id, WP_Post $post ): void {
+		if ( 'tc_config' !== $post->post_type || ! self::authorise( $post_id ) || wp_is_post_revision( $post_id ) || ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) ) { return; }
+		$nonce = $_POST[ self::NONCE ] ?? null;
+		if ( ! is_string( $nonce ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $nonce ) ), 'tc_private_files_' . $post_id ) || ! isset( $_FILES['tc_private_files'] ) ) { return; }
+		$result = self::mutate( $post_id, 'upload', array(), $_FILES['tc_private_files'] );
+		self::feedback( $result );
+	}
+
+	private static function feedback( true|WP_Error $result ): void {
+		set_transient( 'tc_private_notice_' . get_current_user_id(), array( 'error' => is_wp_error( $result ), 'message' => is_wp_error( $result ) ? $result->get_error_message() : 'Private files updated successfully.' ), 120 );
+	}
+
+	public static function notice(): void {
+		if ( ! current_user_can( 'manage_options' ) ) { return; }
+		$notice = get_transient( 'tc_private_notice_' . get_current_user_id() );
+		if ( ! is_array( $notice ) ) { return; }
+		delete_transient( 'tc_private_notice_' . get_current_user_id() );
+		echo '<div class="notice ' . ( ! empty( $notice['error'] ) ? 'notice-error' : 'notice-success' ) . '"><p>' . esc_html( $notice['message'] ?? '' ) . '</p></div>';
+	}
+
+	public static function handle(): void {
+		$id = isset( $_POST['config_id'] ) && is_scalar( $_POST['config_id'] ) ? absint( $_POST['config_id'] ) : 0;
+		if ( ! self::authorise( $id ) ) { wp_die( 'Administrator permission and config edit access are required.', '', array( 'response' => 403 ) ); }
+		if ( ! isset( $_POST[ self::NONCE ] ) || ! is_string( $_POST[ self::NONCE ] ) ) { wp_die( 'A valid private-file form nonce is required.', '', array( 'response' => 403 ) ); }
+		check_admin_referer( 'tc_private_files_' . $id, self::NONCE );
+		$operation = isset( $_POST['operation'] ) && is_string( $_POST['operation'] ) ? sanitize_key( $_POST['operation'] ) : '';
+		$request = wp_unslash( $_POST );
+		$result = self::mutate( $id, $operation, $request, $_FILES['tc_private_files'] ?? null );
+		self::feedback( $result );
+		wp_safe_redirect( admin_url( 'edit.php?post_type=tc_config&page=tc-private-files&config_id=' . $id ) );
+		exit;
+	}
+
+	public static function render( WP_Post $post ): void {
+		if ( ! self::authorise( $post->ID ) ) { return; }
+		wp_nonce_field( 'tc_private_files_' . $post->ID, self::NONCE );
+		$root = self::root();
+		if ( is_wp_error( $root ) ) { echo '<p><strong>Private uploads disabled.</strong> ' . esc_html( $root->get_error_message() ) . '</p>'; }
+		echo '<p>Manage actual script attachments separately from public artwork. Private paths and permanent download URLs are never exposed.</p><p><a class="button" href="' . esc_url( admin_url( 'edit.php?post_type=tc_config&page=tc-private-files&config_id=' . $post->ID ) ) . '">Manage private files</a></p>';
+		foreach ( self::files( $post->ID ) as $file ) { echo '<p>' . esc_html( $file['name'] ) . ' — ' . esc_html( $file['version'] ) . '</p>'; }
+	}
+
+	private static function form_start( int $id, string $operation, string $file_id = '' ): void {
+		echo '<form method="post" enctype="multipart/form-data" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="tc_private_files_manage"><input type="hidden" name="config_id" value="' . esc_attr( (string) $id ) . '"><input type="hidden" name="operation" value="' . esc_attr( $operation ) . '"><input type="hidden" name="file_id" value="' . esc_attr( $file_id ) . '">';
+		wp_nonce_field( 'tc_private_files_' . $id, self::NONCE );
+	}
+
+	public static function page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) { return; }
+		$id = isset( $_GET['config_id'] ) && is_scalar( $_GET['config_id'] ) ? absint( $_GET['config_id'] ) : 0;
+		echo '<div class="wrap"><h1>Private script files</h1>';
+		if ( ! self::authorise( $id ) ) { echo '<p>Open a configuration in the editor, then choose <strong>Manage private files</strong>.</p></div>'; return; }
+		echo '<h2>' . esc_html( get_the_title( $id ) ) . '</h2><p>Files are stored outside the public website. Archives and executables are disabled. Limits: 10 files per upload, 20 MB per file, 100 files / 100 MB per config, 1 GB total. Structural checks are not a malware-free certification; binary backups require an approved scanner or format inspector through the file-scanner integration.</p>';
+		$root = self::root();
+		if ( is_wp_error( $root ) ) { echo '<div class="notice notice-error inline"><p>' . esc_html( $root->get_error_message() ) . '</p></div></div>'; return; }
+		self::form_start( $id, 'upload' );
+		echo '<h3>Add script files</h3><p><label>Files <input type="file" name="tc_private_files[]" accept=".znbk,.gpc,.ximmr,.json,.txt" multiple required></label></p><p><label>Version <input name="version" maxlength="80"></label></p><p><label>Notes <textarea name="notes" maxlength="2000"></textarea></label></p>';
+		submit_button( 'Upload private files', 'primary', 'submit', false ); echo '</form><hr>';
+		$records = self::records( $id );
+		if ( is_wp_error( $records ) ) { echo '<p>' . esc_html( $records->get_error_message() ) . '</p></div>'; return; }
+		usort( $records, static fn( array $a, array $b ): int => ( (int) ( $a['order'] ?? 0 ) <=> (int) ( $b['order'] ?? 0 ) ) ?: strcmp( (string) ( $a['id'] ?? '' ), (string) ( $b['id'] ?? '' ) ) );
+		foreach ( $records as $index => $file ) {
+			if ( ! self::uuid( $file['id'] ?? null ) ) { echo '<p>A legacy record needs administrator repair.</p>'; continue; }
+			echo '<section style="padding:16px;background:#fff;margin:16px 0;border:1px solid #ccd0d4"><h3>' . esc_html( self::text( $file['name'] ?? 'Unnamed file', 200 ) ) . '</h3><p>Uploaded: ' . esc_html( self::text( $file['uploaded_at'] ?? '', 30 ) ) . ' · Size: ' . esc_html( size_format( max( 0, (int) ( $file['size'] ?? 0 ) ) ) ) . '</p><p>SHA-256: <code>' . esc_html( self::text( $file['checksum'] ?? '', 64 ) ?: 'Not recorded for this legacy file' ) . '</code></p>';
+			self::form_start( $id, 'update', $file['id'] );
+			echo '<p><label>Order <input type="number" name="order" min="0" max="9999" value="' . esc_attr( (string) ( $file['order'] ?? $index ) ) . '"></label> <label>Version <input name="version" maxlength="80" value="' . esc_attr( self::text( $file['version'] ?? '', 80 ) ) . '"></label></p><p><label>Notes <textarea name="notes" maxlength="2000">' . esc_textarea( self::text( $file['notes'] ?? '', 2000, true ) ) . '</textarea></label></p>';
+			submit_button( 'Save file details', 'secondary', 'submit', false ); echo '</form>';
+			self::form_start( $id, 'replace', $file['id'] );
+			echo '<p><label>Replacement <input type="file" name="tc_private_files[]" accept=".znbk,.gpc,.ximmr,.json,.txt" required></label> <label>New version <input name="version" maxlength="80" value="' . esc_attr( self::text( $file['version'] ?? '', 80 ) ) . '"></label></p><p><label>Notes <textarea name="notes" maxlength="2000">' . esc_textarea( self::text( $file['notes'] ?? '', 2000, true ) ) . '</textarea></label></p><p><label><input type="checkbox" name="confirm" value="1" required> I confirm replacing this file. Its old download ID will be revoked.</label></p>';
+			submit_button( 'Replace file', 'secondary', 'submit', false ); echo '</form>';
+			self::form_start( $id, 'delete', $file['id'] );
+			echo '<p><label><input type="checkbox" name="confirm" value="1" required> I confirm permanently deleting this file.</label></p>';
+			submit_button( 'Delete file', 'delete', 'submit', false ); echo '</form></section>';
+		}
+		echo '</div>';
+	}
 }

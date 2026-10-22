@@ -9,16 +9,37 @@
 .tc-collection-links { display:flex; flex-wrap:wrap; gap:10px 22px; margin-top:20px; }
 .tc-collection-links a { color:#cbd6df; font-size:12px; text-decoration:underline; text-underline-offset:4px; }
 .tc-collection-links a:hover { color:var(--orange); }
-.tc-catalog-filter { grid-template-columns:minmax(170px,1.3fr) repeat(5,minmax(110px,1fr)) auto; gap:12px; margin-bottom:30px; padding:20px; }
+.tc-catalog-filter { grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-bottom:30px; padding:20px; }
 .tc-catalog-filter select:disabled { opacity:.75; cursor:default; }
 .tc-catalog-filter .tc-button { font-size:12px; padding-inline:17px; white-space:nowrap; }
 .tc-config-card__visual { height:auto; aspect-ratio:16/9; }
+.tc-config-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.tc-config-card { display:flex; flex-direction:column; }
 .tc-config-card__status { position:absolute; left:14px; bottom:14px; padding:5px 9px; border:1px solid #926130; border-radius:4px; background:#12100dec; color:#ffc081; font-size:11px; font-weight:700; }
 .tc-config-card__body { padding:22px; }
 .tc-config-card__body h2 { font-size:24px; line-height:1.15; }
 .tc-config-card__body>p:not(.tc-config-card__meta) { min-height:0; line-height:1.6; }
 .tc-config-card__specs span { font-size:11px; }
 .tc-config-card__meta { line-height:1.45; }
+.tc-config-card__body { display:flex; flex:1; flex-direction:column; }
+.tc-config-card__body h2,.tc-config-card__publisher { overflow-wrap:anywhere; }
+.tc-config-card__body>.tc-config-card__publisher { min-height:0; margin:0 0 12px; color:#becbd4; font-size:12px; line-height:1.5; }
+.tc-config-card__dates { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:5px 0; font-size:11px; line-height:1.5; }
+.tc-config-card__dates dt { color:#93a5b2; }
+.tc-config-card__dates dd { margin:0; color:#d8e1e8; }
+.tc-config-card__actions { display:flex; flex-wrap:wrap; align-items:center; gap:15px; margin-top:auto; }
+.tc-config-card__actions form { margin:0; }
+.tc-config-card__body>.tc-config-card__access-note { min-height:0; margin:14px 0 0; font-size:11px; line-height:1.5; color:#a2b3bf; }
+.tc-protected-files { padding-top:22px; border-top:1px solid var(--line); }
+.tc-config-specs .tc-protected-files h2 { margin-top:0; font-size:23px; }
+.tc-protected-file-list { list-style:none; margin:18px 0; padding:0; }
+.tc-protected-file-list>li { padding:16px 0; border-top:1px solid var(--line); }
+.tc-protected-file-list h3 { margin:0 0 8px; font-family:var(--font-body); font-size:14px; overflow-wrap:anywhere; }
+.tc-protected-file-list p { font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+.tc-protected-file-list__meta { color:#afc1ce; }
+.tc-protected-file-list code { display:block; padding:12px 0; font-size:11px; overflow-wrap:anywhere; }
+.tc-protected-file-list form { margin-top:16px; }
+.tc-protected-file-list summary { color:#b9cbd8; font-size:12px; cursor:pointer; }
 .tc-collection-guidance { display:grid; grid-template-columns:1fr 1fr; gap:50px; }
 .tc-collection-guidance h2 { font-size:30px; }
 .tc-collection-guidance p:not(.tc-eyebrow) { max-width:600px; color:var(--muted); line-height:1.65; }
@@ -51,6 +72,7 @@
   .tc-catalog-filter .tc-button { grid-column:1/-1; justify-self:start; }
 }
 @media(max-width:900px) {
+  .tc-config-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .tc-game-directory { grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
   .tc-config-single__hero,.tc-config-single__layout { grid-template-columns:1fr; }
   .tc-config-single__layout { gap:30px; }

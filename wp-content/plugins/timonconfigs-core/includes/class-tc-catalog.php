@@ -24,6 +24,9 @@ final class TC_Catalog {
 		'tc_access_url'     => 'sanitize_public_url',
 		'tc_release_status' => 'sanitize_release_status',
 		'tc_game_version'   => 'sanitize_text',
+		'tc_publisher'      => 'sanitize_text',
+		'tc_creator'        => 'sanitize_text',
+		'tc_release_date'   => 'sanitize_date',
 	);
 
 	public static function init(): void {
@@ -32,6 +35,7 @@ final class TC_Catalog {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_meta_box' ) );
 		add_action( 'save_post_' . self::POST_TYPE, array( __CLASS__, 'save_meta' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'filter_archive' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'private_member_cache' ), 1 );
 		add_filter( 'term_link', array( __CLASS__, 'filter_core_term_links' ), 10, 3 );
 		foreach ( array( 'tc_game', 'tc_device' ) as $taxonomy ) {
 			add_action( $taxonomy . '_add_form_fields', array( __CLASS__, 'render_collection_add_field' ) );
@@ -260,6 +264,71 @@ final class TC_Catalog {
 		return isset( $_GET[ $key ] ) && is_string( $_GET[ $key ] ) ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
 	}
 
+	/** Stable sort keys; raw request values never reach an SQL clause. */
+	public static function sort_options(): array {
+		return array( 'updated' => 'Recently updated', 'newest' => 'Newest uploads', 'title' => 'Title: A–Z' );
+	}
+
+	public static function selected_sort(): string {
+		$value = self::request_value( 'sort' );
+		return array_key_exists( $value, self::sort_options() ) ? $value : 'updated';
+	}
+
+	/** Logged-in catalogue CTAs contain per-session nonces and must never be cached publicly. */
+	public static function private_member_cache(): void {
+		if ( ! is_user_logged_in() || ( ! is_singular( self::POST_TYPE ) && ! is_post_type_archive( self::POST_TYPE ) && ! is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) ) { return; }
+		if ( ! defined( 'DONOTCACHEPAGE' ) ) { define( 'DONOTCACHEPAGE', true ); }
+		nocache_headers();
+		if ( ! headers_sent() ) { header( 'Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0' ); }
+	}
+
+	/**
+	 * Public-safe access presentation only. The download handler independently checks access again.
+	 *
+	 * @return array{action:string,label:string,url:string,message:string,files:array}
+	 */
+	public static function download_cta( int $post_id ): array {
+		$details = array( 'action' => 'pending', 'label' => 'View config details', 'url' => (string) get_permalink( $post_id ), 'message' => 'Release files are not available yet.', 'files' => array() );
+		if ( self::POST_TYPE !== get_post_type( $post_id ) || 'publish' !== get_post_status( $post_id ) || 'available' !== get_post_meta( $post_id, 'tc_release_status', true ) ) { return $details; }
+		$files = is_callable( array( 'TC_Private_Files', 'files' ) ) ? TC_Private_Files::files( $post_id ) : array();
+		$files = is_array( $files ) ? array_values( array_filter( $files, static fn( mixed $file ): bool => is_array( $file ) && isset( $file['id'], $file['name'] ) && is_string( $file['id'] ) && is_string( $file['name'] ) ) ) : array();
+		$files = array_map( static fn( array $file ): array => array_intersect_key( $file, array_flip( array( 'id', 'name', 'size', 'version', 'notes', 'checksum', 'uploaded_at' ) ) ), $files );
+		if ( ! $files ) { return $details; }
+		$details['files'] = $files;
+		$details['url'] = home_url( '/account/' );
+		if ( ! is_user_logged_in() ) {
+			$details['action'] = 'login';
+			$details['label'] = 'Log in';
+			$details['message'] = 'Sign in with Discord to verify your current access.';
+			if ( is_callable( array( 'TC_Discord', 'login_url' ) ) ) { $details['url'] = TC_Discord::login_url(); }
+			return $details;
+		}
+		$details['action'] = 'verify';
+		$details['label'] = 'Review member access';
+		$details['message'] = 'Member verification is not available yet.';
+		if ( ! is_callable( array( 'TC_Discord', 'status' ) ) || ! is_callable( array( 'TC_Discord', 'can_access' ) ) ) { return $details; }
+		$allowed = TC_Discord::can_access( $post_id );
+		$status = TC_Discord::status();
+		$state = is_array( $status ) && isset( $status['state'] ) && is_string( $status['state'] ) ? $status['state'] : 'unavailable';
+		if ( true === $allowed && is_callable( array( 'TC_Downloads', 'render_button' ) ) ) {
+			$details['action'] = 'download';
+			$details['label'] = 'Download';
+			$details['url'] = '';
+			$details['message'] = 'Access is verified again when you request a protected file.';
+		} elseif ( 'unavailable' === $state ) {
+			$details['message'] = 'Your current membership could not be verified. Open your profile and try again.';
+		} elseif ( 'unverified' === $state ) {
+			$details['label'] = 'Verify with Discord';
+			$details['message'] = 'Verify your Discord membership before downloading protected files.';
+		} elseif ( in_array( $state, array( 'free', 'monthly', 'lifetime' ), true ) ) {
+			$details['action'] = 'memberships';
+			$details['label'] = 'Browse Memberships';
+			$details['url'] = home_url( '/pricing/' );
+			$details['message'] = 'Compare memberships for access covered by this release.';
+		}
+		return $details;
+	}
+
 	public static function add_meta_box(): void {
 		add_meta_box( 'tc_config_details', esc_html__( 'Config details', 'timonconfigs-core' ), array( __CLASS__, 'render_meta_box' ), self::POST_TYPE, 'normal', 'high' );
 	}
@@ -280,14 +349,14 @@ final class TC_Catalog {
 			foreach ( $field[1] as $option => $label ) { echo '<option value="' . esc_attr( $option ) . '" ' . selected( $value, $option, false ) . '>' . esc_html( $label ) . '</option>'; }
 			echo '</select></p>';
 		}
-		foreach ( array( 'tc_config_version' => 'Configuration version', 'tc_game_version' => 'Supported game version', 'tc_last_updated' => 'Last verified update', 'tc_tutorial_url' => 'Tutorial URL (HTTPS)', 'tc_access_url' => 'Free release access URL (HTTPS)', 'tc_platform' => 'Legacy platform notes' ) as $key => $label ) {
-			$type = 'tc_last_updated' === $key ? 'date' : ( str_ends_with( $key, '_url' ) ? 'url' : 'text' );
+		foreach ( array( 'tc_publisher' => 'Public publisher name', 'tc_creator' => 'Public creator name (optional)', 'tc_release_date' => 'Release date', 'tc_config_version' => 'Configuration version', 'tc_game_version' => 'Supported game version', 'tc_last_updated' => 'Last verified update', 'tc_tutorial_url' => 'Tutorial URL (HTTPS)', 'tc_access_url' => 'Legacy public Free resource URL (not protected delivery)', 'tc_platform' => 'Legacy platform notes' ) as $key => $label ) {
+			$type = in_array( $key, array( 'tc_last_updated', 'tc_release_date' ), true ) ? 'date' : ( str_ends_with( $key, '_url' ) ? 'url' : 'text' );
 			echo '<p><label for="' . esc_attr( $key ) . '"><strong>' . esc_html( $label ) . '</strong></label><br><input class="widefat" type="' . esc_attr( $type ) . '" id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '" value="' . esc_attr( $values[ $key ] ) . '"></p>';
 		}
 		foreach ( array( 'tc_compatibility' => 'Confirmed compatibility and setup requirements', 'tc_changelog' => 'Changelog' ) as $key => $label ) {
 			echo '<p><label for="' . esc_attr( $key ) . '"><strong>' . esc_html( $label ) . '</strong></label><br><textarea class="widefat" rows="4" id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '">' . esc_textarea( $values[ $key ] ) . '</textarea></p>';
 		}
-		echo '<p>' . esc_html__( 'Assign only confirmed Xbox, PlayStation or PC terms in Platforms. The access URL is used for Free releases only, is omitted from REST output, and is cleared for premium tiers. Premium delivery must use server-side membership authorization.', 'timonconfigs-core' ) . '</p>';
+		echo '<p>' . esc_html__( 'Assign only confirmed Xbox, PlayStation or PC terms in Platforms. Public publisher/creator names appear on release cards. Upload protected scripts through Private script files; the legacy public Free resource URL is not a protected file and is not used for member-library downloads. It is omitted from REST output and cleared for premium tiers.', 'timonconfigs-core' ) . '</p>';
 	}
 
 	public static function save_meta( int $post_id ): void {
@@ -324,8 +393,11 @@ final class TC_Catalog {
 		if ( is_admin() || ! $query->is_main_query() || ( ! $query->is_post_type_archive( self::POST_TYPE ) && ! $query->is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) ) { return; }
 		$query->set( 'post_type', self::POST_TYPE );
 		$query->set( 'posts_per_page', 12 );
-		$query->set( 'orderby', 'modified' );
-		$query->set( 'order', 'DESC' );
+		$sort = self::selected_sort();
+		$column = array( 'newest' => 'date', 'updated' => 'modified', 'title' => 'title' )[ $sort ];
+		$direction = 'title' === $sort ? 'ASC' : 'DESC';
+		$query->set( 'orderby', array( $column => $direction, 'ID' => $direction ) );
+		$query->set( 'order', $direction );
 		$search = self::request_value( 'config_search' );
 		if ( '' !== $search ) { $query->set( 's', $search ); }
 		$tax_query = (array) $query->get( 'tax_query' );

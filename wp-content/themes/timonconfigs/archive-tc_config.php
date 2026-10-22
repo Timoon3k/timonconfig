@@ -17,7 +17,7 @@ $get_filter = static function ( string $key ): string {
 };
 if ( ! $is_term && 'free' === $get_filter( 'tier' ) ) {
 	$headline = 'Free configs for your setup';
-	$intro = 'Explore selected Free configurations and their confirmed device, input, platform, and game-version details. A public access link appears only when a Free release has been published and marked available.';
+	$intro = 'Explore selected Free configurations and their confirmed device, input, platform, and game-version details. Sign in with Discord and verify your current membership to request protected release files.';
 }
 $games = get_terms( array( 'taxonomy' => 'tc_game', 'hide_empty' => false ) );
 $devices = get_terms( array( 'taxonomy' => 'tc_device', 'hide_empty' => false ) );
@@ -31,6 +31,8 @@ $selected_platform = $is_platform ? $term->slug : $get_filter( 'platform' );
 $archive_url = (string) get_post_type_archive_link( 'tc_config' );
 $form_url = $term instanceof WP_Term ? get_term_link( $term ) : $archive_url;
 $form_url = is_wp_error( $form_url ) ? $archive_url : $form_url;
+$sort_options = is_callable( array( 'TC_Catalog', 'sort_options' ) ) ? TC_Catalog::sort_options() : array( 'updated' => 'Recently updated', 'newest' => 'Newest uploads', 'title' => 'Title: A–Z' );
+$selected_sort = is_callable( array( 'TC_Catalog', 'selected_sort' ) ) ? TC_Catalog::selected_sort() : 'updated';
 ?>
 <main id="main">
 	<section class="tc-page-hero tc-page-hero--catalog tc-collection-hero">
@@ -60,6 +62,7 @@ $form_url = is_wp_error( $form_url ) ? $archive_url : $form_url;
 				<label><span>Platform</span><select name="platform" <?php disabled( $is_platform ); ?>><option value="">All platforms</option><?php foreach ( $platforms as $platform ) : ?><option value="<?php echo esc_attr( $platform->slug ); ?>" <?php selected( $selected_platform, $platform->slug ); ?>><?php echo esc_html( $platform->name ); ?></option><?php endforeach; ?></select></label>
 				<?php if ( $is_platform ) : ?><input type="hidden" name="platform" value="<?php echo esc_attr( $term->slug ); ?>"><?php endif; ?>
 				<label><span>Access</span><select name="tier"><option value="">All tiers</option><?php foreach ( array( 'free' => 'Free', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' ) as $value => $label ) : ?><option value="<?php echo esc_attr( $value ); ?>" <?php selected( $get_filter( 'tier' ), $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select></label>
+				<label><span>Sort</span><select name="sort"><?php foreach ( $sort_options as $value => $label ) : ?><option value="<?php echo esc_attr( $value ); ?>" <?php selected( $selected_sort, $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select></label>
 				<button class="tc-button" type="submit">Apply filters</button>
 			</form>
 			<?php if ( have_posts() ) : ?>

@@ -1,0 +1,103 @@
+<?php
+/** Run only on disposable local WordPress: fake Discord HTTP; no external requests. */
+defined( 'ABSPATH' ) || exit;
+if ( ! defined( 'WP_CLI' ) || ! WP_CLI || ! in_array( wp_parse_url( home_url(), PHP_URL_HOST ), array( 'localhost', '127.0.0.1' ), true ) ) { throw new RuntimeException( 'Disposable localhost WordPress required.' ); }
+if ( ! class_exists( 'TC_Discord' ) ) { require WP_PLUGIN_DIR . '/timonconfigs-core/includes/class-tc-discord.php'; }
+$checks = 0;
+$assert = static function ( bool $ok, string $message ) use ( &$checks ) { if ( ! $ok ) { throw new RuntimeException( $message ); } ++$checks; };
+$call = static function ( string $method, ...$args ) { $m = new ReflectionMethod( TC_Discord::class, $method ); $m->setAccessible( true ); return $m->invoke( null, ...$args ); };
+$old = get_option( 'timonconfigs_discord', null ); $original_user = get_current_user_id(); $uids = array(); $posts = array(); $states = array();
+$https = static fn() => 'https://localhost:8080';
+$roles = array(); $mode = 'ok'; $requests = array(); $id = '900000000000000001';
+$http = static function ( $pre, $args, $url ) use ( &$roles, &$mode, &$requests, $id ) {
+    $requests[] = array( $url, $args );
+    if ( ! str_starts_with( $url, 'https://discord.com/api/v10/' ) ) { throw new RuntimeException( 'Unexpected outbound request blocked.' ); }
+    if ( 'error' === $mode ) { return new WP_Error( 'fake', 'Never expose upstream details' ); }
+    if ( str_ends_with( $url, '/oauth2/token' ) ) { $body = array( 'access_token' => 'fake-access-new', 'refresh_token' => 'fake-refresh-new', 'token_type' => 'Bearer', 'scope' => 'identify guilds.members.read', 'expires_in' => 3600 ); }
+    else { $body = array( 'user' => array( 'id' => 'wrong-user' === $mode ? '900000000000000099' : $id ), 'roles' => $roles ); if ( 'wrong-guild' === $mode ) { $body['guild_id'] = '900000000000000099'; } }
+    return array( 'response' => array( 'code' => 200 ), 'body' => wp_json_encode( $body ), 'headers' => array() );
+};
+add_filter( 'pre_http_request', $http, 10, 3 ); add_filter( 'option_home', $https );
+try {
+    wp_set_current_user( 0 ); delete_option( 'timonconfigs_discord' );
+    $assert( ! TC_Discord::is_ready(), 'Default off.' );
+    $settings = array( 'enabled' => 1, 'staging_confirmed' => 1, 'pkce' => 1, 'client_id' => '900000000000000002', 'guild_id' => '900000000000000003', 'free_role' => '900000000000000004', 'monthly_role' => '900000000000000005', 'lifetime_role' => '900000000000000006', 'secret_encrypted' => $call( 'encrypt', 'fake-client-secret' ) );
+    update_option( 'timonconfigs_discord', $settings, false );
+    $assert( TC_Discord::is_ready(), 'Explicit fake configured staging is ready.' );
+    $cipher = $call( 'encrypt', 'secret-test' );
+    $assert( ! str_contains( $cipher, 'secret-test' ) && 'secret-test' === $call( 'decrypt', $cipher ), 'Authenticated encryption round-trip.' );
+    $assert( '' === $call( 'decrypt', substr( $cipher, 0, -4 ) . 'AAAA' ), 'Tampering rejected.' );
+    $assert( 'unverified' === TC_Discord::status()['state'], 'Anonymous denied.' );
+    $state = $call( 'create_state' ); $states[] = $state['state']; parse_str( wp_parse_url( $state['url'], PHP_URL_QUERY ), $query );
+    $assert( 'identify guilds.members.read' === $query['scope'] && 'S256' === $query['code_challenge_method'], 'Minimal scopes and configured PKCE S256.' );
+    $assert( 'https://localhost:8080/?tc_discord_callback=1' === $query['redirect_uri'], 'Exact callback.' );
+    $verified = $call( 'validate_state', $state['state'], $state['cookie'] );
+    $assert( is_array( $verified ) && $query['code_challenge'] === rtrim( strtr( base64_encode( hash( 'sha256', $verified['verifier'], true ) ), '+/', '-_' ), '=' ), 'PKCE challenge matches secret verifier.' );
+    $assert( is_wp_error( $call( 'validate_state', $state['state'], $state['cookie'] ) ), 'State replay denied atomically.' );
+    $state = $call( 'create_state' ); $states[] = $state['state'];
+    $assert( is_wp_error( $call( 'validate_state', $state['state'], str_repeat( '0', 64 ) ) ), 'Cookie CSRF mismatch denied.' );
+    $state = $call( 'create_state' ); $states[] = $state['state']; $key = '_tc_oauth_' . hash( 'sha256', $state['state'] );
+    $data = json_decode( $call( 'decrypt', get_option( $key ) ), true ); $data['expires'] = time() - 1; update_option( $key, $call( 'encrypt', wp_json_encode( $data ) ), false );
+    $assert( is_wp_error( $call( 'validate_state', $state['state'], $state['cookie'] ) ), 'Expired state denied.' );
+    $uid = $call( 'bind', array( 'id' => $id, 'username' => 'Fake tester' ) );
+    $assert( is_int( $uid ), 'Snowflake-only user created.' ); $uids[] = $uid;
+    $assert( $uid === $call( 'bind', array( 'id' => $id, 'username' => 'Renamed' ) ), 'Stable unique identity binding.' );
+    $assert( is_wp_error( $call( 'bind', array( 'id' => 'bad', 'email' => get_userdata( $uid )->user_email ) ) ), 'Malformed identity cannot email-link.' );
+    wp_set_current_user( $uid );
+    $assert( is_wp_error( $call( 'bind', array( 'id' => '900000000000000007' ) ) ), 'Logged-in account cannot attach a different Discord ID.' );
+    $seed = static function ( int $expiry = 3600 ) use ( $call, $uid ) { update_user_meta( $uid, '_tc_discord_token', $call( 'encrypt', wp_json_encode( array( 'access_token' => 'fake-access', 'refresh_token' => 'fake-refresh', 'expires' => time() + $expiry ) ) ) ); delete_user_meta( $uid, '_tc_discord_status' ); delete_user_meta( $uid, '_tc_discord_attempt' ); };
+    $post = wp_insert_post( array( 'post_type' => 'tc_config', 'post_status' => 'publish', 'post_title' => 'Disposable Discord test', 'meta_input' => array( 'tc_tier' => 'free', 'tc_release_status' => 'available' ) ) ); $posts[] = $post;
+    foreach ( array( 'unverified', 'free', 'monthly', 'lifetime' ) as $member_tier ) {
+        $roles = 'unverified' === $member_tier ? array() : array( $settings[ $member_tier . '_role' ] ); $seed();
+        $assert( $member_tier === TC_Discord::status()['state'], 'Roles derive ' . $member_tier );
+        foreach ( array( 'free', 'monthly', 'lifetime' ) as $tier ) {
+            update_post_meta( $post, 'tc_tier', $tier );
+            $expected = 'free' === $tier ? 'unverified' !== $member_tier : ( 'monthly' === $tier ? in_array( $member_tier, array( 'monthly', 'lifetime' ), true ) : 'lifetime' === $member_tier );
+            $assert( $expected === TC_Discord::can_access( $post ), 'Tier matrix ' . $member_tier . '/' . $tier );
+        }
+    }
+    $before = count( $requests ); TC_Discord::status(); $assert( count( $requests ) === $before, 'Fresh cache avoids provider call.' );
+    $assert( 'unavailable' === TC_Discord::status( 0, true )['state'], 'Refresh rate limited.' );
+    delete_user_meta( $uid, '_tc_discord_attempt' ); $roles = array();
+    $assert( 'unverified' === TC_Discord::status( 0, true )['state'], 'Role removal replaces cached VIP.' );
+    $roles = array( $settings['lifetime_role'] ); $seed( 1 );
+    $assert( 'lifetime' === TC_Discord::status()['state'], 'Expiring token proactively refreshed.' );
+    $assert( 'fake-access-new' === json_decode( $call( 'decrypt', get_user_meta( $uid, '_tc_discord_token', true ) ), true )['access_token'], 'Rotated token persisted encrypted.' );
+    foreach ( array( 'error', 'wrong-guild', 'wrong-user' ) as $failure ) { $mode = $failure; $seed(); $assert( 'unavailable' === TC_Discord::status()['state'], 'Fail closed: ' . $failure ); $assert( is_wp_error( TC_Discord::can_access( $post ) ), 'Unavailable is explicit WP_Error.' ); }
+    $mode = 'ok'; $seed(); add_option( '_tc_discord_lock_' . $uid, time() + 30, '', false );
+    $assert( 'unavailable' === TC_Discord::status()['state'], 'Concurrent refresh never serves stale roles.' ); delete_option( '_tc_discord_lock_' . $uid );
+    $seed(); TC_Discord::status(); $cache = get_user_meta( $uid, '_tc_discord_status', true ); $cache['expires_at'] = time() - 1; update_user_meta( $uid, '_tc_discord_status', $cache ); delete_user_meta( $uid, '_tc_discord_attempt' ); $mode = 'error';
+    $assert( 'unavailable' === TC_Discord::status()['state'], 'Expired cache with API failure denies VIP.' );
+    $assert( ! get_user_meta( $uid, '_tc_discord_status', true ), 'Failure clears stale status.' );
+    $mode = 'ok'; $seed(); TC_Discord::revoke( $uid );
+    $assert( ! get_user_meta( $uid, '_tc_discord_token', true ) && 'unverified' === TC_Discord::status()['state'], 'Revoke removes local credentials.' );
+    parse_str( wp_parse_url( TC_Discord::logout_url(), PHP_URL_QUERY ), $logout ); $assert( (bool) wp_verify_nonce( $logout['_wpnonce'], 'tc_discord_logout' ), 'Logout nonce is session-bound.' );
+    $seed(); update_post_meta( $post, 'tc_release_status', '' ); $assert( false === TC_Discord::can_access( $post ), 'Missing release status denied.' );
+    update_post_meta( $post, 'tc_release_status', 'available' ); wp_update_post( array( 'ID' => $post, 'post_status' => 'draft' ) ); $assert( false === TC_Discord::can_access( $post ), 'Draft denied.' );
+    $settings['guild_id'] = '900000000000000009'; update_option( 'timonconfigs_discord', $settings, false ); $seed(); $roles = array( $settings['free_role'] ); TC_Discord::status();
+    $assert( str_contains( end( $requests )[0], '/guilds/900000000000000009/member' ), 'Configured guild owns role request.' );
+    $seed();
+    $replacement = ( time() + 60 ) . ':replacement-owner';
+    $lease_race = static function ( $pre, $args, $url ) use ( $uid, $replacement ) { if ( str_ends_with( $url, '/member' ) ) { update_option( '_tc_discord_lock_' . $uid, $replacement, false ); } return $pre; };
+    add_filter( 'pre_http_request', $lease_race, 9, 3 ); TC_Discord::status(); remove_filter( 'pre_http_request', $lease_race, 9 );
+    $assert( $replacement === get_option( '_tc_discord_lock_' . $uid ), 'Old refresh owner cannot release a replacement lease.' ); delete_option( '_tc_discord_lock_' . $uid );
+    // Simulate logout in another request while refresh-token HTTP is in flight.
+    $seed( 1 );
+    $race = static function ( $pre, $args, $url ) use ( $uid ) { if ( str_ends_with( $url, '/oauth2/token' ) ) { delete_user_meta( $uid, '_tc_discord_token' ); } return $pre; };
+    add_filter( 'pre_http_request', $race, 9, 3 );
+    $assert( 'unavailable' === TC_Discord::status()['state'], 'Concurrent logout defeats refresh compare-and-swap.' );
+    $assert( ! get_user_meta( $uid, '_tc_discord_token', true ), 'Refresh cannot resurrect revoked credentials.' );
+    remove_filter( 'pre_http_request', $race, 9 );
+    $state = $call( 'create_state' ); $states[] = $state['state']; wp_set_current_user( 0 );
+    $assert( is_wp_error( $call( 'validate_state', $state['state'], $state['cookie'] ) ), 'State bound to initiating WordPress session.' );
+    $settings['enabled'] = 0; update_option( 'timonconfigs_discord', $settings, false );
+    $assert( ! TC_Discord::is_ready() && TC_Discord::login_url() === home_url( '/account/' ), 'Disabled mode has no OAuth handoff.' );
+    WP_CLI::success( "Discord integration: $checks assertions; fake HTTP only, no real Discord verification." );
+} finally {
+    remove_filter( 'pre_http_request', $http, 10 ); remove_filter( 'option_home', $https );
+    foreach ( $posts as $post ) { wp_delete_post( $post, true ); }
+    require_once ABSPATH . 'wp-admin/includes/user.php';
+    foreach ( $uids as $uid ) { delete_option( '_tc_discord_binding_' . get_user_meta( $uid, '_tc_discord_id', true ) ); delete_option( '_tc_discord_lock_' . $uid ); wp_delete_user( $uid ); }
+    foreach ( $states as $state ) { $key = '_tc_oauth_' . hash( 'sha256', $state ); delete_option( $key ); wp_clear_scheduled_hook( 'tc_discord_clean_state', array( $key ) ); }
+    null === $old ? delete_option( 'timonconfigs_discord' ) : update_option( 'timonconfigs_discord', $old, false ); wp_set_current_user( $original_user );
+}

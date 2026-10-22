@@ -68,6 +68,8 @@ add_action(
 		) ) );
 		$manager->add_setting( 'timonconfigs_cta_image', array( 'default' => '', 'sanitize_callback' => 'esc_url_raw' ) );
 		$manager->add_control( new WP_Customize_Image_Control( $manager, 'timonconfigs_cta_image', array( 'label' => __( 'Final CTA background artwork', 'timonconfigs' ), 'section' => 'timonconfigs_home' ) ) );
+		$manager->add_setting( 'timonconfigs_member_hero_image', array( 'default' => '', 'sanitize_callback' => 'esc_url_raw' ) );
+		$manager->add_control( new WP_Customize_Image_Control( $manager, 'timonconfigs_member_hero_image', array( 'label' => __( 'Member profile background artwork', 'timonconfigs' ), 'section' => 'timonconfigs_home' ) ) );
 
 		$game_images = array(
 			'apex_legends'      => 'Apex Legends',
