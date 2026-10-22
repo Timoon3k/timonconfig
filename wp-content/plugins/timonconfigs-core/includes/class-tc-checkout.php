@@ -36,7 +36,11 @@ final class TC_Checkout {
 	}
 
 	public static function maybe_redirect(): void {
-		$plan = sanitize_key( (string) get_query_var( self::QUERY_VAR ) );
+		$raw_plan = get_query_var( self::QUERY_VAR );
+		if ( ! is_scalar( $raw_plan ) ) {
+			self::render_unavailable();
+		}
+		$plan = sanitize_key( (string) $raw_plan );
 
 		if ( '' === $plan ) {
 			return;
@@ -75,6 +79,9 @@ final class TC_Checkout {
 	}
 
 	public static function sanitize_checkout_url( $url ): string {
+		if ( ! is_string( $url ) ) {
+			return '';
+		}
 		$url = esc_url_raw( trim( (string) $url ), array( 'https' ) );
 		if ( '' === $url ) {
 			return '';

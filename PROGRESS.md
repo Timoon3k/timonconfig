@@ -1,6 +1,15 @@
 # TimonConfigs project progress
 
-Last updated: 2026-10-21
+Last updated: 2026-10-22
+
+## Interrupted-session recovery — theme 0.7.0 / Core 0.5.0
+
+- Recovered the uncommitted 0.7.0 work in the existing checkout without resetting, cleaning, or replacing earlier implementation. The previous committed baseline was `1b71a32` (theme 0.6.0 / Core 0.4.0).
+- The recovered implementation extends the existing catalogue with seven game collections, platform taxonomy, release metadata, combined filters, and three unpublished Apex draft structures. It adds ten native Home section blocks, editable media and SEO controls, explicit non-destructive site provisioning, and Cookie/Lifetime legal pages.
+- `docs/COMPLETION_REPORT_0.7.md`, `docs/CMS_GUIDE.md`, `docs/INSTALL_UPDATE.md`, and the 25-route `docs/URL_STATUS.md` preserve the implementation and prior observed checks. These are evidence of local verification, not a production deployment.
+- Local WordPress 6.8.3/PHP 8.2 and MariaDB 11.4 remain running. Recovery checks confirmed Home HTTP 200, static validation, JavaScript syntax, and native PHP lint for all 57 theme/plugin PHP files.
+- Private local database/source backups remain in ignored `artifacts/backups/`; they are excluded from commits and release archives. No production database, billing state, or Discord configuration was accessed or changed.
+- The previously observed full suites passed 198 WordPress assertions, 35 storefront viewport checks, and 55 checks over 25 required routes. The resumed session will record fresh focused validation and a safe Git checkpoint below.
 
 ## Repository audit
 

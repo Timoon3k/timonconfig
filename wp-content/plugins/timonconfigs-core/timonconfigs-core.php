@@ -2,7 +2,7 @@
 /**
  * Plugin Name: TimonConfigs Core
  * Description: Business features for TimonConfigs, including managed Upgrade.chat checkout links.
- * Version: 0.4.0
+ * Version: 0.5.0
  * Author: TimonConfigs
  * Text Domain: timonconfigs-core
  * Requires at least: 6.5
@@ -11,13 +11,16 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_CORE_VERSION', '0.4.0' );
+define( 'TIMONCONFIGS_CORE_VERSION', '0.5.0' );
 define( 'TIMONCONFIGS_CORE_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-tc-checkout.php';
 require_once __DIR__ . '/includes/class-tc-catalog.php';
 require_once __DIR__ . '/includes/class-tc-settings.php';
 require_once __DIR__ . '/includes/class-tc-editorial.php';
+require_once __DIR__ . '/includes/class-tc-seo.php';
+require_once __DIR__ . '/includes/class-tc-videos.php';
+require_once __DIR__ . '/includes/class-tc-site.php';
 
 add_action(
 	'plugins_loaded',
@@ -26,6 +29,9 @@ add_action(
 		TC_Catalog::init();
 		TC_Settings::init();
 		TC_Editorial::init();
+		TC_SEO::init();
+		TC_Videos::init();
+		TC_Site::init();
 	}
 );
 
@@ -37,6 +43,9 @@ register_activation_hook(
 		TC_Catalog::register_landing_rewrites();
 		TC_Catalog::seed_core_terms();
 		TC_Editorial::register_content_types();
+		TC_Videos::register_content_type();
+		TC_Catalog::seed_flagship_drafts();
+		TC_Site::install();
 		flush_rewrite_rules();
 	}
 );

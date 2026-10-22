@@ -1,33 +1,22 @@
 <?php
-/** Shared legal policy content. @package TimonConfigs */
+/** Shared legal policy template, with native block content as the source. @package TimonConfigs */
 defined( 'ABSPATH' ) || exit;
-$policy = isset( $args['policy'] ) ? $args['policy'] : 'terms';
+$policy = isset( $args['policy'] ) && is_string( $args['policy'] ) ? $args['policy'] : 'terms';
+$slugs  = array( 'terms' => 'terms-of-service', 'privacy' => 'privacy-policy', 'refund' => 'refund-policy', 'cookies' => 'cookie-policy', 'lifetime' => 'lifetime-license-terms' );
+$slug   = $slugs[ $policy ] ?? 'terms-of-service';
+$page_id = get_queried_object_id();
+$content = (string) get_post_field( 'post_content', $page_id );
+if ( '' === trim( $content ) && class_exists( 'TC_Site' ) ) {
+	$content = TC_Site::default_content( $slug );
+}
 ?>
-<main id="main"><section class="tc-page-hero tc-page-hero--legal"><div class="tc-shell"><?php timonconfigs_breadcrumbs(); ?><p class="tc-eyebrow"><span></span>LEGAL</p><h1><?php the_title(); ?></h1><p class="tc-lead">Last updated: <?php echo esc_html( get_the_modified_date( 'F j, Y' ) ); ?></p></div></section><section class="tc-section"><div class="tc-shell tc-legal-content">
-<?php if ( 'terms' === $policy ) : ?>
-	<h2>1. Agreement and eligibility</h2><p>By using TimonConfigs or purchasing access, you agree to these terms and the terms presented at checkout. You must be legally able to enter this agreement and follow the rules that apply to your game, platform, device, and community.</p>
-	<h2>2. Digital products and licenses</h2><p>Configs, guides, videos, and related materials are licensed for your personal use. You may not resell, redistribute, publish, share, reverse engineer for redistribution, or provide your account or protected files to another person.</p>
-	<h2>3. Membership plans</h2><p>Free access includes selected materials. VIP Monthly is recurring until cancelled and includes covered access while the subscription remains active. VIP Lifetime is a one-time license whose content and update scope follows the terms shown at purchase. “Lifetime” refers to the licensed product or service offering, subject to these terms and continued operation.</p>
-	<h2>4. Checkout and Discord roles</h2><p>Upgrade.chat and its payment providers process purchases and manage Discord role delivery. A return to this website does not confirm payment. You are responsible for using the correct Discord account and protecting your credentials.</p>
-	<h2>5. Compatibility and acceptable use</h2><p>Compatibility information is provided for the listed version and setup. Game updates, firmware, platform changes, personal settings, and third-party services can affect results. Do not use the materials in a way that violates law, platform rules, game rules, or third-party rights.</p>
-	<h2>6. Availability and changes</h2><p>We may update, replace, or discontinue material when compatibility or service requirements change. We do not promise uninterrupted availability or a specific gameplay outcome.</p>
-	<h2>7. Suspension and termination</h2><p>Access may be restricted for chargebacks, payment failure, account sharing, redistribution, abuse, fraud, or other material breach. Rights that by their nature should survive termination remain in effect.</p>
-	<h2>8. Liability and contact</h2><p>To the extent permitted by law, the service is provided without guarantees beyond those expressly stated. Nothing in these terms limits rights that cannot legally be excluded. Use the <a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact page</a> for questions.</p>
-<?php elseif ( 'privacy' === $policy ) : ?>
-	<h2>1. Information we handle</h2><p>We may handle account identifiers, Discord user ID, username and avatar, current server membership and role information, support messages, technical logs, security events, and the choices you make on the website. Payment card or PayPal credentials are handled by Upgrade.chat and its payment providers rather than stored by TimonConfigs.</p>
-	<h2>2. Why we use information</h2><p>We use information to authenticate users, verify current access, deliver protected material, provide support, prevent abuse, maintain security, meet legal obligations, and improve site reliability.</p>
-	<h2>3. Legal basis and sharing</h2><p>Depending on your location, processing may rely on contract, legitimate interests, consent, or legal obligations. Information is shared only as needed with hosting, security, Discord, Upgrade.chat, payment, and professional service providers, or when law requires it.</p>
-	<h2>4. Cookies and local storage</h2><p>Essential cookies may keep WordPress, security, and authenticated sessions working. Optional analytics or marketing storage should be used only after the required consent controls are configured.</p>
-	<h2>5. Retention and security</h2><p>Information is retained only as long as needed for the purposes above, dispute handling, security, and legal requirements. Reasonable safeguards are used, but no online service can guarantee absolute security.</p>
-	<h2>6. Your choices and rights</h2><p>You may have rights to access, correct, delete, restrict, object to, or export personal information, and to withdraw consent. These rights can vary by location and may have legal exceptions.</p>
-	<h2>7. Requests and updates</h2><p>Submit a privacy request through the <a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact page</a>. We may need to verify your identity. This policy may change when the service or legal requirements change.</p>
-<?php else : ?>
-	<h2>1. Scope</h2><p>This policy applies to TimonConfigs digital configuration licenses and memberships purchased through the official Upgrade.chat checkout. Your statutory consumer rights remain unaffected.</p>
-	<h2>2. Digital access</h2><p>Because access to digital material and Discord roles may begin soon after purchase, refund eligibility can depend on whether access was supplied, the checkout terms you accepted, and the consumer law that applies to you.</p>
-	<h2>3. When to contact us</h2><p>Contact us promptly if you were charged incorrectly, purchased the wrong plan, cannot receive the role on the Discord account used at checkout, or believe the supplied product materially differs from its description. Include the transaction reference without sending full payment credentials.</p>
-	<h2>4. Subscription cancellation</h2><p>Cancelling VIP Monthly stops future renewal according to the Upgrade.chat subscription terms. Cancellation does not automatically create a refund for a billing period that has already started.</p>
-	<h2>5. Review and outcome</h2><p>Requests are reviewed against the purchase terms, delivery and access records, the reason given, and applicable law. Approved refunds are returned through the original payment route when available. Payment-provider processing times can vary.</p>
-	<h2>6. Requesting help</h2><p>Start through the <a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Contact page</a>. Do not publish transaction details in public Discord channels.</p>
-<?php endif; ?>
-<?php while ( have_posts() ) : the_post(); if ( trim( get_the_content() ) ) : ?><div class="tc-legal-custom"><?php the_content(); ?></div><?php endif; endwhile; ?>
-</div></section></main>
+<main id="main">
+	<section class="tc-page-hero tc-page-hero--legal"><div class="tc-shell"><?php timonconfigs_breadcrumbs(); ?><p class="tc-eyebrow"><span></span>LEGAL</p><h1><?php the_title(); ?></h1><p class="tc-lead">Last updated: <?php echo esc_html( get_the_modified_date( 'F j, Y', $page_id ) ); ?></p></div></section>
+	<section class="tc-section"><div class="tc-shell tc-legal-content tc-entry__content">
+		<?php if ( '' !== trim( $content ) ) : ?>
+			<?php echo apply_filters( 'the_content', $content ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- WordPress authored post content. ?>
+		<?php else : ?>
+			<p>The current policy is being prepared for owner review. Please <a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">contact TimonConfigs</a> before purchasing if you need the applicable terms.</p>
+		<?php endif; ?>
+	</div></section>
+</main>

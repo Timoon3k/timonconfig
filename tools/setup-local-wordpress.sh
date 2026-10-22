@@ -39,110 +39,32 @@ fi
 
 wp plugin activate timonconfigs-core
 wp theme activate timonconfigs
+
+# The same explicit installer is available under Tools → TimonConfigs setup.
+# It fills missing/empty content without replacing authored pages or assigned menus.
+wp eval '
+if (!class_exists("TC_Site")) { WP_CLI::error("TimonConfigs Core site installer is unavailable."); }
+TC_Catalog::register_content_types();
+TC_Catalog::register_landing_rewrites();
+TC_Catalog::seed_core_terms();
+if (method_exists("TC_Catalog", "seed_flagship_drafts")) { TC_Catalog::seed_flagship_drafts(); }
+$result = TC_Site::install();
+if (is_wp_error($result)) { WP_CLI::error($result->get_error_message()); }
+WP_CLI::success("Site structure ready: " . count($result) . " editorial pages.");
+'
+
 wp rewrite structure '/%postname%/' --hard
 
-home_id="$(wp post list --post_type=page --name=home --field=ID --format=ids)"
-if [[ -z "$home_id" ]]; then
-  home_id="$(wp post create --post_type=page --post_title=Home --post_name=home --post_status=publish --porcelain)"
-fi
-
-pricing_id="$(wp post list --post_type=page --name=pricing --field=ID --format=ids)"
-if [[ -z "$pricing_id" ]]; then
-  pricing_id="$(wp post create --post_type=page --post_title=Pricing --post_name=pricing --post_status=publish --porcelain)"
-fi
-
-games_id="$(wp post list --post_type=page --name=games --field=ID --format=ids)"
-if [[ -z "$games_id" ]]; then
-  games_id="$(wp post create --post_type=page --post_title=Games --post_name=games --post_status=publish --porcelain)"
-fi
-
-for page_slug in vip-monthly vip-lifetime; do
-  page_id="$(wp post list --post_type=page --name="$page_slug" --field=ID --format=ids)"
-  if [[ "$page_slug" == "vip-monthly" ]]; then
-    page_title="VIP Monthly"
-  else
-    page_title="VIP Lifetime"
-  fi
-  if [[ -z "$page_id" ]]; then
-    wp post create --post_type=page --post_title="$page_title" --post_name="$page_slug" --post_status=publish >/dev/null
-  else
-    wp post update "$page_id" --post_title="$page_title" >/dev/null
-  fi
+routes=(
+  / /configs/ '/configs/?tier=free' /games/ /pricing/ /reviews/ /faq/ /contact/
+  /video-showcase/ /vip-monthly/ /vip-lifetime/
+  /apex-legends-configs/ /call-of-duty-configs/ /fortnite-configs/
+  /rainbow-six-siege-configs/ /rust-configs/ /ea-sports-fc-configs/ /nba-2k-configs/
+  /cronus-zen-configs/ /xim-matrix-configs/
+  /terms-of-service/ /privacy-policy/ /cookie-policy/ /refund-policy/ /lifetime-license-terms/
+)
+for route in "${routes[@]}"; do
+  curl --silent --show-error --fail --output /dev/null "http://127.0.0.1:8080$route"
 done
 
-policy_slugs=(reviews faq contact video-showcase terms-of-service privacy-policy refund-policy)
-policy_titles=(Reviews FAQ Contact "Video Showcase" "Terms of Service" "Privacy Policy" "Refund Policy")
-for index in "${!policy_slugs[@]}"; do
-  page_slug="${policy_slugs[$index]}"
-  page_title="${policy_titles[$index]}"
-  page_id="$(wp post list --post_type=page --name="$page_slug" --field=ID --format=ids)"
-  if [[ -z "$page_id" ]]; then
-    wp post create --post_type=page --post_title="$page_title" --post_name="$page_slug" --post_status=publish >/dev/null
-  else
-    wp post update "$page_id" --post_title="$page_title" --post_status=publish >/dev/null
-  fi
-done
-
-wp option update show_on_front page
-wp option update page_on_front "$home_id"
-
-if ! wp menu list --fields=name --format=csv | grep -qx 'Primary'; then
-  wp menu create Primary
-  wp menu item add-post Primary "$home_id" --title=Home
-  wp menu item add-custom Primary Configs http://127.0.0.1:8080/configs/
-  wp menu item add-post Primary "$games_id" --title=Games
-  wp menu item add-post Primary "$pricing_id" --title=Pricing
-  wp menu item add-custom Primary FAQ http://127.0.0.1:8080/faq/
-fi
-faq_item_id="$(wp menu item list Primary --fields=db_id,title --format=csv | awk -F, '$2 == "FAQ" { print $1; exit }')"
-if [[ -n "$faq_item_id" ]]; then
-  wp menu item update "$faq_item_id" --link=http://127.0.0.1:8080/faq/ >/dev/null
-fi
-if ! wp menu item list Primary --fields=title --format=csv | grep -qx 'Games'; then
-  wp menu item add-post Primary "$games_id" --title=Games
-fi
-if ! wp menu item list Primary --fields=title --format=csv | grep -qx 'Contact'; then
-  contact_id="$(wp post list --post_type=page --name=contact --field=ID --format=ids)"
-  wp menu item add-post Primary "$contact_id" --title=Contact
-fi
-if ! wp menu item list Primary --fields=title --format=csv | grep -qx 'Reviews'; then
-  reviews_id="$(wp post list --post_type=page --name=reviews --field=ID --format=ids)"
-  wp menu item add-post Primary "$reviews_id" --title=Reviews
-fi
-position=1
-for menu_title in Home Configs Games Pricing Reviews FAQ Contact; do
-  menu_item_id="$(wp menu item list Primary --fields=db_id,title --format=csv | awk -F, -v title="$menu_title" '$2 == title { print $1; exit }')"
-  if [[ -n "$menu_item_id" ]]; then
-    wp menu item update "$menu_item_id" --position="$position" >/dev/null
-  fi
-  position=$((position + 1))
-done
-wp menu location assign Primary primary
-
-if ! wp menu list --fields=name --format=csv | grep -qx 'Footer'; then
-  wp menu create Footer
-  wp menu item add-post Footer "$pricing_id" --title=Pricing
-fi
-for page_slug in contact terms-of-service privacy-policy refund-policy; do
-  page_id="$(wp post list --post_type=page --name="$page_slug" --field=ID --format=ids)"
-  page_title="$(wp post get "$page_id" --field=post_title)"
-  if ! wp menu item list Footer --fields=url --format=csv | grep -Fq "/$page_slug/"; then
-    wp menu item add-post Footer "$page_id" --title="$page_title" >/dev/null
-  fi
-done
-wp menu location assign Footer footer
-
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/pricing/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/games/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/vip-monthly/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/vip-lifetime/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/faq/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/reviews/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/contact/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/video-showcase/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/terms-of-service/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/privacy-policy/
-curl --silent --fail --output /dev/null http://127.0.0.1:8080/refund-policy/
-echo "TimonConfigs local WordPress is ready on port 8080."
-
+echo "TimonConfigs local WordPress is ready on port 8080; ${#routes[@]} storefront routes passed."

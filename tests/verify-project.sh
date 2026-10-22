@@ -19,6 +19,10 @@ required_files=(
   "$theme/page-terms-of-service.php"
   "$theme/page-privacy-policy.php"
   "$theme/page-refund-policy.php"
+  "$theme/page-cookie-policy.php"
+  "$theme/page-lifetime-license-terms.php"
+  "$theme/inc/blocks.php"
+  "$theme/inc/seo.php"
   "$theme/page-video-showcase.php"
   "$theme/patterns/cta.php"
   "$theme/patterns/faq.php"
@@ -42,6 +46,9 @@ required_files=(
   "$plugin/includes/class-tc-settings.php"
   "$plugin/includes/class-tc-catalog.php"
   "$plugin/includes/class-tc-editorial.php"
+  "$plugin/includes/class-tc-site.php"
+  "$plugin/includes/class-tc-seo.php"
+  "$plugin/includes/class-tc-videos.php"
 )
 
 for file in "${required_files[@]}"; do
@@ -64,7 +71,7 @@ rg -q "tc_review" "$plugin/includes/class-tc-editorial.php"
 rg -q "tc_faq" "$plugin/includes/class-tc-editorial.php"
 rg -q "wp_verify_nonce" "$plugin/includes/class-tc-editorial.php"
 rg -q "SAMPLE REVIEW · DEMO CONTENT" "$theme/template-parts/review-cards.php"
-rg -q "BreadcrumbList" "$theme/functions.php"
+rg -q "BreadcrumbList" "$theme/inc/seo.php"
 rg -q "Coming soon" "$theme/template-parts/game-strip.php"
 
 if rg -ni "10,000|100,000|4\.9/5|99% uptime|guaranteed|undetectable|bypass anti-cheat" "$theme" --glob '!assets/video/*'; then
@@ -73,5 +80,6 @@ if rg -ni "10,000|100,000|4\.9/5|99% uptime|guaranteed|undetectable|bypass anti-
 fi
 
 node --check "$theme/assets/js/main.js"
+node --check "$theme/assets/js/blocks.js"
 echo "Project structure, checkout safeguards, content claims, media, and JavaScript checks passed."
 

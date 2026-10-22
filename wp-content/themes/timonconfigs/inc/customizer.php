@@ -25,12 +25,14 @@ add_action(
 			'hero_tagline' => array( 'label' => __( 'Hero tagline', 'timonconfigs' ), 'default' => 'Play Smarter. Hit Different.' ),
 			'hero_copy'    => array( 'label' => __( 'Hero description', 'timonconfigs' ), 'default' => 'Professional configs for Cronus Zen and XIM Matrix. Find the right setup, explore real gameplay, and join the TimonConfigs community.' ),
 			'hero_cta'     => array( 'label' => __( 'Hero primary button label', 'timonconfigs' ), 'default' => 'Get Started' ),
+			'hero_cta_url' => array( 'label' => __( 'Primary CTA destination', 'timonconfigs' ), 'default' => home_url( '/pricing/' ), 'url' => true ),
 			'trust_access' => array( 'label' => __( 'Hero benefit 1', 'timonconfigs' ), 'default' => 'Instant Access' ),
 			'trust_updates'=> array( 'label' => __( 'Hero benefit 2', 'timonconfigs' ), 'default' => 'Regular Updates' ),
 			'trust_support'=> array( 'label' => __( 'Hero benefit 3', 'timonconfigs' ), 'default' => 'Active Support' ),
 			'final_title'  => array( 'label' => __( 'Final CTA title', 'timonconfigs' ), 'default' => 'Join the TimonConfigs Community' ),
 			'final_copy'   => array( 'label' => __( 'Final CTA description', 'timonconfigs' ), 'default' => 'Get access to premium configs, regular updates, and an active community.' ),
-			'discord_url'  => array( 'label' => __( 'Discord community URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
+			'discord_url'  => array( 'label' => __( 'Discord community URL', 'timonconfigs' ), 'default' => 'https://discord.gg/RyvzSqrF6', 'url' => true ),
+			'footer_description' => array( 'label' => __( 'Footer description', 'timonconfigs' ), 'default' => 'Professional game configs for Cronus Zen and XIM Matrix.' ),
 			'x_url'        => array( 'label' => __( 'X profile URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
 			'youtube_url'  => array( 'label' => __( 'YouTube channel URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
 			'instagram_url'=> array( 'label' => __( 'Instagram profile URL', 'timonconfigs' ), 'default' => '', 'url' => true ),
@@ -64,6 +66,8 @@ add_action(
 			'label' => __( 'Hero background artwork', 'timonconfigs' ),
 			'section' => 'timonconfigs_home',
 		) ) );
+		$manager->add_setting( 'timonconfigs_cta_image', array( 'default' => '', 'sanitize_callback' => 'esc_url_raw' ) );
+		$manager->add_control( new WP_Customize_Image_Control( $manager, 'timonconfigs_cta_image', array( 'label' => __( 'Final CTA background artwork', 'timonconfigs' ), 'section' => 'timonconfigs_home' ) ) );
 
 		$game_images = array(
 			'apex_legends'      => 'Apex Legends',

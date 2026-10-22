@@ -1,6 +1,8 @@
 <?php
 /**
- * Config catalogue content model and admin fields.
+ * Config catalogue, editable collections and compatibility fields.
+ *
+ * The existing tc_config identifier is deliberately retained to preserve data.
  *
  * @package TimonConfigs_Core
  */
@@ -9,13 +11,19 @@ defined( 'ABSPATH' ) || exit;
 
 final class TC_Catalog {
 	private const POST_TYPE = 'tc_config';
-	private const NONCE     = 'tc_config_details_nonce';
-	private const META      = array(
-		'tc_tier'           => 'sanitize_key',
-		'tc_platform'       => 'sanitize_text_field',
-		'tc_input_method'   => 'sanitize_key',
-		'tc_config_version' => 'sanitize_text_field',
-		'tc_last_updated'   => array( __CLASS__, 'sanitize_date' ),
+	private const NONCE = 'tc_config_details_nonce';
+	private const META = array(
+		'tc_tier'           => 'sanitize_tier',
+		'tc_platform'       => 'sanitize_text',
+		'tc_input_method'   => 'sanitize_input',
+		'tc_config_version' => 'sanitize_text',
+		'tc_last_updated'   => 'sanitize_date',
+		'tc_compatibility'  => 'sanitize_multiline',
+		'tc_tutorial_url'   => 'sanitize_public_url',
+		'tc_changelog'      => 'sanitize_multiline',
+		'tc_access_url'     => 'sanitize_public_url',
+		'tc_release_status' => 'sanitize_release_status',
+		'tc_game_version'   => 'sanitize_text',
 	);
 
 	public static function init(): void {
@@ -25,198 +33,314 @@ final class TC_Catalog {
 		add_action( 'save_post_' . self::POST_TYPE, array( __CLASS__, 'save_meta' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'filter_archive' ) );
 		add_filter( 'term_link', array( __CLASS__, 'filter_core_term_links' ), 10, 3 );
+		foreach ( array( 'tc_game', 'tc_device' ) as $taxonomy ) {
+			add_action( $taxonomy . '_add_form_fields', array( __CLASS__, 'render_collection_add_field' ) );
+			add_action( $taxonomy . '_edit_form_fields', array( __CLASS__, 'render_collection_edit_field' ) );
+			add_action( 'created_' . $taxonomy, array( __CLASS__, 'save_collection_image' ) );
+			add_action( 'edited_' . $taxonomy, array( __CLASS__, 'save_collection_image' ) );
+		}
+	}
+
+	/** Useful, distinct collection copy; availability is always derived from real releases. */
+	public static function game_definitions(): array {
+		return array(
+			'apex-legends' => array(
+				'name' => 'Apex Legends',
+				'description' => 'Explore the TimonConfigs Apex Legends collection for Cronus Zen and XIM Matrix. Compare controller and mouse-and-keyboard setup details, supported game versions, platform notes, and the membership required for each published release. Always use the compatibility information on the individual configuration page.',
+				'image' => 'game-apex-legends.webp',
+				'seo_title' => 'Apex Legends Configs for Cronus Zen & XIM Matrix | TimonConfigs',
+				'seo_description' => 'Compare Apex Legends configurations, controller and MnK input methods, supported devices, verified compatibility, and current Free or VIP release details.',
+			),
+			'call-of-duty' => array(
+				'name' => 'Call of Duty',
+				'description' => 'Follow the planned TimonConfigs Call of Duty collection. Release pages will identify the exact title, game update, supported device, platform, and input method before a configuration becomes available. A collection listing does not imply compatibility with every Call of Duty game or mode.',
+				'image' => 'game-call-of-duty.webp',
+				'seo_title' => 'Call of Duty Config Collection & Release Updates | TimonConfigs',
+				'seo_description' => 'Check Call of Duty collection availability and learn which title, update, device, platform, and input details will accompany verified TimonConfigs releases.',
+			),
+			'fortnite' => array(
+				'name' => 'Fortnite',
+				'description' => 'The Fortnite collection is being prepared around clearly documented setups. Each future release must identify its supported game version, input method, device, and platform rather than assume that one profile works across every update. Published configuration cards will appear here when those details are ready.',
+				'image' => 'game-fortnite.webp',
+				'seo_title' => 'Fortnite Config Collection & Compatibility | TimonConfigs',
+				'seo_description' => 'View the Fortnite collection roadmap and the version, device, controller or MnK, and platform details required before a TimonConfigs release is published.',
+			),
+			'rainbow-six-siege' => array(
+				'name' => 'Rainbow Six Siege',
+				'description' => 'Track the Rainbow Six Siege collection and its release status. Device setup, input method, game update, and platform compatibility will be documented individually for each published configuration. The collection remains a roadmap until a verified release is available to browse.',
+				'image' => 'game-rainbow-six-siege.webp',
+				'seo_title' => 'Rainbow Six Siege Config Collection | TimonConfigs',
+				'seo_description' => 'Follow Rainbow Six Siege configuration availability with transparent device, input, supported update, and platform information for each future release.',
+			),
+			'rust' => array(
+				'name' => 'Rust',
+				'description' => 'The Rust collection provides a place for future TimonConfigs releases with explicit compatibility notes. Rust editions, platforms, and updates can differ, so each configuration must name its supported setup before publication. Check this collection for confirmed release information instead of assuming cross-platform support.',
+				'image' => 'game-rust.webp',
+				'seo_title' => 'Rust Config Collection & Supported Setups | TimonConfigs',
+				'seo_description' => 'Check planned Rust configurations and edition-specific compatibility details. Published entries will identify their platform, device, input, and supported update.',
+			),
+			'ea-sports-fc' => array(
+				'name' => 'EA Sports FC',
+				'description' => 'Browse the EA Sports FC collection roadmap. Annual editions and game updates require their own setup information, so future configuration pages will identify the exact edition, platform, device, and supported controls. No profile is offered as available until a corresponding release has been published.',
+				'image' => 'game-ea-sports-fc.webp',
+				'seo_title' => 'EA Sports FC Config Collection & Editions | TimonConfigs',
+				'seo_description' => 'Follow the EA Sports FC configuration roadmap with clear edition, platform, device, and controller setup information for confirmed future releases.',
+			),
+			'nba-2k' => array(
+				'name' => 'NBA 2K',
+				'description' => 'The NBA 2K collection is reserved for documented TimonConfigs releases. Each published profile will state its supported annual edition, game update, platform, and device so members can compare the correct setup. Until a release is confirmed, this page communicates the collection roadmap rather than download availability.',
+				'image' => 'game-nba-2k.webp',
+				'seo_title' => 'NBA 2K Config Collection & Release Status | TimonConfigs',
+				'seo_description' => 'Check NBA 2K collection status and edition-specific platform, input, device, and update notes before choosing a future TimonConfigs release.',
+			),
+		);
 	}
 
 	public static function register_landing_rewrites(): void {
-		add_rewrite_rule( '^apex-legends-configs/page/([0-9]{1,})/?$', 'index.php?tc_game=apex-legends&paged=$matches[1]', 'top' );
-		add_rewrite_rule( '^apex-legends-configs/?$', 'index.php?tc_game=apex-legends', 'top' );
-		add_rewrite_rule( '^cronus-zen-configs/page/([0-9]{1,})/?$', 'index.php?tc_device=cronus-zen&paged=$matches[1]', 'top' );
-		add_rewrite_rule( '^cronus-zen-configs/?$', 'index.php?tc_device=cronus-zen', 'top' );
-		add_rewrite_rule( '^xim-matrix-configs/page/([0-9]{1,})/?$', 'index.php?tc_device=xim-matrix&paged=$matches[1]', 'top' );
-		add_rewrite_rule( '^xim-matrix-configs/?$', 'index.php?tc_device=xim-matrix', 'top' );
-	}
-
-	public static function sanitize_date( mixed $value ): string {
-		$value = sanitize_text_field( (string) $value );
-		if ( ! preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts ) ) {
-			return '';
+		foreach ( array_keys( self::game_definitions() ) as $slug ) {
+			add_rewrite_rule( '^' . $slug . '-configs/page/([0-9]{1,})/?$', 'index.php?tc_game=' . $slug . '&paged=$matches[1]', 'top' );
+			add_rewrite_rule( '^' . $slug . '-configs/?$', 'index.php?tc_game=' . $slug, 'top' );
 		}
-
-		return checkdate( (int) $parts[2], (int) $parts[3], (int) $parts[1] ) ? $value : '';
+		foreach ( array( 'cronus-zen', 'xim-matrix' ) as $slug ) {
+			add_rewrite_rule( '^' . $slug . '-configs/page/([0-9]{1,})/?$', 'index.php?tc_device=' . $slug . '&paged=$matches[1]', 'top' );
+			add_rewrite_rule( '^' . $slug . '-configs/?$', 'index.php?tc_device=' . $slug, 'top' );
+		}
 	}
 
-	/**
-	 * Keep the three primary SEO landings short and stable.
-	 *
-	 * @param string  $url      Generated term URL.
-	 * @param WP_Term $term     Current term.
-	 * @param string  $taxonomy Taxonomy name.
-	 */
 	public static function filter_core_term_links( string $url, WP_Term $term, string $taxonomy ): string {
-		$paths = array(
-			'tc_game:apex-legends' => '/apex-legends-configs/',
-			'tc_device:cronus-zen' => '/cronus-zen-configs/',
-			'tc_device:xim-matrix' => '/xim-matrix-configs/',
-		);
-		$key   = $taxonomy . ':' . $term->slug;
-
-		return isset( $paths[ $key ] ) ? home_url( $paths[ $key ] ) : $url;
+		if ( 'tc_game' === $taxonomy && isset( self::game_definitions()[ $term->slug ] ) ) {
+			return home_url( '/' . $term->slug . '-configs/' );
+		}
+		if ( 'tc_device' === $taxonomy && in_array( $term->slug, array( 'cronus-zen', 'xim-matrix' ), true ) ) {
+			return home_url( '/' . $term->slug . '-configs/' );
+		}
+		return $url;
 	}
 
 	public static function register_content_types(): void {
-		register_post_type(
-			self::POST_TYPE,
-			array(
-				'labels' => array(
-					'name'          => __( 'Configs', 'timonconfigs-core' ),
-					'singular_name' => __( 'Config', 'timonconfigs-core' ),
-					'add_new_item'  => __( 'Add new config', 'timonconfigs-core' ),
-					'edit_item'     => __( 'Edit config', 'timonconfigs-core' ),
-				),
-				'public'       => true,
-				'show_in_rest' => true,
-				'has_archive'  => 'configs',
-				'rewrite'      => array( 'slug' => 'config', 'with_front' => false ),
-				'menu_icon'    => 'dashicons-admin-generic',
-				'supports'     => array( 'title', 'editor', 'excerpt', 'thumbnail', 'revisions' ),
-			)
-		);
-
-		register_taxonomy(
-			'tc_game',
-			self::POST_TYPE,
-			array(
-				'labels'            => array( 'name' => __( 'Games', 'timonconfigs-core' ), 'singular_name' => __( 'Game', 'timonconfigs-core' ) ),
-				'public'            => true,
-				'show_in_rest'      => true,
-				'hierarchical'      => true,
-				'show_admin_column' => true,
-				'rewrite'           => array( 'slug' => 'games', 'with_front' => false ),
-			)
-		);
-
-		register_taxonomy(
-			'tc_device',
-			self::POST_TYPE,
-			array(
-				'labels'            => array( 'name' => __( 'Devices', 'timonconfigs-core' ), 'singular_name' => __( 'Device', 'timonconfigs-core' ) ),
-				'public'            => true,
-				'show_in_rest'      => true,
-				'hierarchical'      => true,
-				'show_admin_column' => true,
-				'rewrite'           => array( 'slug' => 'devices', 'with_front' => false ),
-			)
-		);
-
-		foreach ( self::META as $key => $sanitize_callback ) {
-			register_post_meta(
-				self::POST_TYPE,
-				$key,
-				array(
-					'type'              => 'string',
-					'single'            => true,
-					'show_in_rest'      => true,
-					'sanitize_callback' => $sanitize_callback,
-					'auth_callback'     => static fn() => current_user_can( 'edit_posts' ),
-				)
-			);
+		register_post_type( self::POST_TYPE, array(
+			'labels' => array( 'name' => __( 'Configs', 'timonconfigs-core' ), 'singular_name' => __( 'Config', 'timonconfigs-core' ), 'add_new_item' => __( 'Add new config', 'timonconfigs-core' ), 'edit_item' => __( 'Edit config', 'timonconfigs-core' ) ),
+			'public' => true, 'show_in_rest' => true, 'has_archive' => 'configs',
+			'rewrite' => array( 'slug' => 'config', 'with_front' => false ), 'menu_icon' => 'dashicons-admin-generic',
+			'supports' => array( 'title', 'editor', 'excerpt', 'thumbnail', 'revisions', 'custom-fields' ),
+		) );
+		foreach ( array( 'tc_game' => array( 'Games', 'Game', 'games' ), 'tc_device' => array( 'Devices', 'Device', 'devices' ), 'tc_platform' => array( 'Platforms', 'Platform', 'platforms' ) ) as $taxonomy => $labels ) {
+			register_taxonomy( $taxonomy, self::POST_TYPE, array(
+				'labels' => array( 'name' => $labels[0], 'singular_name' => $labels[1] ),
+				'public' => true, 'show_in_rest' => true, 'hierarchical' => true, 'show_admin_column' => true,
+				'rewrite' => array( 'slug' => $labels[2], 'with_front' => false ),
+			) );
+		}
+		$enums = array( 'tc_tier' => array( 'free', 'monthly', 'lifetime' ), 'tc_input_method' => array( 'controller', 'mnk' ), 'tc_release_status' => array( 'available', 'coming-soon', 'archived' ) );
+		foreach ( self::META as $key => $method ) {
+			$rest = array( 'schema' => array( 'type' => 'string' ) );
+			if ( isset( $enums[ $key ] ) ) {
+				$rest['schema']['enum'] = array_merge( array( '' ), $enums[ $key ] );
+			}
+			register_post_meta( self::POST_TYPE, $key, array(
+				'type' => 'string', 'single' => true, 'show_in_rest' => 'tc_access_url' === $key ? false : $rest,
+				'sanitize_callback' => array( __CLASS__, $method ),
+				'auth_callback' => static fn( bool $allowed, string $meta_key, int $post_id ): bool => current_user_can( 'edit_post', $post_id ),
+			) );
+		}
+		foreach ( array( 'tc_game', 'tc_device' ) as $taxonomy ) {
+			register_term_meta( $taxonomy, 'tc_collection_image', array( 'type' => 'string', 'single' => true, 'show_in_rest' => true, 'sanitize_callback' => array( __CLASS__, 'sanitize_public_url' ), 'auth_callback' => static fn(): bool => current_user_can( 'manage_categories' ) ) );
 		}
 	}
 
+	/** Add missing content types without replacing an owner's existing descriptions. */
 	public static function seed_core_terms(): void {
-		if ( ! term_exists( 'Apex Legends', 'tc_game' ) ) {
-			wp_insert_term( 'Apex Legends', 'tc_game', array( 'slug' => 'apex-legends' ) );
+		foreach ( self::game_definitions() as $slug => $game ) {
+			$existing = get_term_by( 'slug', $slug, 'tc_game' );
+			if ( ! $existing ) {
+				wp_insert_term( $game['name'], 'tc_game', array( 'slug' => $slug, 'description' => $game['description'] ) );
+			} elseif ( '' === trim( $existing->description ) ) {
+				wp_update_term( $existing->term_id, 'tc_game', array( 'description' => $game['description'] ) );
+			}
 		}
-
-		foreach ( array( 'Cronus Zen' => 'cronus-zen', 'XIM Matrix' => 'xim-matrix' ) as $name => $slug ) {
-			if ( ! term_exists( $name, 'tc_device' ) ) {
-				wp_insert_term( $name, 'tc_device', array( 'slug' => $slug ) );
+		$devices = array(
+			'cronus-zen' => array( 'Cronus Zen', 'Browse Cronus Zen configurations with individually documented input methods, platform support, game versions, setup instructions, and current access requirements. Compatibility is stated on each release; a device collection does not imply universal support for every game or platform.' ),
+			'xim-matrix' => array( 'XIM Matrix', 'Compare XIM Matrix controller and mouse-and-keyboard configurations using the release-specific input, platform, game version, and compatibility notes. Check the individual setup guide and access requirements before choosing a configuration for your device.' ),
+		);
+		foreach ( $devices as $slug => $device ) {
+			$existing = get_term_by( 'slug', $slug, 'tc_device' );
+			if ( ! $existing ) {
+				wp_insert_term( $device[0], 'tc_device', array( 'slug' => $slug, 'description' => $device[1] ) );
+			} elseif ( '' === trim( $existing->description ) ) {
+				wp_update_term( $existing->term_id, 'tc_device', array( 'description' => $device[1] ) );
+			}
+		}
+		foreach ( array( 'xbox' => 'Xbox', 'playstation' => 'PlayStation', 'pc' => 'PC' ) as $slug => $name ) {
+			if ( ! get_term_by( 'slug', $slug, 'tc_platform' ) ) {
+				wp_insert_term( $name, 'tc_platform', array( 'slug' => $slug ) );
 			}
 		}
 	}
 
-	public static function add_meta_box(): void {
-		add_meta_box(
-			'tc_config_details',
-			esc_html__( 'Config details', 'timonconfigs-core' ),
-			array( __CLASS__, 'render_meta_box' ),
-			self::POST_TYPE,
-			'normal',
-			'high'
+	/** Explicit installation scaffolding, always drafts with no invented files or compatibility. */
+	public static function seed_flagship_drafts(): void {
+		$drafts = array(
+			'apex-legends-cronus-zen-s30' => array( 'Apex Legends — Cronus Zen S30', 'cronus-zen', 'controller' ),
+			'apex-legends-xim-matrix-controller' => array( 'Apex Legends — XIM Matrix Controller', 'xim-matrix', 'controller' ),
+			'apex-legends-xim-matrix-mnk' => array( 'Apex Legends — XIM Matrix MnK', 'xim-matrix', 'mnk' ),
 		);
+		foreach ( $drafts as $slug => $draft ) {
+			$args = array( 'post_type' => self::POST_TYPE, 'post_status' => array_values( get_post_stati() ), 'posts_per_page' => 1, 'fields' => 'ids', 'suppress_filters' => true );
+			if ( get_posts( array_merge( $args, array( 'name' => $slug ) ) ) || get_posts( array_merge( $args, array( 'meta_key' => '_tc_seeded_flagship', 'meta_value' => $slug ) ) ) ) {
+				continue;
+			}
+			$id = wp_insert_post( array(
+				'post_type' => self::POST_TYPE, 'post_status' => 'draft', 'post_title' => $draft[0], 'post_name' => $slug,
+				'post_excerpt' => 'Release details, compatibility, and access requirements are being verified before publication.',
+				'post_content' => '<!-- wp:heading --><h2 class="wp-block-heading">Release information</h2><!-- /wp:heading --><!-- wp:paragraph --><p>This configuration is being prepared for publication. Supported platforms, game version, release version, update date, tutorial, access tier, and delivery information must be confirmed before release.</p><!-- /wp:paragraph -->',
+				'meta_input' => array( '_tc_seeded_flagship' => $slug, 'tc_input_method' => $draft[2], 'tc_release_status' => 'coming-soon' ),
+			), true );
+			if ( is_wp_error( $id ) ) {
+				continue;
+			}
+			$game = get_term_by( 'slug', 'apex-legends', 'tc_game' );
+			$device = get_term_by( 'slug', $draft[1], 'tc_device' );
+			if ( $game instanceof WP_Term ) { wp_set_object_terms( $id, array( $game->term_id ), 'tc_game' ); }
+			if ( $device instanceof WP_Term ) { wp_set_object_terms( $id, array( $device->term_id ), 'tc_device' ); }
+		}
+	}
+
+	/** Reusable released-only condition; legacy published entries remain accessible. */
+	public static function released_meta_query(): array {
+		return array( 'relation' => 'OR', array( 'key' => 'tc_release_status', 'compare' => 'NOT EXISTS' ), array( 'key' => 'tc_release_status', 'value' => array( '', 'available' ), 'compare' => 'IN' ) );
+	}
+
+	public static function collection_has_configs( WP_Term $term ): bool {
+		if ( ! in_array( $term->taxonomy, array( 'tc_game', 'tc_device', 'tc_platform' ), true ) ) { return false; }
+		$query = new WP_Query( array( 'post_type' => self::POST_TYPE, 'post_status' => 'publish', 'posts_per_page' => 1, 'fields' => 'ids', 'no_found_rows' => true, 'tax_query' => array( array( 'taxonomy' => $term->taxonomy, 'field' => 'term_id', 'terms' => $term->term_id ) ), 'meta_query' => self::released_meta_query() ) );
+		return (bool) $query->posts;
+	}
+
+	public static function is_collection_indexable( WP_Term $term ): bool {
+		return ! (bool) get_term_meta( $term->term_id, 'tc_noindex', true ) && strlen( trim( wp_strip_all_tags( $term->description ) ) ) >= 120 && self::collection_has_configs( $term );
+	}
+
+	public static function collection_image( WP_Term $term ): string {
+		$image = self::sanitize_public_url( get_term_meta( $term->term_id, 'tc_collection_image', true ) );
+		if ( $image ) { return $image; }
+		$games = self::game_definitions();
+		if ( 'tc_game' === $term->taxonomy && isset( $games[ $term->slug ] ) ) {
+			$setting = 'timonconfigs_game_' . str_replace( '-', '_', $term->slug ) . '_image';
+			return (string) get_theme_mod( $setting, get_template_directory_uri() . '/assets/images/' . $games[ $term->slug ]['image'] );
+		}
+		return get_template_directory_uri() . '/assets/images/hero-reference-wide.webp';
+	}
+
+	/** Public download/access links are only returned for published Free releases. */
+	public static function public_access_url( int $post_id ): string {
+		if ( self::POST_TYPE !== get_post_type( $post_id ) || 'publish' !== get_post_status( $post_id ) || 'free' !== get_post_meta( $post_id, 'tc_tier', true ) ) { return ''; }
+		$status = (string) get_post_meta( $post_id, 'tc_release_status', true );
+		if ( ! in_array( $status, array( '', 'available' ), true ) ) { return ''; }
+		return self::sanitize_public_url( get_post_meta( $post_id, 'tc_access_url', true ) );
+	}
+
+	public static function sanitize_text( mixed $value ): string { return is_scalar( $value ) ? sanitize_text_field( (string) $value ) : ''; }
+	public static function sanitize_multiline( mixed $value ): string { return is_scalar( $value ) ? sanitize_textarea_field( (string) $value ) : ''; }
+	public static function sanitize_public_url( mixed $value ): string {
+		if ( ! is_scalar( $value ) ) { return ''; }
+		$url = esc_url_raw( (string) $value, array( 'https' ) );
+		return wp_parse_url( $url, PHP_URL_HOST ) && 'https' === wp_parse_url( $url, PHP_URL_SCHEME ) ? $url : '';
+	}
+	public static function sanitize_tier( mixed $value ): string { return is_string( $value ) && in_array( $value, array( 'free', 'monthly', 'lifetime' ), true ) ? $value : ''; }
+	public static function sanitize_input( mixed $value ): string { return is_string( $value ) && in_array( $value, array( 'controller', 'mnk' ), true ) ? $value : ''; }
+	public static function sanitize_release_status( mixed $value ): string { return is_string( $value ) && in_array( $value, array( 'available', 'coming-soon', 'archived' ), true ) ? $value : ''; }
+	public static function sanitize_date( mixed $value ): string {
+		$value = self::sanitize_text( $value );
+		if ( ! preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts ) ) { return ''; }
+		return checkdate( (int) $parts[2], (int) $parts[3], (int) $parts[1] ) ? $value : '';
+	}
+
+	/** Safe scalar request helper shared by the catalogue templates. */
+	public static function request_value( string $key ): string {
+		return isset( $_GET[ $key ] ) && is_string( $_GET[ $key ] ) ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
+	}
+
+	public static function add_meta_box(): void {
+		add_meta_box( 'tc_config_details', esc_html__( 'Config details', 'timonconfigs-core' ), array( __CLASS__, 'render_meta_box' ), self::POST_TYPE, 'normal', 'high' );
 	}
 
 	public static function render_meta_box( WP_Post $post ): void {
 		wp_nonce_field( 'tc_save_config_details', self::NONCE );
 		$values = array();
-		foreach ( array_keys( self::META ) as $key ) {
-			$values[ $key ] = (string) get_post_meta( $post->ID, $key, true );
+		foreach ( self::META as $key => $method ) { $values[ $key ] = (string) get_post_meta( $post->ID, $key, true ); }
+		$selects = array(
+			'tc_tier' => array( 'Access tier', array( '' => 'Select verified access requirement', 'free' => 'Free', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' ) ),
+			'tc_input_method' => array( 'Input method', array( '' => 'Not yet verified', 'controller' => 'Controller', 'mnk' => 'Mouse & keyboard' ) ),
+			'tc_release_status' => array( 'Release status', array( 'coming-soon' => 'Coming soon / details pending', 'available' => 'Available (verified release)', 'archived' => 'Archived' ) ),
+		);
+		foreach ( $selects as $key => $field ) {
+			$value = $values[ $key ];
+			if ( 'tc_release_status' === $key && '' === $value ) { $value = 'publish' === $post->post_status ? 'available' : 'coming-soon'; }
+			echo '<p><label for="' . esc_attr( $key ) . '"><strong>' . esc_html( $field[0] ) . '</strong></label><br><select id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '">';
+			foreach ( $field[1] as $option => $label ) { echo '<option value="' . esc_attr( $option ) . '" ' . selected( $value, $option, false ) . '>' . esc_html( $label ) . '</option>'; }
+			echo '</select></p>';
 		}
-		?>
-		<p><label for="tc_tier"><strong><?php esc_html_e( 'Access tier', 'timonconfigs-core' ); ?></strong></label><br>
-		<select id="tc_tier" name="tc_tier">
-			<?php foreach ( array( 'free' => 'Free', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' ) as $value => $label ) : ?>
-				<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $values['tc_tier'], $value ); ?>><?php echo esc_html( $label ); ?></option>
-			<?php endforeach; ?>
-		</select></p>
-		<p><label for="tc_platform"><strong><?php esc_html_e( 'Platforms', 'timonconfigs-core' ); ?></strong></label><br><input class="widefat" id="tc_platform" name="tc_platform" value="<?php echo esc_attr( $values['tc_platform'] ); ?>" placeholder="Xbox Series, PlayStation 5, PC"></p>
-		<p><label for="tc_input_method"><strong><?php esc_html_e( 'Input method', 'timonconfigs-core' ); ?></strong></label><br>
-		<select id="tc_input_method" name="tc_input_method"><option value="controller" <?php selected( $values['tc_input_method'], 'controller' ); ?>>Controller</option><option value="mnk" <?php selected( $values['tc_input_method'], 'mnk' ); ?>>Mouse & keyboard</option></select></p>
-		<p><label for="tc_config_version"><strong><?php esc_html_e( 'Config version', 'timonconfigs-core' ); ?></strong></label><br><input id="tc_config_version" name="tc_config_version" value="<?php echo esc_attr( $values['tc_config_version'] ); ?>"></p>
-		<p><label for="tc_last_updated"><strong><?php esc_html_e( 'Last verified date', 'timonconfigs-core' ); ?></strong></label><br><input type="date" id="tc_last_updated" name="tc_last_updated" value="<?php echo esc_attr( $values['tc_last_updated'] ); ?>"></p>
-		<?php
+		foreach ( array( 'tc_config_version' => 'Configuration version', 'tc_game_version' => 'Supported game version', 'tc_last_updated' => 'Last verified update', 'tc_tutorial_url' => 'Tutorial URL (HTTPS)', 'tc_access_url' => 'Free release access URL (HTTPS)', 'tc_platform' => 'Legacy platform notes' ) as $key => $label ) {
+			$type = 'tc_last_updated' === $key ? 'date' : ( str_ends_with( $key, '_url' ) ? 'url' : 'text' );
+			echo '<p><label for="' . esc_attr( $key ) . '"><strong>' . esc_html( $label ) . '</strong></label><br><input class="widefat" type="' . esc_attr( $type ) . '" id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '" value="' . esc_attr( $values[ $key ] ) . '"></p>';
+		}
+		foreach ( array( 'tc_compatibility' => 'Confirmed compatibility and setup requirements', 'tc_changelog' => 'Changelog' ) as $key => $label ) {
+			echo '<p><label for="' . esc_attr( $key ) . '"><strong>' . esc_html( $label ) . '</strong></label><br><textarea class="widefat" rows="4" id="' . esc_attr( $key ) . '" name="' . esc_attr( $key ) . '">' . esc_textarea( $values[ $key ] ) . '</textarea></p>';
+		}
+		echo '<p>' . esc_html__( 'Assign only confirmed Xbox, PlayStation or PC terms in Platforms. The access URL is used for Free releases only, is omitted from REST output, and is cleared for premium tiers. Premium delivery must use server-side membership authorization.', 'timonconfigs-core' ) . '</p>';
 	}
 
 	public static function save_meta( int $post_id ): void {
-		$nonce = isset( $_POST[ self::NONCE ] ) ? sanitize_text_field( wp_unslash( $_POST[ self::NONCE ] ) ) : '';
-		if ( ! wp_verify_nonce( $nonce, 'tc_save_config_details' ) || ! current_user_can( 'edit_post', $post_id ) || wp_is_post_revision( $post_id ) ) {
-			return;
-		}
-
-		foreach ( self::META as $key => $sanitize_callback ) {
-			if ( ! isset( $_POST[ $key ] ) ) {
-				continue;
-			}
-			$value = call_user_func( $sanitize_callback, wp_unslash( $_POST[ $key ] ) );
-			if ( 'tc_tier' === $key && ! in_array( $value, array( 'free', 'monthly', 'lifetime' ), true ) ) {
-				$value = 'free';
-			}
-			if ( 'tc_input_method' === $key && ! in_array( $value, array( 'controller', 'mnk' ), true ) ) {
-				$value = 'controller';
-			}
+		if ( self::POST_TYPE !== get_post_type( $post_id ) || wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) || ! current_user_can( 'edit_post', $post_id ) ) { return; }
+		$nonce = isset( $_POST[ self::NONCE ] ) && is_string( $_POST[ self::NONCE ] ) ? sanitize_text_field( wp_unslash( $_POST[ self::NONCE ] ) ) : '';
+		if ( ! wp_verify_nonce( $nonce, 'tc_save_config_details' ) ) { return; }
+		foreach ( self::META as $key => $method ) {
+			if ( ! isset( $_POST[ $key ] ) || ! is_scalar( $_POST[ $key ] ) ) { continue; }
+			$raw = wp_unslash( $_POST[ $key ] );
+			$value = self::$method( $raw );
+			if ( in_array( $key, array( 'tc_tier', 'tc_input_method', 'tc_release_status' ), true ) && '' !== $raw && '' === $value ) { continue; }
 			update_post_meta( $post_id, $key, $value );
 		}
+		if ( 'free' !== get_post_meta( $post_id, 'tc_tier', true ) ) { delete_post_meta( $post_id, 'tc_access_url' ); }
+	}
+
+	public static function render_collection_add_field(): void {
+		wp_nonce_field( 'tc_collection_image', 'tc_collection_image_nonce' );
+		echo '<div class="form-field"><label for="tc_collection_image">' . esc_html__( 'Collection image URL', 'timonconfigs-core' ) . '</label><input type="url" name="tc_collection_image" id="tc_collection_image" placeholder="https://…"><p>' . esc_html__( 'Choose a public cover image from Media Library and paste its HTTPS URL. Premium files must never be used here.', 'timonconfigs-core' ) . '</p></div>';
+	}
+
+	public static function render_collection_edit_field( WP_Term $term ): void {
+		wp_nonce_field( 'tc_collection_image', 'tc_collection_image_nonce' );
+		echo '<tr class="form-field"><th><label for="tc_collection_image">' . esc_html__( 'Collection image URL', 'timonconfigs-core' ) . '</label></th><td><input type="url" class="regular-text" name="tc_collection_image" id="tc_collection_image" value="' . esc_attr( get_term_meta( $term->term_id, 'tc_collection_image', true ) ) . '"><p class="description">' . esc_html__( 'Leave empty to use the configurable theme cover. Use public artwork only.', 'timonconfigs-core' ) . '</p></td></tr>';
+	}
+
+	public static function save_collection_image( int $term_id ): void {
+		$nonce = isset( $_POST['tc_collection_image_nonce'] ) && is_string( $_POST['tc_collection_image_nonce'] ) ? sanitize_text_field( wp_unslash( $_POST['tc_collection_image_nonce'] ) ) : '';
+		if ( ! current_user_can( 'edit_term', $term_id ) || ! wp_verify_nonce( $nonce, 'tc_collection_image' ) || ! isset( $_POST['tc_collection_image'] ) || ! is_scalar( $_POST['tc_collection_image'] ) ) { return; }
+		update_term_meta( $term_id, 'tc_collection_image', self::sanitize_public_url( wp_unslash( $_POST['tc_collection_image'] ) ) );
 	}
 
 	public static function filter_archive( WP_Query $query ): void {
-		if ( is_admin() || ! $query->is_main_query() || ! $query->is_post_type_archive( self::POST_TYPE ) ) {
-			return;
-		}
-
+		if ( is_admin() || ! $query->is_main_query() || ( ! $query->is_post_type_archive( self::POST_TYPE ) && ! $query->is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) ) { return; }
+		$query->set( 'post_type', self::POST_TYPE );
 		$query->set( 'posts_per_page', 12 );
 		$query->set( 'orderby', 'modified' );
 		$query->set( 'order', 'DESC' );
-
-		$search = isset( $_GET['config_search'] ) ? sanitize_text_field( wp_unslash( $_GET['config_search'] ) ) : '';
-		if ( '' !== $search ) {
-			$query->set( 's', $search );
+		$search = self::request_value( 'config_search' );
+		if ( '' !== $search ) { $query->set( 's', $search ); }
+		$tax_query = (array) $query->get( 'tax_query' );
+		foreach ( array( 'tc_game' => 'game', 'tc_device' => 'device', 'tc_platform' => 'platform' ) as $taxonomy => $parameter ) {
+			$slug = sanitize_title( self::request_value( $parameter ) );
+			if ( '' !== $slug ) { $tax_query[] = array( 'taxonomy' => $taxonomy, 'field' => 'slug', 'terms' => $slug ); }
 		}
-
-		$tax_query = array();
-		foreach ( array( 'tc_game' => 'game', 'tc_device' => 'device' ) as $taxonomy => $parameter ) {
-			$slug = isset( $_GET[ $parameter ] ) ? sanitize_title( wp_unslash( $_GET[ $parameter ] ) ) : '';
-			if ( '' !== $slug ) {
-				$tax_query[] = array( 'taxonomy' => $taxonomy, 'field' => 'slug', 'terms' => $slug );
-			}
-		}
-		if ( $tax_query ) {
-			$query->set( 'tax_query', $tax_query );
-		}
-
-		$tier = isset( $_GET['tier'] ) ? sanitize_key( wp_unslash( $_GET['tier'] ) ) : '';
-		if ( in_array( $tier, array( 'free', 'monthly', 'lifetime' ), true ) ) {
-			$query->set( 'meta_query', array( array( 'key' => 'tc_tier', 'value' => $tier ) ) );
-		}
+		if ( $tax_query ) { $tax_query['relation'] = 'AND'; $query->set( 'tax_query', $tax_query ); }
+		$meta_query = array( 'relation' => 'AND', self::released_meta_query() );
+		$existing_meta = $query->get( 'meta_query' );
+		if ( is_array( $existing_meta ) && $existing_meta ) { $meta_query[] = $existing_meta; }
+		$tier = self::sanitize_tier( self::request_value( 'tier' ) );
+		$input = self::sanitize_input( self::request_value( 'input' ) );
+		if ( '' !== $tier ) { $meta_query[] = array( 'key' => 'tc_tier', 'value' => $tier ); }
+		if ( '' !== $input ) { $meta_query[] = array( 'key' => 'tc_input_method', 'value' => $input ); }
+		$query->set( 'meta_query', $meta_query );
 	}
 }
-

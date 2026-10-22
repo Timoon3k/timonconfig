@@ -34,7 +34,7 @@ defined( 'ABSPATH' ) || exit;
 			);
 			?>
 			<a class="tc-button tc-button--small tc-button--ghost tc-header-discord" href="<?php echo esc_url( timonconfigs_community_url() ); ?>"><?php echo timonconfigs_icon( 'discord' ); // phpcs:ignore ?>Join Discord</a>
-			<a class="tc-button tc-button--small" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>"><?php esc_html_e( 'Get Started', 'timonconfigs' ); ?></a>
+			<a class="tc-button tc-button--small" href="<?php echo esc_url( get_theme_mod( 'timonconfigs_hero_cta_url', home_url( '/pricing/' ) ) ); ?>"><?php echo esc_html( get_theme_mod( 'timonconfigs_hero_cta', 'Get Started' ) ); ?></a>
 		</nav>
 	</div>
 </header>

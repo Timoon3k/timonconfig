@@ -7,15 +7,22 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$games = array(
-	array( 'slug' => 'apex-legends', 'name' => 'Apex Legends', 'status' => 'Available now', 'url' => home_url( '/apex-legends-configs/' ) ),
-	array( 'slug' => 'call-of-duty', 'name' => 'Call of Duty', 'status' => 'Coming soon', 'url' => home_url( '/games/#game-call-of-duty' ) ),
-	array( 'slug' => 'fortnite', 'name' => 'Fortnite', 'status' => 'Coming soon', 'url' => home_url( '/games/#game-fortnite' ) ),
-	array( 'slug' => 'rainbow-six-siege', 'name' => 'Rainbow Six Siege', 'status' => 'Coming soon', 'url' => home_url( '/games/#game-rainbow-six-siege' ) ),
-	array( 'slug' => 'rust', 'name' => 'Rust', 'status' => 'Coming soon', 'url' => home_url( '/games/#game-rust' ) ),
-	array( 'slug' => 'ea-sports-fc', 'name' => 'EA Sports FC', 'status' => 'Coming soon', 'url' => home_url( '/games/#game-ea-sports-fc' ) ),
-	array( 'slug' => 'nba-2k', 'name' => 'NBA 2K', 'status' => 'Coming soon', 'url' => home_url( '/games/#game-nba-2k' ) ),
-);
+$terms = get_terms( array( 'taxonomy' => 'tc_game', 'hide_empty' => false ) );
+$terms = is_wp_error( $terms ) ? array() : $terms;
+$definitions = method_exists( 'TC_Catalog', 'game_definitions' ) ? TC_Catalog::game_definitions() : array();
+$ordered_terms = array();
+foreach ( array_keys( $definitions ) as $slug ) {
+	foreach ( $terms as $game_term ) {
+		if ( $slug === $game_term->slug ) {
+			$ordered_terms[ $game_term->term_id ] = $game_term;
+		}
+	}
+}
+foreach ( $terms as $game_term ) {
+	if ( 'the-finals' !== $game_term->slug ) {
+		$ordered_terms[ $game_term->term_id ] = $game_term;
+	}
+}
 $wordmarks = array(
 	'apex-legends'      => '<strong>APEX</strong><span>LEGENDS</span>',
 	'call-of-duty'      => '<strong>CALL<span>OF</span>DUTY</strong>',
@@ -27,19 +34,19 @@ $wordmarks = array(
 );
 ?>
 <div class="tc-game-strip" role="list" aria-label="Game collections">
-	<?php foreach ( $games as $game ) :
-		$image = get_theme_mod(
-			'timonconfigs_game_' . str_replace( '-', '_', $game['slug'] ) . '_image',
-			get_template_directory_uri() . '/assets/images/game-' . $game['slug'] . '.webp'
-		);
-		$available = 'Available now' === $game['status'];
+	<?php foreach ( $ordered_terms as $game ) :
+		$image = method_exists( 'TC_Catalog', 'collection_image' ) ? TC_Catalog::collection_image( $game ) : '';
+		$available = method_exists( 'TC_Catalog', 'collection_has_configs' ) && TC_Catalog::collection_has_configs( $game );
+		$status = $available ? 'Available now' : 'Coming soon';
+		$url = get_term_link( $game );
+		if ( is_wp_error( $url ) ) { continue; }
 		?>
-		<a id="game-<?php echo esc_attr( $game['slug'] ); ?>" class="tc-game-cover tc-game-cover--<?php echo esc_attr( $game['slug'] ); ?><?php echo $available ? ' is-available' : ' is-coming'; ?>" role="listitem" href="<?php echo esc_url( $game['url'] ); ?>">
-			<img src="<?php echo esc_url( $image ); ?>" alt="" width="600" height="360" loading="lazy" decoding="async">
+		<a id="game-<?php echo esc_attr( $game->slug ); ?>" class="tc-game-cover tc-game-cover--<?php echo esc_attr( $game->slug ); ?><?php echo $available ? ' is-available' : ' is-coming'; ?>" role="listitem" href="<?php echo esc_url( $url ); ?>">
+			<?php if ( $image ) : ?><img src="<?php echo esc_url( $image ); ?>" alt="" width="600" height="360" loading="lazy" decoding="async"><?php endif; ?>
 			<span class="tc-game-cover__shade"></span>
-			<span class="tc-game-cover__wordmark" aria-hidden="true"><?php echo wp_kses_post( $wordmarks[ $game['slug'] ] ); ?></span>
-			<span class="tc-game-cover__status" aria-hidden="true"><?php echo esc_html( $game['status'] ); ?></span>
-			<span class="screen-reader-text"><?php echo esc_html( $game['name'] . ' — ' . $game['status'] ); ?></span>
+			<span class="tc-game-cover__wordmark" aria-hidden="true"><?php echo isset( $wordmarks[ $game->slug ] ) && ( ! isset( $definitions[ $game->slug ]['name'] ) || $definitions[ $game->slug ]['name'] === $game->name ) ? wp_kses_post( $wordmarks[ $game->slug ] ) : '<strong>' . esc_html( $game->name ) . '</strong>'; ?></span>
+			<span class="tc-game-cover__status" aria-hidden="true"><?php echo esc_html( $status ); ?></span>
+			<span class="screen-reader-text"><?php echo esc_html( $game->name . ' — ' . $status ); ?></span>
 		</a>
 	<?php endforeach; ?>
 </div>

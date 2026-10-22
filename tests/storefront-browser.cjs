@@ -43,9 +43,9 @@ const baseURL = process.env.TC_TEST_URL || 'http://127.0.0.1:8080';
         }
         if (path === '/' || path === '/games/') {
           assert.equal(await page.locator('.tc-game-cover').count(), 7, 'Seven reference-led game covers');
-          assert.equal(await page.locator('.tc-game-cover.is-available').count(), 1, 'One current collection');
-          assert.equal(await page.locator('.tc-game-cover.is-coming').count(), 6, 'Six planned collections');
-          assert.equal(await page.locator('.tc-game-cover.is-coming[href*="/games/#game-"]').count(), 6, 'Planned games link to their honest roadmap anchors');
+          assert.equal(await page.locator('.tc-game-cover.is-available, .tc-game-cover.is-coming').count(), 7, 'Every collection has a real CMS-driven availability state');
+          const collectionPaths = await page.locator('.tc-game-cover').evaluateAll(cards => cards.map(card => new URL(card.href).pathname));
+          assert.deepEqual(collectionPaths, ['/apex-legends-configs/', '/call-of-duty-configs/', '/fortnite-configs/', '/rainbow-six-siege-configs/', '/rust-configs/', '/ea-sports-fc-configs/', '/nba-2k-configs/'], 'Every game links to its own collection');
         }
         if (path === '/' || path === '/reviews/') {
           assert.equal(await page.locator('.tc-review-card').count(), 6, 'Empty installs show six clearly labelled sample cards');

@@ -5,7 +5,7 @@ Custom WordPress theme and business plugin for `timonconfigs.com`.
 ## Components
 
 - `wp-content/themes/timonconfigs` — premium marketing theme with Home, Pricing, Games, VIP plan landings, video showcase, FAQ, Contact, policy pages, config catalogue templates, block patterns, responsive navigation, and SEO metadata.
-- `wp-content/plugins/timonconfigs-core` — validated Upgrade.chat checkout redirects, admin settings, editable configs, FAQs, and verified-review content models.
+- `wp-content/plugins/timonconfigs-core` — validated Upgrade.chat checkout redirects, site provisioning, editable config/game/device/platform models, FAQs, videos, reviews, and SEO indexing settings.
 
 The production site needs WordPress 6.5+ and PHP 8.1+. No Node.js server is required at runtime.
 
@@ -32,13 +32,14 @@ docker compose -f docker-compose.local.yml down
 1. Install WordPress in a local or staging environment.
 2. Copy both directories into the matching `wp-content` directories.
 3. Activate **TimonConfigs Core**, then activate **TimonConfigs**.
-4. Create pages using the slugs in `tools/setup-local-wordpress.sh`. WordPress automatically selects the matching storefront, support, showcase, and policy templates.
+4. Open **Tools → TimonConfigs setup** and run the explicit installer. It creates missing pages, fills genuinely empty content with native blocks, seeds seven game collections and three unpublished Apex draft structures, and refreshes permalinks. Existing authored content, statuses, and assigned menus are preserved.
 5. Set a static front page in **Settings → Reading**.
 6. Create and assign Primary and Footer menus in **Appearance → Menus**.
 7. Enter the real product checkout URLs under **Settings → TimonConfigs**. Only HTTPS links on `upgrade.chat` or its subdomains are accepted.
-8. Update global links, homepage copy, logo, game covers, hero artwork, video posters, titles, device labels, and MP4 files in **Appearance → Customize → TimonConfigs site content**.
-9. Add approved FAQ and Review entries in their Gutenberg admin menus. Never fabricate testimonials; the frontend provides an honest empty state until an approved review exists.
-10. Add catalogue entries under **Configs** and assign their Game, Device, access tier, input method, platform, version, and verified date. Never publish preview fixtures as verified production releases.
+8. Edit **Pages → Home** to reorder its ten native TimonConfigs sections or change their heading/hero/benefit content. Shared prices, links, branding, and fallbacks remain in **Appearance → Customize → TimonConfigs site content**.
+9. Manage collections under **Configs → Games / Devices / Platforms**, and add release details in the Config Gutenberg editor. Keep unverified releases as drafts; empty/coming-soon collections are noindex and excluded from the core sitemap.
+10. Add FAQs, videos, and approved reviews in their dedicated Gutenberg menus. Every sample review is visibly labelled Demo Content and excluded from rating schema. Videos support native MP4/VTT and click-to-load YouTube, with inline playback by default and an optional per-entry modal.
+11. Edit page and collection search/social fields in the **Search and social metadata** panel. If AIOSEO or another supported SEO provider is active, use that provider's title/social settings; the theme suppresses its own duplicates.
 
 Do not put Discord OAuth secrets, tokens, or premium downloads in the theme, Media Library, repository, or public web root.
 
@@ -54,11 +55,11 @@ find wp-content -name '*.php' -print0 | xargs -0 -n1 php -l
 The second command requires PHP CLI. A full WordPress staging smoke test remains required before deployment.
 
 
-## Visual reference and inline media (theme 0.6.0)
+## Visual reference and inline media (theme 0.7.0 / Core 0.5.0)
 
 The storefront follows the supplied mockup composition while retaining the real offer and omitting unverified statistics and invented reviews. The recreated wordmark and seven game covers are replaceable; use **Appearance → Customize** to provide final licensed production assets. Set the official logo under Site Identity when available.
 
-Home and Video Showcase use the same inline player cards. MP4 downloads begin on interaction and playback remains within the card. No modal is used. Public showcase videos are not premium download storage.
+Home and Video Showcase share player cards. MP4 downloads and YouTube embeds begin on explicit interaction. Playback remains within the card by default; a video editor may choose the optional accessible modal. Public showcase videos are not premium download storage.
 
 Fresh installations show six compact review-layout samples. Every sample is visibly labelled **Sample Review · Demo Content** and is never emitted as review structured data. Add approved feedback under **Reviews** with Gutenberg, a featured image, rating, config label, demo status, publication state, and menu order. Hero and pricing starter patterns are available in the block inserter together with the CTA and FAQ patterns.
 
@@ -71,3 +72,5 @@ node tests/storefront-browser.cjs
 Set `TC_TEST_URL` for a staging URL and `CHROMIUM_PATH` for another Chromium executable. Tests interact with search, menus, FAQ, and the public video player; they do not purchase products or modify memberships.
 
 Run `node tools/capture-storefront.cjs` to capture the current Home at 1440, 1024, 768, 390, and 320 px with the real local fonts. Measured reference comparisons and unresolved original-asset/live-site limitations are documented in `docs/DESIGN_CORRECTION_0.6.md`.
+
+See [CMS guide](docs/CMS_GUIDE.md), [installation and update steps](docs/INSTALL_UPDATE.md), and [observed URL results](docs/URL_STATUS.md). Full route/SEO/CMS browser checks run with `node tests/website-browser.cjs`; integration tests run with `docker compose -f docker-compose.local.yml run --rm -T cli wp eval-file - < tests/<name>-integration.php` for `catalog`, `seo`, `video`, `site`, and `blocks`.
