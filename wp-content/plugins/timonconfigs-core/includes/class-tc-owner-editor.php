@@ -75,9 +75,15 @@ final class TC_Owner_Editor {
             if ( ! is_array( $values ) || count( $values ) > 30 ) { return self::forbidden( 'Invalid collection selection.' ); }
             $taxes[ $tax ] = array();
             foreach ( $values as $value ) {
+                if ( '' === $value && in_array( $tax, array( 'tc_game', 'tc_device' ), true ) ) { continue; }
                 if ( ! is_string( $value ) || ! ctype_digit( $value ) || ! term_exists( (int) $value, $tax ) ) { return self::forbidden( 'Select existing games, devices and platforms.' ); }
                 $taxes[ $tax ][] = (int) $value;
             }
+        }
+        // A public release must belong to a browsable game and device collection.
+        // Drafts may be incomplete while the Owner prepares artwork and private files.
+        if ( 'publish' === $status && ( empty( $taxes['tc_game'] ) || empty( $taxes['tc_device'] ) ) ) {
+            return self::forbidden( 'Choose one Game and one Device before publishing. Otherwise the card cannot appear in the correct collection.' );
         }
         // Validate protected editorial fields before changing a post.
         if ( class_exists( 'TC_Config_Content' ) ) {
@@ -89,6 +95,8 @@ final class TC_Owner_Editor {
         $result = wp_insert_post( wp_slash( $post ), true );
         if ( is_wp_error( $result ) ) { return self::forbidden( 'The config could not be saved.' ); }
         foreach ( $meta as $key => $value ) { update_post_meta( $result, $key, $value ); }
+        // All configs in a game inherit one branded cover unless Owner explicitly selects custom.
+        update_post_meta( $result, '_tc_card_art', 'custom' === self::scalar( $data, 'card_art' ) ? 'custom' : 'game' );
         foreach ( $taxes as $tax => $ids ) { wp_set_object_terms( $result, $ids, $tax ); }
         if ( class_exists( 'TC_Config_Content' ) ) { $saved = TC_Config_Content::save_fields( $result, $data ); if ( is_wp_error( $saved ) ) { return $saved; } }
         self::audit( $result, $id ? 'edited' : 'created' ); return $result;
@@ -158,19 +166,45 @@ final class TC_Owner_Editor {
         $feedback = get_transient( 'tc_owner_feedback_' . get_current_user_id() ); if ( is_string( $feedback ) && $feedback ) { echo '<p role="status">' . esc_html( $feedback ) . '</p>'; delete_transient( 'tc_owner_feedback_' . get_current_user_id() ); }
         $page_raw = $_GET['manage_page'] ?? '1'; $page = is_string( $page_raw ) && ctype_digit( $page_raw ) ? max( 1, min( 100000, (int) $page_raw ) ) : 1;
         $configs = new WP_Query( array( 'post_type' => 'tc_config', 'post_status' => array( 'draft', 'publish', 'private', 'pending' ), 'posts_per_page' => 20, 'paged' => $page, 'orderby' => array( 'modified' => 'DESC', 'ID' => 'DESC' ) ) );
-        echo '<details><summary>Existing configurations</summary><ul>'; foreach ( $configs->posts as $config ) { echo '<li><a href="' . esc_url( self::url( $config->ID ) ) . '">' . esc_html( $config->post_title ) . '</a> · ' . esc_html( $config->post_status ) . '</li>'; } echo '</ul><nav aria-label="Managed configurations">';
+        echo '<details open><summary>Existing configurations — click to edit</summary><ul>';
+        foreach ( $configs->posts as $config ) {
+            $release = (string) get_post_meta( $config->ID, 'tc_release_status', true );
+            $games = wp_get_object_terms( $config->ID, 'tc_game', array( 'fields' => 'names' ) );
+            $devices = wp_get_object_terms( $config->ID, 'tc_device', array( 'fields' => 'names' ) );
+            $labels = ! is_wp_error( $games ) ? implode( ', ', $games ) : '';
+            $device_labels = ! is_wp_error( $devices ) ? implode( ', ', $devices ) : '';
+            echo '<li><a href="' . esc_url( self::url( $config->ID ) ) . '">' . esc_html( $config->post_title ) . '</a> — ' . esc_html( $config->post_status ) . ' / ' . esc_html( $release ?: 'legacy release' ) . ' · ' . esc_html( $labels ?: 'No game selected' ) . ' · ' . esc_html( $device_labels ?: 'No device selected' );
+            if ( 'publish' === $config->post_status && 'archived' !== $release ) {
+                echo ' · <a href="' . esc_url( get_permalink( $config->ID ) ) . '">View card</a>';
+            }
+            echo '</li>';
+        }
+        echo '</ul><nav aria-label="Managed configurations">';
         if ( $page > 1 ) { echo '<a href="' . esc_url( add_query_arg( 'manage_page', $page - 1, self::url() ) ) . '">Previous configurations</a> '; }
         if ( $page < $configs->max_num_pages ) { echo '<a href="' . esc_url( add_query_arg( 'manage_page', $page + 1, self::url() ) ) . '">More configurations</a>'; }
         echo '</nav></details>';
         self::form_start( $id, 'save' );
         self::input( 'title', 'Title', $post->post_title ?? '' ); self::input( 'excerpt', 'Short description', $post->post_excerpt ?? '', true ); self::input( 'description', 'Description (safe HTML)', $post->post_content ?? '', true );
         self::select( 'status', 'Publication', $post->post_status ?? 'draft', array( 'draft' => 'Draft', 'publish' => 'Published' ) );
-        foreach ( array( 'tc_game' => 'Games', 'tc_device' => 'Devices', 'tc_platform' => 'Platforms' ) as $tax => $label ) {
+        foreach ( array( 'tc_game' => 'Game', 'tc_device' => 'Device', 'tc_platform' => 'Platforms' ) as $tax => $label ) {
             $assigned = $id ? wp_get_object_terms( $id, $tax, array( 'fields' => 'ids' ) ) : array();
             echo '<fieldset><legend>' . esc_html( $label ) . '</legend>';
-            foreach ( get_terms( array( 'taxonomy' => $tax, 'hide_empty' => false ) ) as $term ) { echo '<label class="tc-owner-check"><input type="checkbox" name="' . esc_attr( $tax ) . '[]" value="' . esc_attr( (string) $term->term_id ) . '" ' . checked( in_array( $term->term_id, $assigned, true ), true, false ) . '>' . esc_html( $term->name ) . '</label>'; } echo '</fieldset>';
+            if ( in_array( $tax, array( 'tc_game', 'tc_device' ), true ) ) {
+                echo '<select name="' . esc_attr( $tax ) . '[]" ' . ( 'publish' === ( $post->post_status ?? '' ) ? 'required' : '' ) . '><option value="">Choose ' . esc_html( $label ) . '…</option>';
+                foreach ( get_terms( array( 'taxonomy' => $tax, 'hide_empty' => false ) ) as $term ) {
+                    echo '<option value="' . esc_attr( (string) $term->term_id ) . '" ' . selected( in_array( $term->term_id, $assigned, true ), true, false ) . '>' . esc_html( $term->name ) . '</option>';
+                }
+                echo '</select>';
+            } else {
+                foreach ( get_terms( array( 'taxonomy' => $tax, 'hide_empty' => false ) ) as $term ) {
+                    echo '<label class="tc-owner-check"><input type="checkbox" name="' . esc_attr( $tax ) . '[]" value="' . esc_attr( (string) $term->term_id ) . '" ' . checked( in_array( $term->term_id, $assigned, true ), true, false ) . '>' . esc_html( $term->name ) . '</label>';
+                }
+            }
+            echo '</fieldset>';
         }
         self::select( 'tc_tier', 'Access tier', (string) get_post_meta( $id, 'tc_tier', true ), array( 'free' => 'Free Member', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' ) );
+        echo '<p class="tc-owner-help">Published + Coming soon = visible preview card with no download. Published + Available + uploaded private file = downloadable card for entitled members. Archived = hidden from the public catalogue.</p>';
+        self::select( 'card_art', 'Card cover artwork', (string) ( get_post_meta( $id, '_tc_card_art', true ) ?: 'game' ), array( 'game' => 'Use shared game cover (recommended)', 'custom' => 'Use uploaded custom thumbnail' ) );
         self::select( 'tc_release_status', 'Release', (string) get_post_meta( $id, 'tc_release_status', true ), array( 'coming-soon' => 'Coming soon', 'available' => 'Available', 'archived' => 'Archived' ) );
         self::select( 'tc_input_method', 'Input', (string) get_post_meta( $id, 'tc_input_method', true ), array( '' => 'Not yet verified', 'controller' => 'Controller', 'mnk' => 'Mouse & keyboard' ) );
         foreach ( array( 'tc_config_version' => 'Version', 'tc_game_version' => 'Game version', 'tc_creator' => 'Creator', 'tc_publisher' => 'Publisher', 'tc_release_date' => 'Release date (YYYY-MM-DD)', 'tc_tutorial_url' => 'Public preview / tutorial URL (HTTPS)' ) as $key => $label ) { self::input( $key, $label, (string) get_post_meta( $id, $key, true ) ); }
