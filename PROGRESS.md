@@ -1,6 +1,13 @@
 # TimonConfigs project progress
 
-Last updated: 2026-10-23
+Last updated: 2026-10-24
+
+## Owner/Staff policy and file formats — first feature checkpoint
+
+- Kontynuacja `main` po nowych dokumentach (baseline `c32fefd`), gałąź `feature/owner-catalog-guides-seo`. Użytkownik potwierdził poprawny Free Member po ponownym logowaniu; to oczekiwane zachowanie, nie błąd wylogowania.
+- Rozdzielono zweryfikowane odznaki Staff/Owner od płatnego tieru. Zarządzanie wymaga aktualnej roli Owner, zatwierdzonego Discord User ID oraz poprawnego powiązania konta. Każdy zapis wymusza nowe sprawdzenie serwerowe; awarie i throttling odmawiają dostępu.
+- Rozszerzono prywatną politykę formatów o tekstowe CFG/INI i administratorowy wybór bezpiecznego podzbioru. Nadal wymagany inspektor ZNBK/XIMMR; wyłączenie formatu blokuje upload/resolve bez usuwania danych. Adapter dla edytora nie omija walidacji ani audytu.
+- Lokalne testy WordPress: OAuth/role 122, polityka formatów 28, prywatne pliki 65 — wszystkie zaliczone. Transport Discord jest symulowany. Produkcji nie modyfikowano. Dalsze moduły są implementowane w kolejnych checkpointach.
 
 ## Logout regression verification
 

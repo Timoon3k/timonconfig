@@ -5,7 +5,8 @@ defined( 'ABSPATH' ) || exit;
 final class TC_Private_Files {
 	private const META_KEY = '_tc_private_files';
 	private const NONCE = 'tc_private_files_nonce';
-	private const EXTENSIONS = array( 'znbk', 'gpc', 'ximmr', 'json', 'txt' );
+	private const EXTENSIONS = array( 'znbk', 'gpc', 'ximmr', 'json', 'txt', 'cfg', 'ini' );
+	private const FORMATS_OPTION = 'timonconfigs_private_formats';
 	private const MAX_BYTES = 20971520;
 	private const MAX_PER_UPLOAD = 10;
 	private const MAX_FILES = 100;
@@ -17,6 +18,7 @@ final class TC_Private_Files {
 		add_action( 'post_edit_form_tag', array( __CLASS__, 'enctype' ) );
 		add_action( 'save_post_tc_config', array( __CLASS__, 'save' ), 30, 2 );
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
+		add_action( 'admin_init', static function (): void { register_setting( 'tc_private_formats', self::FORMATS_OPTION, array( 'type' => 'array', 'show_in_rest' => false, 'sanitize_callback' => array( __CLASS__, 'sanitize_formats' ) ) ); } );
 		add_action( 'admin_post_tc_private_files_manage', array( __CLASS__, 'handle' ) );
 		add_action( 'admin_notices', array( __CLASS__, 'notice' ) );
 	}
@@ -32,6 +34,30 @@ final class TC_Private_Files {
 
 	public static function menu(): void {
 		add_submenu_page( 'edit.php?post_type=tc_config', 'Private script files', 'Private files', 'manage_options', 'tc-private-files', array( __CLASS__, 'page' ) );
+		add_options_page( 'Private script formats', 'Private script formats', 'manage_options', 'tc-private-formats', array( __CLASS__, 'formats_page' ) );
+	}
+
+	/** Configuration only narrows this reviewed format set; arbitrary extensions are never accepted. */
+	public static function extensions(): array {
+		$value = get_option( self::FORMATS_OPTION, self::EXTENSIONS );
+		if ( ! is_array( $value ) ) { return array(); }
+		return array_values( array_intersect( self::EXTENSIONS, array_filter( $value, 'is_string' ) ) );
+	}
+
+	public static function accept(): string { return implode( ',', array_map( static fn( string $extension ): string => '.' . $extension, self::extensions() ) ); }
+
+	public static function sanitize_formats( mixed $value ): array {
+		if ( ! current_user_can( 'manage_options' ) || ! is_array( $value ) ) { return self::extensions(); }
+		return array_values( array_intersect( self::EXTENSIONS, array_filter( $value, 'is_string' ) ) );
+	}
+
+	public static function formats_page(): void {
+		if ( ! current_user_can( 'manage_options' ) ) { return; }
+		echo '<div class="wrap"><h1>Private script formats</h1><p>Enable only the formats you distribute. GPC, JSON, TXT, CFG and INI must contain inspected text; JSON must also be valid JSON. ZNBK and XIMMR always require explicit approval from a configured scanner or format inspector, including text-encoded backups. Archives, executable files and active web content remain disabled.</p><p>Disabling a format also blocks existing downloads of that format without deleting stored files.</p><form method="post" action="options.php">';
+		settings_fields( 'tc_private_formats' );
+		echo '<input type="hidden" name="' . esc_attr( self::FORMATS_OPTION ) . '[]" value="">';
+		foreach ( self::EXTENSIONS as $extension ) { echo '<p><label><input type="checkbox" name="' . esc_attr( self::FORMATS_OPTION ) . '[]" value="' . esc_attr( $extension ) . '" ' . checked( in_array( $extension, self::extensions(), true ), true, false ) . '> ' . esc_html( strtoupper( $extension ) ) . '</label></p>'; }
+		submit_button(); echo '</form></div>';
 	}
 
 	/** Absolute server-only path. Never print it or register it as REST metadata. */
@@ -71,7 +97,7 @@ final class TC_Private_Files {
 		if ( is_wp_error( $records ) ) { return array(); }
 		$files = array();
 		foreach ( $records as $index => $record ) {
-			if ( ! self::uuid( $record['id'] ?? null ) || ! is_string( $record['name'] ?? null ) || ! in_array( strtolower( pathinfo( $record['name'], PATHINFO_EXTENSION ) ), self::EXTENSIONS, true ) ) { continue; }
+			if ( ! self::uuid( $record['id'] ?? null ) || ! is_string( $record['name'] ?? null ) || ! in_array( strtolower( pathinfo( $record['name'], PATHINFO_EXTENSION ) ), self::extensions(), true ) ) { continue; }
 			$files[] = array( 'id' => $record['id'], 'name' => sanitize_file_name( $record['name'] ), 'size' => max( 0, (int) ( $record['size'] ?? 0 ) ), 'version' => self::text( $record['version'] ?? '', 80 ), 'notes' => self::text( $record['notes'] ?? '', 2000, true ), 'checksum' => is_string( $record['checksum'] ?? null ) && preg_match( '/^[a-f0-9]{64}$/D', $record['checksum'] ) ? $record['checksum'] : '', 'uploaded_at' => self::text( $record['uploaded_at'] ?? '', 30 ), 'order' => max( 0, (int) ( $record['order'] ?? $index ) ) );
 		}
 		usort( $files, static fn( array $a, array $b ): int => ( $a['order'] <=> $b['order'] ) ?: strcmp( $a['id'], $b['id'] ) );
@@ -90,7 +116,7 @@ final class TC_Private_Files {
 		if ( is_wp_error( $root ) ) { return $root; }
 		$directory = $root . DIRECTORY_SEPARATOR . $config_id;
 		$stored_name = $record['stored_name'] ?? '';
-		if ( ! is_string( $stored_name ) || ! preg_match( '/^' . preg_quote( $file_id, '/' ) . '\.(znbk|gpc|ximmr|json|txt)$/D', $stored_name ) || is_link( $directory ) || realpath( $directory ) !== $directory ) { return new WP_Error( 'tc_file_unsafe', 'This private file failed its storage checks.' ); }
+		if ( ! is_string( $stored_name ) || ! preg_match( '/^' . preg_quote( $file_id, '/' ) . '\.(' . implode( '|', self::EXTENSIONS ) . ')$/D', $stored_name ) || ! in_array( pathinfo( $stored_name, PATHINFO_EXTENSION ), self::extensions(), true ) || is_link( $directory ) || realpath( $directory ) !== $directory ) { return new WP_Error( 'tc_file_unsafe', 'This private file failed its storage checks.' ); }
 		$path = $directory . DIRECTORY_SEPARATOR . $stored_name;
 		if ( is_link( $path ) || ! is_file( $path ) || ! is_readable( $path ) || realpath( $path ) !== $path ) { return new WP_Error( 'tc_file_missing', 'This private file is unavailable.' ); }
 		$inspection = self::inspect( $path, $record['name'] ?? '' );
@@ -107,7 +133,7 @@ final class TC_Private_Files {
 		if ( ! is_string( $raw_name ) || '' === $raw_name || strlen( $raw_name ) > 200 || preg_match( '/[\\\\\/\x00-\x1f\x7f]/', $raw_name ) || preg_match( '/\.(php\d*|phtml|phar|exe|dll|com|bat|cmd|ps1|sh|cgi|js|html?)(\.|$)/i', $raw_name ) ) { return $bad( 'Use a simple script filename without paths or executable extensions.' ); }
 		$name = sanitize_file_name( $raw_name );
 		$extension = strtolower( pathinfo( $name, PATHINFO_EXTENSION ) );
-		if ( ! in_array( $extension, self::EXTENSIONS, true ) ) { return $bad( 'Allowed files: GPC, ZNBK, XIMMR, JSON, TXT. Archives and executable files are disabled.' ); }
+		if ( ! in_array( $extension, self::extensions(), true ) ) { return $bad( 'This file format is not enabled. Ask the administrator to review Private script formats. Archives and executable files are disabled.' ); }
 		$size = is_file( $path ) && ! is_link( $path ) ? filesize( $path ) : false;
 		if ( ! is_int( $size ) || $size < 1 || $size > self::MAX_BYTES ) { return $bad( 'Each file must contain between 1 byte and 20 MB of actual data.' ); }
 		$content = file_get_contents( $path );
@@ -120,11 +146,11 @@ final class TC_Private_Files {
 		$text = 1 === preg_match( '//u', $content ) && ! preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $content );
 		$allowed_mime = array( 'text/plain', 'application/json', 'text/x-c', 'text/x-c++', 'text/x-csrc', 'text/x-c++src' );
 		if ( in_array( $extension, array( 'znbk', 'ximmr' ), true ) ) { $allowed_mime[] = 'application/octet-stream'; }
-		if ( ! in_array( $mime, $allowed_mime, true ) || ( in_array( $extension, array( 'gpc', 'json', 'txt' ), true ) && ! $text ) ) { return $bad( 'The actual content does not match an allowed script format.' ); }
+		if ( ! in_array( $mime, $allowed_mime, true ) || ( in_array( $extension, array( 'gpc', 'json', 'txt', 'cfg', 'ini' ), true ) && ! $text ) ) { return $bad( 'The actual content does not match an allowed script format.' ); }
 		if ( 'json' === $extension ) { json_decode( $content, true, 64 ); if ( JSON_ERROR_NONE !== json_last_error() ) { return $bad( 'JSON uploads must contain valid JSON.' ); } }
 		$scan = apply_filters( 'timonconfigs_private_file_scan', null, $path, $extension, $mime );
 		if ( is_wp_error( $scan ) || ( null !== $scan && true !== $scan ) ) { return $bad( 'The configured file scanner did not approve this file.' ); }
-		if ( ( ! $text || in_array( $extension, array( 'znbk', 'ximmr' ), true ) ) && true !== $scan ) { return $bad( 'ZNBK and XIMMR backups require an approved scanner or format inspector, including text-encoded backups. GPC, JSON and TXT remain available with structural checks.' ); }
+		if ( ( ! $text || in_array( $extension, array( 'znbk', 'ximmr' ), true ) ) && true !== $scan ) { return $bad( 'ZNBK and XIMMR backups require an approved scanner or format inspector, including text-encoded backups. GPC, JSON, TXT, CFG and INI remain available with structural checks.' ); }
 		return array( 'name' => $name, 'extension' => $extension, 'size' => $size, 'checksum' => hash( 'sha256', $content ), 'inspection' => true === $scan ? 'scanner-approved' : 'structural-only' );
 	}
 
@@ -158,7 +184,15 @@ final class TC_Private_Files {
 		add_post_meta( $config_id, '_tc_private_file_audit', array( 'at' => gmdate( 'c' ), 'actor' => get_current_user_id(), 'action' => $action, 'file_id' => $file_id, 'details' => $details ) );
 	}
 
-	private static function authorise( int $config_id ): bool { return 'tc_config' === get_post_type( $config_id ) && current_user_can( 'manage_options' ) && current_user_can( 'edit_post', $config_id ); }
+	private static function authorise( int $config_id ): bool {
+		$owner_context = class_exists( 'TC_Owner_Editor' ) && TC_Owner_Editor::in_authorized_context();
+		return 'tc_config' === get_post_type( $config_id ) && ( current_user_can( 'manage_options' ) || $owner_context ) && current_user_can( 'edit_post', $config_id );
+	}
+
+	/** Server-only adapter; frontend callers must establish the verified, nonce-protected Owner context. */
+	public static function manage( int $config_id, string $operation, array $request, mixed $incoming = null ): true|WP_Error {
+		return self::mutate( $config_id, $operation, $request, $incoming );
+	}
 
 	private static function uploads( mixed $input ): array|WP_Error {
 		if ( null === $input ) { return array(); }
@@ -315,7 +349,7 @@ final class TC_Private_Files {
 		$root = self::root();
 		if ( is_wp_error( $root ) ) { echo '<div class="notice notice-error inline"><p>' . esc_html( $root->get_error_message() ) . '</p></div></div>'; return; }
 		self::form_start( $id, 'upload' );
-		echo '<h3>Add script files</h3><p><label>Files <input type="file" name="tc_private_files[]" accept=".znbk,.gpc,.ximmr,.json,.txt" multiple required></label></p><p><label>Version <input name="version" maxlength="80"></label></p><p><label>Notes <textarea name="notes" maxlength="2000"></textarea></label></p>';
+		echo '<h3>Add script files</h3><p><label>Files <input type="file" name="tc_private_files[]" accept="' . esc_attr( self::accept() ) . '" multiple required></label></p><p><label>Version <input name="version" maxlength="80"></label></p><p><label>Notes <textarea name="notes" maxlength="2000"></textarea></label></p>';
 		submit_button( 'Upload private files', 'primary', 'submit', false ); echo '</form><hr>';
 		$records = self::records( $id );
 		if ( is_wp_error( $records ) ) { echo '<p>' . esc_html( $records->get_error_message() ) . '</p></div>'; return; }
@@ -327,7 +361,7 @@ final class TC_Private_Files {
 			echo '<p><label>Order <input type="number" name="order" min="0" max="9999" value="' . esc_attr( (string) ( $file['order'] ?? $index ) ) . '"></label> <label>Version <input name="version" maxlength="80" value="' . esc_attr( self::text( $file['version'] ?? '', 80 ) ) . '"></label></p><p><label>Notes <textarea name="notes" maxlength="2000">' . esc_textarea( self::text( $file['notes'] ?? '', 2000, true ) ) . '</textarea></label></p>';
 			submit_button( 'Save file details', 'secondary', 'submit', false ); echo '</form>';
 			self::form_start( $id, 'replace', $file['id'] );
-			echo '<p><label>Replacement <input type="file" name="tc_private_files[]" accept=".znbk,.gpc,.ximmr,.json,.txt" required></label> <label>New version <input name="version" maxlength="80" value="' . esc_attr( self::text( $file['version'] ?? '', 80 ) ) . '"></label></p><p><label>Notes <textarea name="notes" maxlength="2000">' . esc_textarea( self::text( $file['notes'] ?? '', 2000, true ) ) . '</textarea></label></p><p><label><input type="checkbox" name="confirm" value="1" required> I confirm replacing this file. Its old download ID will be revoked.</label></p>';
+			echo '<p><label>Replacement <input type="file" name="tc_private_files[]" accept="' . esc_attr( self::accept() ) . '" required></label> <label>New version <input name="version" maxlength="80" value="' . esc_attr( self::text( $file['version'] ?? '', 80 ) ) . '"></label></p><p><label>Notes <textarea name="notes" maxlength="2000">' . esc_textarea( self::text( $file['notes'] ?? '', 2000, true ) ) . '</textarea></label></p><p><label><input type="checkbox" name="confirm" value="1" required> I confirm replacing this file. Its old download ID will be revoked.</label></p>';
 			submit_button( 'Replace file', 'secondary', 'submit', false ); echo '</form>';
 			self::form_start( $id, 'delete', $file['id'] );
 			echo '<p><label><input type="checkbox" name="confirm" value="1" required> I confirm permanently deleting this file.</label></p>';

@@ -151,7 +151,54 @@ try {
     $assert( is_wp_error( $call( 'bind', array( 'id' => $id ) ) ), 'Pilot restriction wins even when staging was confirmed.' );
     $settings['staging_confirmed'] = 0; $settings['pilot_enabled'] = 0; update_option( 'timonconfigs_discord', $settings, false );
     $assert( TC_Discord::is_ready() === in_array( wp_get_environment_type(), array( 'local', 'development', 'staging' ), true ), 'Turning off pilot restores production staging gate.' );
+    // Privileged badges remain separate from membership entitlements and require real role IDs.
+    $settings['staging_confirmed'] = 1; $settings['pilot_enabled'] = 0;
+    $settings['staff_role'] = '900000000000000021'; $settings['owner_role'] = '900000000000000022';
+    $settings['owner_ids'] = $id;
+    update_option( 'timonconfigs_discord', $settings, false ); wp_set_current_user( $uid );
+    $assert( TC_Discord::is_ready(), 'Optional distinct Staff/Owner settings preserve readiness.' );
+    $assert( 'subscriber' === get_userdata( $uid )->roles[0], 'Discord account keeps its existing subscriber role.' );
+    foreach ( array( 'free', 'monthly', 'lifetime', 'staff', 'owner' ) as $badge ) {
+        $roles = array( $settings[ $badge . '_role' ] ); $seed();
+        $status = TC_Discord::status();
+        $assert( array( $badge ) === array_keys( $status['badges'] ), 'Only verified configured badges shown: ' . $badge );
+        $assert( ( 'owner' === $badge ) === TC_Discord::can_manage_configs( $uid, false ), 'Only approved Owner has frontend-management policy: ' . $badge );
+        if ( in_array( $badge, array( 'staff', 'owner' ), true ) ) {
+            $assert( 'unverified' === $status['state'] && false === TC_Discord::can_access( $post ), 'Staff/Owner badge does not grant paid or Free entitlement: ' . $badge );
+        }
+    }
+    $roles = array( $settings['free_role'], $settings['monthly_role'], $settings['staff_role'], $settings['owner_role'], '900000000000000099' ); $seed();
+    $status = TC_Discord::status();
+    $assert( array( 'free', 'monthly', 'staff', 'owner' ) === array_keys( $status['badges'] ) && 'monthly' === $status['state'], 'All matching known badges displayed; unknown/Unverified role omitted.' );
+    $assert( $status['owner_verified'] && $status['staff_verified'], 'Independent role-verification fields are true for verified IDs.' );
+    $assert( is_wp_error( TC_Discord::can_manage_configs() ), 'Write authorization requires fresh verification and rate-limits even with cached Owner.' );
+    delete_user_meta( $uid, '_tc_discord_attempt' ); $roles = array( $settings['free_role'] );
+    $assert( false === TC_Discord::can_manage_configs(), 'Fresh role removal defeats previously cached Owner.' );
+    $roles = array( $settings['owner_role'] ); $seed();
+    $assert( true === TC_Discord::can_manage_configs(), 'Fresh role plus explicit approved ID grants management policy.' );
+    $settings['owner_ids'] = ''; update_option( 'timonconfigs_discord', $settings, false ); $seed();
+    $assert( false === TC_Discord::can_manage_configs(), 'Owner guild role alone never grants management.' );
+    $settings['owner_ids'] = '900000000000000088'; update_option( 'timonconfigs_discord', $settings, false ); $seed();
+    $assert( false === TC_Discord::can_manage_configs(), 'A different approved Discord ID cannot authorize this binding.' );
+    $settings['owner_ids'] = $id; update_option( 'timonconfigs_discord', $settings, false ); $seed(); $mode = 'wrong-guild';
+    $assert( is_wp_error( TC_Discord::can_manage_configs() ), 'Mismatched guild cannot authorize Owner writes.' );
+    $mode = 'error'; $seed();
+    $assert( is_wp_error( TC_Discord::can_manage_configs() ), 'Provider failure cannot authorize Owner writes.' );
+    $mode = 'ok'; $seed();
+    update_option( '_tc_discord_binding_' . $id, 0, false );
+    $assert( false === TC_Discord::can_manage_configs(), 'Missing unique identity binding denies even an allowlisted Owner.' );
+    update_option( '_tc_discord_binding_' . $id, $uid, false );
+    $settings['staff_role'] = $settings['owner_role']; update_option( 'timonconfigs_discord', $settings, false );
+    $assert( ! TC_Discord::is_ready(), 'Aliased Staff/Owner IDs fail closed.' );
+    $settings['staff_role'] = '900000000000000021'; update_option( 'timonconfigs_discord', $settings, false );
+    wp_set_current_user( (int) $admins[0] );
+    $saved = TC_Discord::sanitize_settings( array_merge( $settings, array( 'owner_ids' => $id . ', ' . $id ) ) );
+    $assert( $id === $saved['owner_ids'] && $settings['owner_role'] === $saved['owner_role'] && $settings['staff_role'] === $saved['staff_role'], 'Administrator saves normalized owner allowlist and distinct optional roles.' );
+    $saved = TC_Discord::sanitize_settings( array_merge( $settings, array( 'owner_ids' => array( $id ), 'owner_role' => array( 'bad' ) ) ) );
+    $assert( '' === $saved['owner_ids'] && '' === $saved['owner_role'], 'Malformed Owner settings are not accepted.' );
+    $assert( false === TC_Discord::can_manage_configs(), 'Unbound WordPress administrator has no frontend Owner bypass.' );
     wp_set_current_user( 0 );
+    $assert( false === TC_Discord::can_manage_configs(), 'Anonymous user cannot manage configs.' );
     $settings['enabled'] = 0; update_option( 'timonconfigs_discord', $settings, false );
     $assert( ! TC_Discord::is_ready() && TC_Discord::login_url() === home_url( '/account/' ), 'Disabled mode has no OAuth handoff.' );
     WP_CLI::success( "Discord integration: $checks assertions; fake HTTP only, no real Discord verification." );

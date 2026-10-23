@@ -43,15 +43,23 @@ final class TC_Discord {
         if ( $pilot && ! self::pilot_ids( $s['pilot_ids'] ?? '' ) ) { return false; }
         if ( empty( $s['enabled'] ) || ( ! $testing && ! $pilot && empty( $s['staging_confirmed'] ) ) || ! is_string( $s['client_secret'] ) || '' === $s['client_secret'] || 'https' !== wp_parse_url( home_url( '/' ), PHP_URL_SCHEME ) || ! function_exists( 'openssl_encrypt' ) ) { return false; }
         foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role' ) as $k ) { if ( ! self::snowflake( $s[ $k ] ?? null ) ) { return false; } }
-        return 3 === count( array_unique( array( $s['free_role'], $s['monthly_role'], $s['lifetime_role'] ) ) );
+        $role_ids = array( $s['free_role'], $s['monthly_role'], $s['lifetime_role'] );
+        foreach ( array( 'staff_role', 'owner_role' ) as $key ) {
+            if ( ! empty( $s[ $key ] ) ) {
+                if ( ! self::snowflake( $s[ $key ] ) ) { return false; }
+                $role_ids[] = $s[ $key ];
+            }
+        }
+        return count( $role_ids ) === count( array_unique( $role_ids ) );
     }
     public static function sanitize_settings( mixed $value ): array {
         $old = get_option( self::OPTION, array() );
         if ( ! current_user_can( 'manage_options' ) || ! is_array( $value ) ) { return is_array( $old ) ? $old : array(); }
         $out = array();
         foreach ( array( 'enabled', 'staging_confirmed', 'pkce', 'pilot_enabled' ) as $k ) { $out[ $k ] = empty( $value[ $k ] ) ? 0 : 1; }
-        foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role' ) as $k ) { $out[ $k ] = self::snowflake( $value[ $k ] ?? null ) ? $value[ $k ] : ''; }
+        foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'staff_role', 'owner_role' ) as $k ) { $out[ $k ] = self::snowflake( $value[ $k ] ?? null ) ? $value[ $k ] : ''; }
         $out['pilot_ids'] = implode( "\n", self::pilot_ids( $value['pilot_ids'] ?? '' ) );
+        $out['owner_ids'] = implode( "\n", self::pilot_ids( $value['owner_ids'] ?? '' ) );
         $out['secret_encrypted'] = $old['secret_encrypted'] ?? '';
         // Settings API may sanitize twice when creating an option. Preserve only authenticated ciphertext.
         if ( ! empty( $value['secret_encrypted'] ) && '' !== self::decrypt( $value['secret_encrypted'] ) ) { $out['secret_encrypted'] = $value['secret_encrypted']; }
@@ -70,7 +78,8 @@ final class TC_Discord {
         settings_fields( 'tc_discord' );
         foreach ( array( 'enabled' => 'Enable OAuth', 'pilot_enabled' => 'Restricted pilot: only the listed Discord users may sign in and access member files', 'staging_confirmed' => 'I confirmed IDs, policy and real account tests on isolated staging', 'pkce' => 'Send PKCE S256 (enable only after Discord application support is verified; not live verified by this code)' ) as $k => $label ) { echo '<p><label><input type="checkbox" name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="1" ' . checked( ! empty( $s[ $k ] ), true, false ) . '> ' . esc_html( $label ) . '</label></p>'; }
         echo '<p><label>Pilot Discord user IDs (one per line, maximum 10)<br><textarea name="' . esc_attr( self::OPTION . '[pilot_ids]' ) . '" rows="4" cols="30">' . esc_textarea( $s['pilot_ids'] ?? '' ) . '</textarea></label></p><p>The pilot requires Enable OAuth and a valid allowlist. Use a private browser window signed out of WordPress. Other Discord users are denied after identity verification, before a WordPress account is created. Removing an ID also blocks its existing member access. Disabling the pilot does not approve public production access.</p>';
-        foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role' ) as $k ) { echo '<p><label>' . esc_html( ucwords( str_replace( '_', ' ', $k ) ) ) . ' <input name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="' . esc_attr( $s[ $k ] ?? '' ) . '" pattern="[0-9]{17,20}"></label></p>'; }
+        foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'staff_role', 'owner_role' ) as $k ) { echo '<p><label>' . esc_html( ucwords( str_replace( '_', ' ', $k ) ) ) . ' <input name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="' . esc_attr( $s[ $k ] ?? '' ) . '" pattern="[0-9]{17,20}"></label></p>'; }
+        echo '<p><label>Approved Owner Discord user IDs (one per line, maximum 10)<br><textarea name="' . esc_attr( self::OPTION . '[owner_ids]' ) . '" rows="4" cols="30">' . esc_textarea( $s['owner_ids'] ?? '' ) . '</textarea></label></p><p>Staff and Owner roles are optional and must use distinct role IDs. Badges show only these configured roles verified by Discord; arbitrary guild role names are not fetched. Frontend management requires the Owner role plus an approved Discord user ID and its unique WordPress binding. Staff and Owner badges do not grant paid downloads, administrator access or additional Discord permissions. Pilot access remains a separate restriction.</p>';
         echo '<p>Client secret: ' . ( empty( $s['client_secret'] ) ? 'Not configured' : 'Configured (redacted)' ) . '</p><p><input type="password" autocomplete="new-password" name="' . esc_attr( self::OPTION ) . '[client_secret]" value="" aria-label="Replace client secret"></p><label><input type="checkbox" name="' . esc_attr( self::OPTION ) . '[clear_secret]" value="1">Clear stored secret (wp-config constant takes precedence)</label>';
         submit_button(); echo '</form></div>';
     }
@@ -215,7 +224,7 @@ final class TC_Discord {
     /** Owner-visible data only. TTL = 60 seconds; failed refresh never retains access. */
     public static function status( int $user_id = 0, bool $force = false ): array {
         $uid = $user_id ?: get_current_user_id();
-        $base = array( 'state' => 'unverified', 'checked_at' => 0, 'expires_at' => 0, 'display_name' => '', 'avatar' => '', 'discord_id' => '', 'error' => '' );
+        $base = array( 'state' => 'unverified', 'checked_at' => 0, 'expires_at' => 0, 'display_name' => '', 'avatar' => '', 'discord_id' => '', 'error' => '', 'badges' => array(), 'staff_verified' => false, 'owner_verified' => false );
         if ( ! $uid || ! self::is_ready() ) { return $base; }
         $id = get_user_meta( $uid, '_tc_discord_id', true );
         if ( ! self::identity_allowed( $id ) || (int) get_option( '_tc_discord_binding_' . $id ) !== $uid ) { return $base; }
@@ -224,7 +233,7 @@ final class TC_Discord {
         $base['avatar'] = str_starts_with( $avatar, 'https://cdn.discordapp.com/avatars/' . $id . '/' ) ? esc_url_raw( $avatar ) : '';
         $blob = get_user_meta( $uid, self::TOKEN, true ); $tokens = json_decode( self::decrypt( $blob ), true );
         if ( ! is_array( $tokens ) ) { return $base; }
-        $s = self::settings(); $fingerprint = hash( 'sha256', $blob . wp_json_encode( array_intersect_key( $s, array_flip( array( 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'client_id' ) ) ) ) );
+        $s = self::settings(); $fingerprint = hash( 'sha256', $blob . wp_json_encode( array_intersect_key( $s, array_flip( array( 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'staff_role', 'owner_role', 'owner_ids', 'client_id' ) ) ) ) );
         $cache = get_user_meta( $uid, self::CACHE, true );
         if ( ! $force && is_array( $cache ) && ( $cache['fingerprint'] ?? '' ) === $fingerprint && ( $cache['expires_at'] ?? 0 ) > time() && $tokens['expires'] > time() + 30 ) { unset( $cache['fingerprint'] ); return $cache; }
         // Short lease acquired atomically. Never serve stale entitlements while refreshing.
@@ -249,16 +258,30 @@ final class TC_Discord {
                 wp_cache_delete( $uid, 'user_meta' );
                 if ( 1 !== $changed ) { return self::unavailable( $base ); }
                 $tokens = $fresh; $blob = $new_blob;
-                $fingerprint = hash( 'sha256', $blob . wp_json_encode( array_intersect_key( $s, array_flip( array( 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'client_id' ) ) ) ) );
+                $fingerprint = hash( 'sha256', $blob . wp_json_encode( array_intersect_key( $s, array_flip( array( 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'staff_role', 'owner_role', 'owner_ids', 'client_id' ) ) ) ) );
             }
             $member = self::request( '/users/@me/guilds/' . $s['guild_id'] . '/member', null, $tokens['access_token'] );
             if ( is_wp_error( $member ) || ! is_array( $member['roles'] ?? null ) || ( $member['user']['id'] ?? '' ) !== $id || ( isset( $member['guild_id'] ) && $member['guild_id'] !== $s['guild_id'] ) || $blob !== get_user_meta( $uid, self::TOKEN, true ) ) { return self::unavailable( $base ); }
             foreach ( $member['roles'] as $role ) { if ( ! self::snowflake( $role ) ) { return self::unavailable( $base ); } }
             foreach ( array( 'lifetime', 'monthly', 'free' ) as $tier ) { if ( in_array( $s[ $tier . '_role' ], $member['roles'], true ) ) { $base['state'] = $tier; break; } }
+            // These are product labels for configured, verified immutable role IDs, not arbitrary guild role names.
+            foreach ( array( 'free' => 'Free Member', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime', 'staff' => 'Staff', 'owner' => 'Owner' ) as $key => $label ) {
+                if ( ! empty( $s[ $key . '_role' ] ) && in_array( $s[ $key . '_role' ], $member['roles'], true ) ) { $base['badges'][ $key ] = $label; }
+            }
+            $base['staff_verified'] = isset( $base['badges']['staff'] );
+            $base['owner_verified'] = isset( $base['badges']['owner'] ) && in_array( $id, self::pilot_ids( $s['owner_ids'] ?? '' ), true );
             $base['checked_at'] = time(); $base['expires_at'] = min( time() + 60, $tokens['expires'] - 30 );
             update_user_meta( $uid, self::CACHE, array_merge( $base, array( 'fingerprint' => $fingerprint ) ) );
             return $base;
         } finally { self::consume( $lock, $owner ); }
+    }
+    /** Fresh Owner authorization for writes; no WordPress administrator or membership-tier bypass. */
+    public static function can_manage_configs( int $user_id = 0, bool $force = true ): bool|WP_Error {
+        $uid = $user_id ?: get_current_user_id();
+        if ( ! $uid || ! get_userdata( $uid ) ) { return false; }
+        $status = self::status( $uid, $force );
+        if ( 'unavailable' === $status['state'] ) { return self::error(); }
+        return ! empty( $status['owner_verified'] ) && ! empty( $status['checked_at'] ) && $status['expires_at'] > time();
     }
     public static function can_access( int $config_id, int $user_id = 0, bool $force = false ): bool|WP_Error {
         if ( 'tc_config' !== get_post_type( $config_id ) || 'publish' !== get_post_status( $config_id ) || 'available' !== get_post_meta( $config_id, 'tc_release_status', true ) || '' !== (string) get_post_field( 'post_password', $config_id ) ) { return false; }
