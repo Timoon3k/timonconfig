@@ -24,10 +24,24 @@ final class TC_Discord {
         return $s;
     }
     private static function snowflake( mixed $v ): bool { return is_string( $v ) && 1 === preg_match( '/^[1-9][0-9]{16,19}$/D', $v ); }
+    /** A malformed allowlist disables the pilot instead of broadening access. */
+    private static function pilot_ids( mixed $value ): array {
+        if ( ! is_string( $value ) || strlen( $value ) > 512 ) { return array(); }
+        $ids = preg_split( '/[\s,]+/', trim( $value ), -1, PREG_SPLIT_NO_EMPTY );
+        if ( ! $ids || count( $ids ) > 10 ) { return array(); }
+        foreach ( $ids as $id ) { if ( ! self::snowflake( $id ) ) { return array(); } }
+        return array_values( array_unique( $ids ) );
+    }
+    private static function identity_allowed( mixed $id ): bool {
+        $s = self::settings();
+        return self::snowflake( $id ) && ( empty( $s['pilot_enabled'] ) || in_array( $id, self::pilot_ids( $s['pilot_ids'] ?? '' ), true ) );
+    }
     public static function is_ready(): bool {
         $s = self::settings();
         $testing = in_array( wp_get_environment_type(), array( 'local', 'development', 'staging' ), true );
-        if ( empty( $s['enabled'] ) || ( ! $testing && empty( $s['staging_confirmed'] ) ) || ! is_string( $s['client_secret'] ) || '' === $s['client_secret'] || 'https' !== wp_parse_url( home_url( '/' ), PHP_URL_SCHEME ) || ! function_exists( 'openssl_encrypt' ) ) { return false; }
+        $pilot = ! empty( $s['pilot_enabled'] );
+        if ( $pilot && ! self::pilot_ids( $s['pilot_ids'] ?? '' ) ) { return false; }
+        if ( empty( $s['enabled'] ) || ( ! $testing && ! $pilot && empty( $s['staging_confirmed'] ) ) || ! is_string( $s['client_secret'] ) || '' === $s['client_secret'] || 'https' !== wp_parse_url( home_url( '/' ), PHP_URL_SCHEME ) || ! function_exists( 'openssl_encrypt' ) ) { return false; }
         foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role' ) as $k ) { if ( ! self::snowflake( $s[ $k ] ?? null ) ) { return false; } }
         return 3 === count( array_unique( array( $s['free_role'], $s['monthly_role'], $s['lifetime_role'] ) ) );
     }
@@ -35,8 +49,9 @@ final class TC_Discord {
         $old = get_option( self::OPTION, array() );
         if ( ! current_user_can( 'manage_options' ) || ! is_array( $value ) ) { return is_array( $old ) ? $old : array(); }
         $out = array();
-        foreach ( array( 'enabled', 'staging_confirmed', 'pkce' ) as $k ) { $out[ $k ] = empty( $value[ $k ] ) ? 0 : 1; }
+        foreach ( array( 'enabled', 'staging_confirmed', 'pkce', 'pilot_enabled' ) as $k ) { $out[ $k ] = empty( $value[ $k ] ) ? 0 : 1; }
         foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role' ) as $k ) { $out[ $k ] = self::snowflake( $value[ $k ] ?? null ) ? $value[ $k ] : ''; }
+        $out['pilot_ids'] = implode( "\n", self::pilot_ids( $value['pilot_ids'] ?? '' ) );
         $out['secret_encrypted'] = $old['secret_encrypted'] ?? '';
         // Settings API may sanitize twice when creating an option. Preserve only authenticated ciphertext.
         if ( ! empty( $value['secret_encrypted'] ) && '' !== self::decrypt( $value['secret_encrypted'] ) ) { $out['secret_encrypted'] = $value['secret_encrypted']; }
@@ -47,9 +62,10 @@ final class TC_Discord {
     public static function settings_page(): void {
         if ( ! current_user_can( 'manage_options' ) ) { return; }
         $s = self::settings();
-        echo '<div class="wrap"><h1>Discord membership</h1><p>Disabled until configured. Production additionally requires confirmed real staging account tests. Set WP_ENVIRONMENT_TYPE to staging on an isolated HTTPS staging site to run those tests before production confirmation. Scope: identify guilds.members.read. No role writes. Free accepts all verified plans; Monthly accepts Monthly or Lifetime; Lifetime accepts Lifetime only. Role cache expires after 60 seconds; API errors deny access.</p><p>Register this exact callback: <code>' . esc_html( home_url( '/?tc_discord_callback=1' ) ) . '</code></p><form method="post" action="options.php">';
+        echo '<div class="wrap"><h1>Discord membership</h1><p>Disabled until configured. Public production access requires confirmed real staging account tests. Alternatively, enable the restricted pilot for up to 10 specified Discord user IDs; this does not confirm staging tests or grant VIP roles. Set WP_ENVIRONMENT_TYPE to staging on an isolated HTTPS staging site to run those tests before production confirmation. Scope: identify guilds.members.read. No role writes. Free accepts all verified plans; Monthly accepts Monthly or Lifetime; Lifetime accepts Lifetime only. Role cache expires after 60 seconds; API errors deny access.</p><p>Register this exact callback: <code>' . esc_html( home_url( '/?tc_discord_callback=1' ) ) . '</code></p><form method="post" action="options.php">';
         settings_fields( 'tc_discord' );
-        foreach ( array( 'enabled' => 'Enable OAuth', 'staging_confirmed' => 'I confirmed IDs, policy and real account tests on isolated staging', 'pkce' => 'Send PKCE S256 (enable only after Discord application support is verified; not live verified by this code)' ) as $k => $label ) { echo '<p><label><input type="checkbox" name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="1" ' . checked( ! empty( $s[ $k ] ), true, false ) . '> ' . esc_html( $label ) . '</label></p>'; }
+        foreach ( array( 'enabled' => 'Enable OAuth', 'pilot_enabled' => 'Restricted pilot: only the listed Discord users may sign in and access member files', 'staging_confirmed' => 'I confirmed IDs, policy and real account tests on isolated staging', 'pkce' => 'Send PKCE S256 (enable only after Discord application support is verified; not live verified by this code)' ) as $k => $label ) { echo '<p><label><input type="checkbox" name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="1" ' . checked( ! empty( $s[ $k ] ), true, false ) . '> ' . esc_html( $label ) . '</label></p>'; }
+        echo '<p><label>Pilot Discord user IDs (one per line, maximum 10)<br><textarea name="' . esc_attr( self::OPTION . '[pilot_ids]' ) . '" rows="4" cols="30">' . esc_textarea( $s['pilot_ids'] ?? '' ) . '</textarea></label></p><p>The pilot requires Enable OAuth and a valid allowlist. Use a private browser window signed out of WordPress. Other Discord users are denied after identity verification, before a WordPress account is created. Removing an ID also blocks its existing member access. Disabling the pilot does not approve public production access.</p>';
         foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role' ) as $k ) { echo '<p><label>' . esc_html( ucwords( str_replace( '_', ' ', $k ) ) ) . ' <input name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="' . esc_attr( $s[ $k ] ?? '' ) . '" pattern="[0-9]{17,20}"></label></p>'; }
         echo '<p>Client secret: ' . ( empty( $s['client_secret'] ) ? 'Not configured' : 'Configured (redacted)' ) . '</p><p><input type="password" autocomplete="new-password" name="' . esc_attr( self::OPTION ) . '[client_secret]" value="" aria-label="Replace client secret"></p><label><input type="checkbox" name="' . esc_attr( self::OPTION ) . '[clear_secret]" value="1">Clear stored secret (wp-config constant takes precedence)</label>';
         submit_button(); echo '</form></div>';
@@ -120,7 +136,7 @@ final class TC_Discord {
     /** Never links by email or username; binding options and WP login are unique. */
     private static function bind( array $identity ): int|WP_Error {
         $id = $identity['id'] ?? '';
-        if ( ! self::snowflake( $id ) ) { return self::error(); }
+        if ( ! self::identity_allowed( $id ) ) { return self::error(); }
         $key = '_tc_discord_binding_' . $id;
         $bound = (int) get_option( $key, 0 ); $current = get_current_user_id();
         if ( $bound ) { return get_userdata( $bound ) && ( ! $current || $current === $bound ) && $id === get_user_meta( $bound, '_tc_discord_id', true ) ? $bound : self::error(); }
@@ -178,7 +194,7 @@ final class TC_Discord {
         $base = array( 'state' => 'unverified', 'checked_at' => 0, 'expires_at' => 0, 'display_name' => '', 'avatar' => '', 'discord_id' => '', 'error' => '' );
         if ( ! $uid || ! self::is_ready() ) { return $base; }
         $id = get_user_meta( $uid, '_tc_discord_id', true );
-        if ( ! self::snowflake( $id ) || (int) get_option( '_tc_discord_binding_' . $id ) !== $uid ) { return $base; }
+        if ( ! self::identity_allowed( $id ) || (int) get_option( '_tc_discord_binding_' . $id ) !== $uid ) { return $base; }
         $base['discord_id'] = $id; $base['display_name'] = (string) get_user_meta( $uid, '_tc_discord_name', true );
         $avatar = (string) get_user_meta( $uid, '_tc_discord_avatar', true );
         $base['avatar'] = str_starts_with( $avatar, 'https://cdn.discordapp.com/avatars/' . $id . '/' ) ? esc_url_raw( $avatar ) : '';

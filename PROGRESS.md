@@ -2,6 +2,12 @@
 
 Last updated: 2026-10-23
 
+## Restricted Discord pilot — Core 0.7.2
+
+- Na prośbę właściciela, który uzupełnił poświadczenia i chce rozpocząć testy na głównej stronie, dodano oddzielny tryb pilotażowy. Nie wymaga fałszywego potwierdzenia stagingu. OAuth nadal domyślnie OFF; wdrożenie/konfiguracja produkcyjna nie zostały wykonane.
+- Administrator może wskazać maksymalnie 10 Discord User IDs. Kontrola serwerowa działa przed utworzeniem/powiązaniem konta i przed odczytem cache ról/autoryzacją pobrań. Usunięcie ID blokuje istniejący dostęp członkowski. Błędna/pusta lista blokuje OAuth; pilot nie nadaje ról VIP. Publiczny endpoint może pokazać consent, ale nieznana tożsamość nie dostaje konta WordPress.
+- Testy lokalne: OAuth 82, pobieranie 59, UI członka 37 — 178 asercji zaliczonych, transport Discord symulowany. ZIP Core 0.7.2 zgodny bajtowo ze źródłami; świeża instalacja z motywem 0.9.0 przeszła 68 asercji. PHP lint i git diff --check poprawne. Instrukcja właściciela: `docs/DISCORD_PILOT_0.7.2.md`. Zachowano konfigurację Upgrade.chat, dane istniejących kont i dotychczasowy motyw 0.9.0.
+
 ## HTTPS staging — blokada połączenia z Hostingerem (2026-10-23)
 
 - Rozpoczęto następny etap zgodnie z potwierdzeniem właściciela, że staging jeszcze nie istnieje. Sprawdzono instrukcję konektora: Node 24 spełnia wymagania, ale sesja nie udostępnia narzędzi Hostinger i nie ma rejestracji dziewięciu serwerów MCP.

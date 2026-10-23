@@ -1,4 +1,4 @@
-# Installation and update — theme 0.9.0 / Core 0.7.1
+# Installation and update — theme 0.9.0 / Core 0.7.2
 
 ## Environment requirements
 
@@ -19,7 +19,7 @@
 6. Enter actual Upgrade.chat URLs under **Settings → TimonConfigs**. Keep existing Stripe/PayPal products and Discord role automation unchanged. Test the redirect destination without completing a transaction.
 7. Review all 25 routes in `URL_STATUS.md`, configured Discord buttons, filters, editor previews, media playback, indexing, sitemap, and supported SEO-plugin behavior. Replace demo reviews and unpublished release drafts only with verified content.
 8. Review the policy drafts with the owner before production use; confirm entity, contact information, Lifetime scope, cancellation, refunds, privacy, and storage disclosures. Setup preserves WordPress's existing draft Privacy Policy: publish approved legal pages deliberately before expecting their public URLs to respond.
-9. Purge the target site's page/CDN cache after a staging update so CSS/JS version 0.9.0 and the artwork are served together. Compare screenshots with the approved reference. If Home showed the default welcome post, follow the targeted steps in `HOME_FIX_0.7.1.md`. An update of an already active Core still needs the explicit setup to create missing member pages; no existing content is overwritten.
+9. Purge the target site's page/CDN cache after a staging update so CSS/JS version 0.9.0 and the artwork are served together. Compare screenshots with the approved reference. If Home showed the default welcome post, follow the targeted steps in `HOME_FIX_0.7.2.md`. An update of an already active Core still needs the explicit setup to create missing member pages; no existing content is overwritten.
 10. Production deployment requires the owner's explicit approval after staging validation. This session did not modify Hostinger production or any live payment/membership state.
 
 ## Current external limitations
@@ -33,3 +33,7 @@ Original logo/Hero sources and confirmed clip-to-device metadata remain owner in
 ## Core 0.7.1 — private format policy
 
 ZNBK and XIMMR require explicit approval from the existing file inspector even when their bytes are text-encoded. This applies to new uploads and existing-file resolution before download. Existing files are preserved, but these formats cannot be delivered without the inspector. GPC, JSON and TXT retain their structural checks. Configure and verify the actual inspector on isolated staging; never install an unconditional approval callback as a production scanner.
+
+## Core 0.7.2 — restricted Discord pilot
+
+Optional administrator-configured Discord identity allowlist permits controlled HTTPS testing without claiming completed staging tests. Existing credentials are preserved. See [pilot instructions](DISCORD_PILOT_0.7.2.md) before enabling; public production access retains the staging-confirmation gate.

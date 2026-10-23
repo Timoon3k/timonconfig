@@ -55,13 +55,13 @@ find wp-content -name '*.php' -print0 | xargs -0 -n1 php -l
 The second command requires PHP CLI. A full WordPress staging smoke test remains required before deployment.
 
 
-## Visual reference and inline media (theme 0.9.0 / Core 0.7.1)
+## Visual reference and inline media (theme 0.9.0 / Core 0.7.2)
 
 The storefront follows the supplied mockup composition while retaining the real offer and omitting unverified statistics and invented reviews. The recreated wordmark and seven game covers are replaceable; use **Appearance → Customize** to provide final licensed production assets. Set the official logo under Site Identity when available.
 
 Home and Video Showcase share player cards. MP4 downloads and YouTube embeds begin on explicit interaction. Playback remains within the card by default; a video editor may choose the optional accessible modal. Public showcase videos are not premium download storage.
 
-If the homepage shows WordPress's welcome post after installing the packages, activate **TimonConfigs Core**, run **Tools → TimonConfigs setup**, then select the intended published Home under **Settings → Reading → A static page**. Assign Primary/Footer menus and clear the host's page cache. Theme 0.7.1 also renders the premium storefront when Reading still uses latest posts; an administrator-only notice explains any remaining setup. Authored static Home content and a separate posts page remain supported. See [homepage fix](docs/HOME_FIX_0.7.1.md).
+If the homepage shows WordPress's welcome post after installing the packages, activate **TimonConfigs Core**, run **Tools → TimonConfigs setup**, then select the intended published Home under **Settings → Reading → A static page**. Assign Primary/Footer menus and clear the host's page cache. Theme 0.7.2 also renders the premium storefront when Reading still uses latest posts; an administrator-only notice explains any remaining setup. Authored static Home content and a separate posts page remain supported. See [homepage fix](docs/HOME_FIX_0.7.1.md).
 
 Fresh installations show six compact review-layout samples. Every sample is visibly labelled **Sample Review · Demo Content** and is never emitted as review structured data. Add approved feedback under **Reviews** with Gutenberg, a featured image, rating, config label, demo status, publication state, and menu order. Hero and pricing starter patterns are available in the block inserter together with the CTA and FAQ patterns.
 

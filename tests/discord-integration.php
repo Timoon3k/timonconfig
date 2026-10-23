@@ -96,6 +96,45 @@ try {
     $assert( is_wp_error( $call( 'validate_state', $state['state'], $state['cookie'] ) ), 'State bound to initiating WordPress session.' );
     $settings['staging_confirmed'] = 0; update_option( 'timonconfigs_discord', $settings, false );
     $assert( TC_Discord::is_ready() === in_array( wp_get_environment_type(), array( 'local', 'development', 'staging' ), true ), 'Unconfirmed OAuth is restricted to explicitly configured test environments.' );
+    $admins = get_users( array( 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ) );
+    wp_set_current_user( (int) $admins[0] );
+    $saved = TC_Discord::sanitize_settings( array_merge( $settings, array( 'pilot_enabled' => 1, 'pilot_ids' => $id . ', ' . $id ) ) );
+    $assert( 1 === $saved['pilot_enabled'] && $id === $saved['pilot_ids'], 'Admin can save a normalized pilot list.' );
+    $assert( $settings['secret_encrypted'] === $saved['secret_encrypted'], 'Pilot configuration preserves the existing encrypted secret.' );
+    $saved = TC_Discord::sanitize_settings( array_merge( $settings, array( 'pilot_enabled' => 1, 'pilot_ids' => array( $id ) ) ) );
+    $assert( '' === $saved['pilot_ids'], 'Malformed submitted allowlist is cleared, never accepted.' );
+    wp_set_current_user( 0 );
+    $saved = TC_Discord::sanitize_settings( array( 'pilot_enabled' => 1, 'pilot_ids' => $id ) );
+    $assert( $settings === $saved, 'Anonymous caller cannot change pilot settings.' );
+    // Restricted production pilot never treats a local test as staging approval.
+    $settings['pilot_enabled'] = 1; $settings['pilot_ids'] = $id;
+    update_option( 'timonconfigs_discord', $settings, false );
+    $assert( TC_Discord::is_ready(), 'Configured pilot works without false staging confirmation.' );
+    $assert( empty( get_option( 'timonconfigs_discord' )['staging_confirmed'] ), 'Pilot leaves staging confirmation unset.' );
+    $assert( $uid === $call( 'bind', array( 'id' => $id ) ), 'Allowlisted identity can reconnect.' );
+    $outsider = '900000000000000088';
+    $assert( is_wp_error( $call( 'bind', array( 'id' => $outsider ) ) ), 'Unlisted identity cannot bind.' );
+    $assert( false === get_option( '_tc_discord_binding_' . $outsider ), 'Denied pilot identity creates no binding.' );
+    $assert( array( $id ) === $call( 'pilot_ids', $id . ', ' . $id ), 'Duplicate IDs normalized.' );
+    foreach ( array( '', array( $id ), $id . ',invalid', str_repeat( '9', 513 ), implode( ',', array_fill( 0, 11, $id ) ) ) as $invalid ) {
+        $settings['pilot_ids'] = $invalid; update_option( 'timonconfigs_discord', $settings, false );
+        $assert( ! TC_Discord::is_ready(), 'Empty/malformed/oversized pilot list never enables OAuth.' );
+    }
+    $settings['pilot_ids'] = $id; update_option( 'timonconfigs_discord', $settings, false );
+    wp_set_current_user( $uid ); $seed(); $roles = array( $settings['lifetime_role'] );
+    wp_update_post( array( 'ID' => $post, 'post_status' => 'publish' ) );
+    $assert( 'lifetime' === TC_Discord::status()['state'], 'Allowed pilot still derives actual provider roles.' );
+    $settings['pilot_ids'] = $outsider; update_option( 'timonconfigs_discord', $settings, false );
+    $before = count( $requests );
+    $assert( 'unverified' === TC_Discord::status()['state'], 'Allowlist removal defeats fresh cached VIP.' );
+    $assert( false === TC_Discord::can_access( $post ), 'Removed tester cannot download with an existing session.' );
+    $assert( count( $requests ) === $before, 'Removed tester is denied before provider traffic.' );
+    $assert( is_wp_error( $call( 'bind', array( 'id' => $id ) ) ), 'Previously bound identity is also rejected after removal.' );
+    $settings['staging_confirmed'] = 1; update_option( 'timonconfigs_discord', $settings, false );
+    $assert( is_wp_error( $call( 'bind', array( 'id' => $id ) ) ), 'Pilot restriction wins even when staging was confirmed.' );
+    $settings['staging_confirmed'] = 0; $settings['pilot_enabled'] = 0; update_option( 'timonconfigs_discord', $settings, false );
+    $assert( TC_Discord::is_ready() === in_array( wp_get_environment_type(), array( 'local', 'development', 'staging' ), true ), 'Turning off pilot restores production staging gate.' );
+    wp_set_current_user( 0 );
     $settings['enabled'] = 0; update_option( 'timonconfigs_discord', $settings, false );
     $assert( ! TC_Discord::is_ready() && TC_Discord::login_url() === home_url( '/account/' ), 'Disabled mode has no OAuth handoff.' );
     WP_CLI::success( "Discord integration: $checks assertions; fake HTTP only, no real Discord verification." );
