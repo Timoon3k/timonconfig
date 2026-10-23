@@ -1,3 +1,5 @@
+> **Five additional owner screenshots (A–E):** read [CODEX_VISUAL_REFERENCES_2026-10-24.md](CODEX_VISUAL_REFERENCES_2026-10-24.md) for the exact mapping of current Home/FAQ/CTA, reference config cards and the authenticated dashboard. The newer A–E references complement rather than replace the original 1–6 brief. Image binaries must be available to Codex separately for pixel matching; this mapping is textual.
+
 # TimonConfigs — Codex implementation brief (23 October 2026)
 
 **Read this entire file together with the 6 screenshots attached in the user's Codex chat.**
