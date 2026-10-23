@@ -55,7 +55,7 @@ find wp-content -name '*.php' -print0 | xargs -0 -n1 php -l
 The second command requires PHP CLI. A full WordPress staging smoke test remains required before deployment.
 
 
-## Visual reference and inline media (theme 0.9.0 / Core 0.7.3)
+## Visual reference and inline media (theme 0.10.0 / Core 0.8.0)
 
 The storefront follows the supplied mockup composition while retaining the real offer and omitting unverified statistics and invented reviews. The recreated wordmark and seven game covers are replaceable; use **Appearance → Customize** to provide final licensed production assets. Set the official logo under Site Identity when available.
 

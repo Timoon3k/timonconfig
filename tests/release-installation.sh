@@ -4,8 +4,8 @@
 set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.9.0.zip}")"
-core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.7.3.zip}")"
+theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.10.0.zip}")"
+core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.8.0.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
 db_image='mariadb:11.4'
@@ -115,6 +115,15 @@ $expect( 'timonconfigs' === get_stylesheet(), 'the packaged theme is activated' 
 $expect( getenv( 'TC_EXPECTED_THEME_VERSION' ) === wp_get_theme()->get( 'Version' ), 'installed theme version matches its ZIP' );
 $expect( getenv( 'TC_EXPECTED_CORE_VERSION' ) === TIMONCONFIGS_CORE_VERSION, 'installed plugin version matches its ZIP' );
 $expect( true === WP_HTTP_BLOCK_EXTERNAL, 'WordPress external HTTP requests are disabled' );
+$expect( class_exists( 'TC_Owner_Editor' ) && class_exists( 'TC_Config_Content' ), 'Owner and protected editorial modules are packaged and loaded' );
+$expect( current_user_can( 'edit_tc_configs' ) && current_user_can( 'publish_tc_configs' ), 'administrator retains explicit config editor fallback' );
+$expect( 'edit_tc_configs' === get_post_type_object( 'tc_config' )->cap->edit_posts, 'config permissions use their own capability namespace' );
+$expect( ! TC_Owner_Editor::in_authorized_context(), 'fresh request has no temporary Owner capabilities' );
+$expect( false === TC_Discord::can_manage_configs(), 'administrator has no implicit Discord Owner access' );
+$expect( in_array( 'cfg', TC_Private_Files::extensions(), true ) && in_array( 'ini', TC_Private_Files::extensions(), true ), 'safe configurable support formats are packaged' );
+$expect( ! get_registered_meta_keys( 'post', 'tc_config' )['_tc_values_content']['show_in_rest'], 'protected Values do not enter public REST' );
+$expect( true === TC_Config_Content::validate_fields( array( 'tc_guide_content' => 'Test only' ) ), 'content-only validation uses a safe restricted default' );
+
 $first = TC_Site::install();
 $expect( ! is_wp_error( $first ) && 14 === count( $first ), 'fourteen required editorial page IDs are provisioned' );
 foreach ( array( 'account', 'my-downloads' ) as $member_slug ) {

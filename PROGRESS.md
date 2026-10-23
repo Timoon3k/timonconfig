@@ -2,6 +2,14 @@
 
 Last updated: 2026-10-24
 
+## Release verification — theme 0.10.0 / Core 0.8.0
+
+- Wymagania nowych briefów wdrożono etapami na gałęzi `feature/owner-catalog-guides-seo`, zachowując bazę `main` i wszystkie istniejące integracje. Checkpointy: `2d08a00` (role/formaty), `d8d76dc` (edytor/katalog/treści), `7528775` (Home/SEO). Ostatni checkpoint obejmuje dokumentację i weryfikację wydania.
+- Łącznie **891 asercji integracyjnych** w lokalnym WordPressie oraz **76 asercji instalacji** faktycznych ZIP-ów na oddzielnym WordPressie 6.8.3/PHP 8.2. Przeglądarka: 18 Owner, 27 Guide/Values, 34 multipart, 18 layoutów panelu, 12 przypadków panelu + 4 nagłówka + 8 logout/replay, 9 Home/collection, 35 storefront, 55 full-site i 10 regresji Home; dodatkowo byte/replay/descriptor delivery oraz inline/optional video. Wymienione kontrole zaliczone. PHP lint, JS/static i diff check poprawne.
+- Poprawiono obsługę małych obrazów, walidację częściowego Guide/Values przed publikacją oraz zgodność typów bool z deklarowanym minimum PHP. Wielokrotne zweryfikowane role są widoczne jako odznaki, a najwyższy tier nadal steruje płatnym dostępem. Testy wideo rozróżniają dialog tekstu od modala wideo; domyślny film pozostaje w karcie.
+- ZIP-y: motyw 0.10.0 (87 plików), Core 0.8.0 (14), zgodne bajtowo ze źródłami. Manifest i logi w ignorowanych artifacts. Odświeżono rzeczywisty screenshot motywu 1200×900 i pełne nietknięte Home oraz zrzuty nowych UI; kompaktowy screenshot nie zastępuje porównania z brakującymi binarnymi A–E.
+- Pełny handoff: `docs/FEATURE_RELEASE_0.10.md`, `docs/CMS_GUIDE.md`, `NEXT_SESSION.md`. Testy Discorda są lokalne/mock; Owner browser korzysta z tymczasowego logowania fixture i prawdziwej sesji WP, nie consent providera. Produkcja/role/płatności nie zostały zmienione. Właściciel musi zatwierdzić wdrożenie oraz wykonać opisane testy i konfigurację hostingu. Ponowny publiczny HEAD obu domen odrzucił proxy na CONNECT (curl 56 / proxy 403); to nie jest status zdalnej witryny.
+
 ## Home, search intent and preview-domain SEO
 
 - Domyślne H1/title/copy i CTA kierują do rzeczywistych kolekcji XIM Matrix/Cronus Zen dla Apex/CoD. Rozwinięto istniejące kolekcje o sekcje urządzeń i praktyczną orientację zamiast mnożyć cienkie strony. Zachowano nadpisania Gutenberga/Customizera i provider-aware SEO.

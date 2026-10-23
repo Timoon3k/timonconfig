@@ -93,7 +93,7 @@ final class TC_Owner_Editor {
         if ( class_exists( 'TC_Config_Content' ) ) { $saved = TC_Config_Content::save_fields( $result, $data ); if ( is_wp_error( $saved ) ) { return $saved; } }
         self::audit( $result, $id ? 'edited' : 'created' ); return $result;
     }
-    private static function image( int $id, mixed $file ): true|WP_Error {
+    private static function image( int $id, mixed $file ): bool|WP_Error {
         if ( ! is_array( $file ) || UPLOAD_ERR_OK !== ( $file['error'] ?? -1 ) || ! is_string( $file['tmp_name'] ?? null ) || ! is_uploaded_file( $file['tmp_name'] ) || ! is_string( $file['name'] ?? null ) ) { return self::forbidden( 'Choose an image received through the upload form.' ); }
         $path = $file['tmp_name']; $size = filesize( $path );
         $info = wp_getimagesize( $path );
@@ -180,7 +180,7 @@ final class TC_Owner_Editor {
         if ( $id ) {
             self::form_start( $id, 'image' ); echo '<h3>Public preview image</h3><input type="file" name="preview_image" accept="image/jpeg,image/png,image/webp,image/avif" required><button class="tc-button" type="submit">Upload public image</button></form>';
             $storage = TC_Private_Files::root();
-            echo '<h3>Protected script files</h3>';
+            echo '<h3>Protected script files</h3><p>Upload up to 10 separate files, 20 MB each. ZNBK and XIMMR require an approved format inspector, including text-encoded backups. Scripts stay outside the public media library.</p>';
             if ( is_wp_error( $storage ) ) { echo '<p role="alert">' . esc_html( $storage->get_error_message() ) . '</p>'; }
             else {
                 self::form_start( $id, 'upload' ); echo '<input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple required>'; self::input( 'version', 'File version', '' ); self::input( 'notes', 'Release notes', '', true ); echo '<button class="tc-button" type="submit">Add protected files</button></form>';

@@ -27,7 +27,7 @@ const root = path.resolve(__dirname, '..');
           report.checks.push({ state, width });
           continue;
         }
-        assert.equal(await page.locator('.tc-member-state').getAttribute('data-state'), state);
+        assert.equal(await page.locator('.tc-member-state').first().getAttribute('data-state'), state);
         assert.equal(await page.locator('.tc-member-quick__card').count(), 3);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `No overflow: ${state}/${width}`);
         const columns = await page.locator('.tc-member-quick__grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);

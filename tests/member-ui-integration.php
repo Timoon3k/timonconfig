@@ -45,6 +45,7 @@ try {
 	};
 	foreach ( array( 'free' => 'Free Member', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime', 'unverified' => 'Verification required', 'unavailable' => 'Verification unavailable' ) as $state => $label ) {
 		$roles = isset( $settings[ $state . '_role' ] ) ? array( $settings[ $state . '_role' ] ) : array();
+		if ( 'monthly' === $state ) { $roles[] = $settings['free_role']; }
 		$mode = 'unavailable' === $state ? 'error' : 'ok';
 		$seed();
 		$html = TC_Member_Area::render();
@@ -58,6 +59,7 @@ try {
 			$assert( str_contains( $html, 'Reconnect Discord' ) && ! str_contains( $html, 'Current membership' ) && ! str_contains( $html, 'Current license' ), 'Unverified/failed state has reconnect and no VIP claim.' );
 		}
 		$assert( ! str_contains( $html, 'My Downloads' ) && ! str_contains( $html, 'Recent downloads' ) && ! str_contains( $html, 'Manage Configs' ), 'Member dashboard has no download listings or unapproved Owner tools.' );
+		if ( 'monthly' === $state ) { $assert( 2 === substr_count( $html, 'class="tc-member-state"' ), 'Multiple verified roles render without duplicating the current membership badge.' ); }
 		$fixtures[ $state ] = $html;
 	}
 	wp_set_current_user( 0 );

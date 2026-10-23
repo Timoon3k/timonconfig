@@ -48,15 +48,15 @@ async function prepare(page) {
       .tc-header .tc-nav__list {gap:16px!important} .tc-header .tc-nav__list a {font-size:13px!important}
       .tc-header .tc-button {min-height:34px!important;padding:0 12px!important;font-size:10px!important}
       #main > :not(.tc-hero):not(.tc-home-pricing) {display:none!important}
-      .tc-hero {height:330px!important;min-height:330px!important;aspect-ratio:auto!important}
-      .tc-hero__inner {min-height:330px!important;height:330px!important;display:flex!important;align-items:center!important}
+      .tc-hero {height:350px!important;min-height:350px!important;aspect-ratio:auto!important}
+      .tc-hero__inner {min-height:350px!important;height:350px!important;display:flex!important;align-items:center!important}
       .tc-hero__content {padding:20px 0!important;max-width:510px!important}
-      .tc-hero h1 {font-size:46px!important;max-width:490px!important;margin-bottom:10px!important}
-      .tc-hero__tagline {font-size:21px!important;margin:0 0 10px!important}
+      .tc-hero h1 {font-size:36px!important;max-width:510px!important;margin-bottom:10px!important}
+      .tc-hero__tagline {font-size:19px!important;margin:0 0 8px!important}
       .tc-hero__description {font-size:12px!important;max-width:390px!important;line-height:1.5!important;margin-bottom:16px!important}
       .tc-hero .tc-eyebrow {font-size:8px!important;margin-bottom:12px!important}
       .tc-hero .tc-button {min-height:36px!important;padding:0 20px!important;font-size:11px!important}
-      .tc-hero .tc-trust {margin-top:16px!important;gap:20px!important;font-size:10px!important}
+      .tc-hero .tc-trust {margin-top:12px!important;gap:20px!important;font-size:9px!important}
       .tc-home-pricing {padding:26px 0 24px!important;min-height:0!important}
       .tc-pricing-layout {grid-template-columns:190px 1fr!important;gap:22px!important}
       .tc-pricing-layout>.tc-heading-marker h2 {font-size:29px!important;margin-bottom:16px!important}

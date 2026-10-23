@@ -27,7 +27,7 @@ const baseURL = process.env.TC_TEST_URL || 'http://127.0.0.1:8080';
           }
         }
         if (path === '/' || path === '/video-showcase/') {
-          assert.equal(await page.locator('dialog').count(), 0, 'No video modal');
+          assert.equal(await page.locator('.tc-video-modal').count(), 0, 'No video modal');
           assert.equal(await page.locator('[data-inline-video]').count(), 3, 'Three inline cards');
           const players = page.locator('[data-video-player]');
           assert.equal(await players.first().getAttribute('src'), null, 'Media deferred');
@@ -81,7 +81,7 @@ const baseURL = process.env.TC_TEST_URL || 'http://127.0.0.1:8080';
     await page.waitForFunction(() => document.querySelector('[data-video-player]').error !== null);
     await page.waitForFunction(() => !document.querySelector('[data-video-play]').hidden);
     assert.match(await play.textContent(), /RETRY/);
-    assert.equal(await page.locator('dialog').count(), 0);
+    assert.equal(await page.locator('.tc-video-modal').count(), 0);
     await page.close();
     assert.deepEqual(errors, [], 'Browser console/page errors');
     console.log('Passed: responsive storefront, real inline playback, pause coordination, deferred media, keyboard controls, search and media error fallback.');

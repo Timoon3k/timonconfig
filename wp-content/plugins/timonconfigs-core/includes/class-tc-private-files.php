@@ -190,7 +190,7 @@ final class TC_Private_Files {
 	}
 
 	/** Server-only adapter; frontend callers must establish the verified, nonce-protected Owner context. */
-	public static function manage( int $config_id, string $operation, array $request, mixed $incoming = null ): true|WP_Error {
+	public static function manage( int $config_id, string $operation, array $request, mixed $incoming = null ): bool|WP_Error {
 		return self::mutate( $config_id, $operation, $request, $incoming );
 	}
 
@@ -215,7 +215,7 @@ final class TC_Private_Files {
 	}
 
 	/** All mutation entry points pass capability/nonce first; this method stays server-only. */
-	private static function mutate( int $config_id, string $operation, array $request, mixed $incoming ): true|WP_Error {
+	private static function mutate( int $config_id, string $operation, array $request, mixed $incoming ): bool|WP_Error {
 		if ( ! self::authorise( $config_id ) ) { return new WP_Error( 'tc_private_forbidden', 'Administrator permission and config edit access are required.' ); }
 		if ( ! in_array( $operation, array( 'upload', 'update', 'replace', 'delete' ), true ) ) { return new WP_Error( 'tc_private_operation', 'Unknown private-file operation.' ); }
 		if ( in_array( $operation, array( 'replace', 'delete' ), true ) && '1' !== ( $request['confirm'] ?? '' ) ) { return new WP_Error( 'tc_private_confirm', 'Confirm this file replacement or deletion before continuing.' ); }
@@ -223,7 +223,7 @@ final class TC_Private_Files {
 		if ( is_wp_error( $uploads ) ) { return $uploads; }
 		if ( 'replace' === $operation && 1 !== count( $uploads ) ) { return new WP_Error( 'tc_private_replace', 'Choose exactly one replacement file.' ); }
 		if ( 'upload' === $operation && ! $uploads ) { return new WP_Error( 'tc_private_empty', 'Choose at least one script file.' ); }
-		return self::locked( static function ( string $root ) use ( $config_id, $operation, $request, $uploads ): true|WP_Error {
+		return self::locked( static function ( string $root ) use ( $config_id, $operation, $request, $uploads ): bool|WP_Error {
 			$records = self::records( $config_id );
 			if ( is_wp_error( $records ) ) { return $records; }
 			$index = null;
@@ -301,7 +301,7 @@ final class TC_Private_Files {
 		self::feedback( $result );
 	}
 
-	private static function feedback( true|WP_Error $result ): void {
+	private static function feedback( bool|WP_Error $result ): void {
 		set_transient( 'tc_private_notice_' . get_current_user_id(), array( 'error' => is_wp_error( $result ), 'message' => is_wp_error( $result ) ? $result->get_error_message() : 'Private files updated successfully.' ), 120 );
 	}
 
