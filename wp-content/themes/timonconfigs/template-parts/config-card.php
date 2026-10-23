@@ -22,11 +22,14 @@ $platform_terms = get_the_terms( $config_id, 'tc_platform' );
 $platform = $platform_terms && ! is_wp_error( $platform_terms ) ? implode( ', ', wp_list_pluck( $platform_terms, 'name' ) ) : (string) get_post_meta( $config_id, 'tc_platform', true );
 $labels = array( 'free' => 'Free', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' );
 $game = $games && ! is_wp_error( $games ) ? $games[0] : null;
-$cover = ! has_post_thumbnail() && $game && method_exists( 'TC_Catalog', 'collection_image' ) ? TC_Catalog::collection_image( $game ) : '';
+// Keep every config in a game visually consistent unless Owner explicitly opts in to a custom card image.
+$custom_card_art = 'custom' === get_post_meta( $config_id, '_tc_card_art', true );
+$cover = $game && method_exists( 'TC_Catalog', 'collection_image' ) ? TC_Catalog::collection_image( $game ) : '';
+$show_featured_image = has_post_thumbnail() && ( $custom_card_art || ! $cover );
 ?>
 <article <?php post_class( 'tc-config-card tc-config-card--' . ( 'free' === $tier ? 'free' : 'vip' ) ); ?>>
 	<a class="tc-config-card__visual" href="<?php the_permalink(); ?>" aria-label="<?php echo esc_attr( get_the_title() ); ?>">
-		<?php if ( has_post_thumbnail() ) : ?><?php the_post_thumbnail( 'large', array( 'loading' => 'lazy' ) ); ?><?php elseif ( $cover ) : ?><img src="<?php echo esc_url( $cover ); ?>" alt="" width="600" height="360" loading="lazy" decoding="async"><?php else : ?><span class="tc-config-card__device"><?php echo esc_html( $devices && ! is_wp_error( $devices ) ? $devices[0]->name : 'TimonConfigs' ); ?></span><?php endif; ?>
+		<?php if ( $show_featured_image ) : ?><?php the_post_thumbnail( 'large', array( 'loading' => 'lazy' ) ); ?><?php elseif ( $cover ) : ?><img src="<?php echo esc_url( $cover ); ?>" alt="" width="600" height="360" loading="lazy" decoding="async"><?php else : ?><span class="tc-config-card__device"><?php echo esc_html( $devices && ! is_wp_error( $devices ) ? $devices[0]->name : 'TimonConfigs' ); ?></span><?php endif; ?>
 		<span class="tc-config-card__tier tc-config-card__tier--<?php echo esc_attr( $tier ); ?>"><?php echo esc_html( $labels[ $tier ] ?? 'Free' ); ?></span>
 		<?php if ( ! $release_ready ) : ?><span class="tc-config-card__status"><?php echo esc_html( $status_labels[ $status ] ?? 'Release details pending' ); ?></span><?php endif; ?>
 	</a>
