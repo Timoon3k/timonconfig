@@ -77,9 +77,16 @@ try {
 	$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $oversize, 'large.gpc' ) ), 'An actual oversized file is rejected independent of request size.' );
 	$opaque = $tc_private_fixture( 'binary.znbk', "TCBIN\0\x01\x02\xff" );
 	$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $opaque, 'binary.znbk' ) ), 'Unknown binary backups need an approved scanner/format inspector.' );
+	foreach ( array( 'znbk', 'ximmr' ) as $extension ) {
+		$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $good, 'text-backup.' . $extension ) ), 'Proprietary formats require approval even when their bytes look like text: ' . $extension );
+	}
 	$tc_private_scanner = static fn() => true;
 	add_filter( 'timonconfigs_private_file_scan', $tc_private_scanner );
 	$tc_private_expect( is_array( $tc_private_call( 'inspect', $opaque, 'binary.znbk' ) ), 'An approved inspector can accept a non-executable proprietary binary.' );
+	foreach ( array( 'znbk', 'ximmr' ) as $extension ) {
+		$approved = $tc_private_call( 'inspect', $good, 'text-backup.' . $extension );
+		$tc_private_expect( is_array( $approved ) && 'scanner-approved' === $approved['inspection'], 'Explicit inspector approval accepts text-form proprietary data: ' . $extension );
+	}
 	remove_filter( 'timonconfigs_private_file_scan', $tc_private_scanner );
 	$tc_private_scanner = static fn() => new WP_Error( 'fixture_scan', 'Do not leak scanner internals.' );
 	add_filter( 'timonconfigs_private_file_scan', $tc_private_scanner );

@@ -1,6 +1,14 @@
 # TimonConfigs project progress
 
-Last updated: 2026-10-22
+Last updated: 2026-10-23
+
+## Private format validation — Core 0.7.1
+
+- Właściciel potwierdził, że HTTPS staging nie jest jeszcze utworzony. Prawdziwe testy Discord OAuth i konfiguracja hostingu pozostają niewykonane; OAuth pozostaje wyłączony.
+- Odtworzono testem rozbieżność polityki uploadów: tekstowe bajty z rozszerzeniem ZNBK/XIMMR przechodziły bez inspektora. Oba formaty wymagają teraz jawnego wyniku `true` z istniejącego filtra inspekcji niezależnie od kodowania. GPC/JSON/TXT zachowują dotychczasowe sprawdzanie. Doprecyzowano komunikat administratora.
+- Kontrola dotyczy również rozwiązywania istniejących plików przed pobraniem. Wcześniej zapisane tekstowe ZNBK/XIMMR bez inspektora nie będą pobierane; dane nie są usuwane. Nie dodano fikcyjnego skanera ani potwierdzenia bezpieczeństwa pliku.
+- Przywrócono lokalne prawa odczytu publicznych źródeł motywu/wtyczki (644), zgodnie z istniejącym setup helperem; odtworzone pliki 600 uniemożliwiały uruchomienie WordPressa przez użytkownika PHP. Prywatnego magazynu ani sekretów nie zmieniano.
+- Testy: prywatne pliki 65, pobieranie 59, OAuth 60 — 184 asercje zaliczone (Discord mock). Rzeczywisty test multipart zaliczył 34 asercje, w tym tekstowe ZNBK/XIMMR; fixture usunięto. Nowy ZIP Core 0.7.1 wraz z istniejącym motywem 0.9.0 przeszedł 68 asercji świeżej instalacji WordPress 6.8.3/PHP 8.2. PHP lint, JS syntax, diff check i lokalny Home HTTP 200 poprawne. Paczka zgodna bajtowo ze źródłami; manifest `artifacts/private-format-release-manifest.json`. To wąska poprawka polityki formatów, nie pełny audyt bezpieczeństwa ani dowód działania realnego OAuth.
 
 ## Member login and dashboard — theme 0.9.0 / Core 0.7.0
 

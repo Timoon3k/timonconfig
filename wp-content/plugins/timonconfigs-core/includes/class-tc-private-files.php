@@ -124,7 +124,7 @@ final class TC_Private_Files {
 		if ( 'json' === $extension ) { json_decode( $content, true, 64 ); if ( JSON_ERROR_NONE !== json_last_error() ) { return $bad( 'JSON uploads must contain valid JSON.' ); } }
 		$scan = apply_filters( 'timonconfigs_private_file_scan', null, $path, $extension, $mime );
 		if ( is_wp_error( $scan ) || ( null !== $scan && true !== $scan ) ) { return $bad( 'The configured file scanner did not approve this file.' ); }
-		if ( ! $text && true !== $scan ) { return $bad( 'Binary backups require an approved scanner or format inspector. Text scripts remain available without this integration.' ); }
+		if ( ( ! $text || in_array( $extension, array( 'znbk', 'ximmr' ), true ) ) && true !== $scan ) { return $bad( 'ZNBK and XIMMR backups require an approved scanner or format inspector, including text-encoded backups. GPC, JSON and TXT remain available with structural checks.' ); }
 		return array( 'name' => $name, 'extension' => $extension, 'size' => $size, 'checksum' => hash( 'sha256', $content ), 'inspection' => true === $scan ? 'scanner-approved' : 'structural-only' );
 	}
 
@@ -311,7 +311,7 @@ final class TC_Private_Files {
 		$id = isset( $_GET['config_id'] ) && is_scalar( $_GET['config_id'] ) ? absint( $_GET['config_id'] ) : 0;
 		echo '<div class="wrap"><h1>Private script files</h1>';
 		if ( ! self::authorise( $id ) ) { echo '<p>Open a configuration in the editor, then choose <strong>Manage private files</strong>.</p></div>'; return; }
-		echo '<h2>' . esc_html( get_the_title( $id ) ) . '</h2><p>Files are stored outside the public website. Archives and executables are disabled. Limits: 10 files per upload, 20 MB per file, 100 files / 100 MB per config, 1 GB total. Structural checks are not a malware-free certification; binary backups require an approved scanner or format inspector through the file-scanner integration.</p>';
+		echo '<h2>' . esc_html( get_the_title( $id ) ) . '</h2><p>Files are stored outside the public website. Archives and executables are disabled. Limits: 10 files per upload, 20 MB per file, 100 files / 100 MB per config, 1 GB total. Structural checks are not a malware-free certification; ZNBK and XIMMR backups require an approved scanner or format inspector through the file-scanner integration, even when text-encoded.</p>';
 		$root = self::root();
 		if ( is_wp_error( $root ) ) { echo '<div class="notice notice-error inline"><p>' . esc_html( $root->get_error_message() ) . '</p></div></div>'; return; }
 		self::form_start( $id, 'upload' );

@@ -1,4 +1,4 @@
-# Installation and update — theme 0.9.0 / Core 0.7.0
+# Installation and update — theme 0.9.0 / Core 0.7.1
 
 ## Environment requirements
 
@@ -29,3 +29,7 @@ The current ZIPs have passed an isolated fresh local installation and activation
 The environment proxy blocked read-only requests to timonconfigs.com and the Discord invitation API. This is not an observed 404 from the website. Required domains were added to the cloud environment draft; review/save/publication is needed before retrying access. No callable Hostinger hosting/WordPress tools were exposed in this session, so account state and remote backups could not be inspected.
 
 Original logo/Hero sources and confirmed clip-to-device metadata remain owner inputs. OAuth2, live guild-role authorization, and protected premium file delivery remain unimplemented and must be tested separately before they are described as operational.
+
+## Core 0.7.1 — private format policy
+
+ZNBK and XIMMR require explicit approval from the existing file inspector even when their bytes are text-encoded. This applies to new uploads and existing-file resolution before download. Existing files are preserved, but these formats cannot be delivered without the inspector. GPC, JSON and TXT retain their structural checks. Configure and verify the actual inspector on isolated staging; never install an unconditional approval callback as a production scanner.

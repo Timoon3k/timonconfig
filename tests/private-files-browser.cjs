@@ -68,6 +68,8 @@ if(is_wp_error($id)){throw new RuntimeException($id->get_error_message());} echo
     await submit(upload); current = await state();
     expect(current.files.length === 12 && current.files.filter(file => file.name === 'apex-test.gpc').length === 2, 'Duplicate original names append instead of overwriting.');
     for (const bad of [
+      script('text-backup.znbk'),
+      script('text-backup.ximmr'),
       { name: 'archive.zip', mimeType: 'application/zip', buffer: Buffer.from('PK\x03\x04unsafe') },
       { name: 'php.gpc', mimeType: 'text/plain', buffer: Buffer.from('<?php echo 1;') },
       { name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from('{invalid}') },
@@ -110,7 +112,7 @@ if(is_wp_error($id)){throw new RuntimeException($id->get_error_message());} echo
     const restBody = await rest.text();
     expect(!restBody.includes('stored_name') && !restBody.includes('_tc_private_files'), 'Even editor REST output does not disclose private records.');
     expect(errors.length === 0, 'No application page errors during real multipart operations.');
-    report.tests = ['zero/one/ten uploads', 'eleven rejected', 'duplicate filenames', 'archive/PHP/JSON/empty rejection', 'metadata/order', 'confirmed replace/delete', 'old-ID revocation', 'append-only audit', 'REST path secrecy'];
+    report.tests = ['zero/one/ten uploads', 'eleven rejected', 'duplicate filenames', 'archive/PHP/JSON/empty rejection', 'text-encoded proprietary backups require inspector', 'metadata/order', 'confirmed replace/delete', 'old-ID revocation', 'append-only audit', 'REST path secrecy'];
     report.passed = true;
   } catch (error) { report.error = error.message; throw error; }
   finally {
