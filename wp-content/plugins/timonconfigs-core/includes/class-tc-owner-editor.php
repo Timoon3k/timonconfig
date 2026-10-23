@@ -46,7 +46,39 @@ final class TC_Owner_Editor {
         self::$authorized = true;
         try {
             if ( $id && ! current_user_can( 'edit_post', $id ) ) { return self::forbidden(); }
-            if ( 'save' === $operation ) { return self::save( $id, $data ); }
+            if ( 'save' === $operation ) {
+                // New config wizard: optional first batch of protected files in the same form.
+                // Store the record as a draft until validation and private upload succeed.
+                $incoming = $files['tc_private_files'] ?? null;
+                $names = is_array( $incoming ) && is_array( $incoming['name'] ?? null ) ? $incoming['name'] : array();
+                $errors = is_array( $incoming ) && is_array( $incoming['error'] ?? null ) ? $incoming['error'] : array();
+                $has_files = count( array_filter( $names, static fn( mixed $name ): bool => is_string( $name ) && '' !== trim( $name ) ) ) > 0
+                    || count( array_filter( $errors, static fn( mixed $err ): bool => UPLOAD_ERR_NO_FILE !== (int) $err ) ) > 0;
+                if ( ! $id && $has_files ) {
+                    $root = TC_Private_Files::root();
+                    if ( is_wp_error( $root ) ) { return self::forbidden( $root->get_error_message() ); }
+                    $requested_status = self::scalar( $data, 'status' );
+                    $draft_data = $data;
+                    $draft_data['status'] = 'draft';
+                    $created = self::save( 0, $draft_data );
+                    if ( is_wp_error( $created ) ) { return $created; }
+                    $stored = TC_Private_Files::manage( $created, 'upload', array(
+                        'version' => self::scalar( $data, 'file_version' ),
+                        'notes' => self::scalar( $data, 'file_notes' ),
+                    ), $incoming );
+                    if ( is_wp_error( $stored ) ) {
+                        return self::forbidden( 'Config #' . $created . ' remains a draft because the file upload failed: ' . $stored->get_error_message() . ' Open it from Existing configurations to retry.' );
+                    }
+                    if ( 'publish' === $requested_status ) {
+                        $published = wp_update_post( array( 'ID' => $created, 'post_status' => 'publish' ), true );
+                        if ( is_wp_error( $published ) ) {
+                            return self::forbidden( 'Config #' . $created . ' and its files were saved as draft, but publication failed. Open the draft to retry.' );
+                        }
+                    }
+                    return $created;
+                }
+                return self::save( $id, $data );
+            }
             if ( 'trash' === $operation ) {
                 if ( '1' !== self::scalar( $data, 'confirm' ) || ! current_user_can( 'delete_post', $id ) ) { return self::forbidden( 'Confirm moving this config to Trash.' ); }
                 if ( ! wp_trash_post( $id ) ) { return self::forbidden( 'The config could not be moved to Trash.' ); }
@@ -210,7 +242,14 @@ final class TC_Owner_Editor {
         foreach ( array( 'tc_config_version' => 'Version', 'tc_game_version' => 'Game version', 'tc_creator' => 'Creator', 'tc_publisher' => 'Publisher', 'tc_release_date' => 'Release date (YYYY-MM-DD)', 'tc_tutorial_url' => 'Public preview / tutorial URL (HTTPS)' ) as $key => $label ) { self::input( $key, $label, (string) get_post_meta( $id, $key, true ) ); }
         foreach ( array( 'tc_compatibility' => 'Verified compatibility', 'tc_changelog' => 'Changelog' ) as $key => $label ) { self::input( $key, $label, (string) get_post_meta( $id, $key, true ), true ); }
         if ( class_exists( 'TC_Config_Content' ) ) { echo TC_Config_Content::editor_fields( $id ); }
-        echo '<button class="tc-button" type="submit">Save configuration</button></form>';
+        if ( ! $id ) {
+            echo '<div class="tc-owner-first-upload"><h3>Optional: attach your first script files</h3><p>Choose up to 10 private config files now, or add them after saving. The script must pass format and malware/inspector checks and is never uploaded to Media Library. If a file fails, the new configuration stays unpublished.</p>';
+            echo '<label>Config files <input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple></label>';
+            self::input( 'file_version', 'File version (optional)', '' );
+            self::input( 'file_notes', 'File notes (optional)', '', true );
+            echo '</div>';
+        }
+        echo '<button class="tc-button" type="submit">' . ( $id ? 'Save changes' : 'Create configuration' ) . '</button></form>';
         if ( $id ) {
             self::form_start( $id, 'image' ); echo '<h3>Public preview image</h3><input type="file" name="preview_image" accept="image/jpeg,image/png,image/webp,image/avif" required><button class="tc-button" type="submit">Upload public image</button></form>';
             $storage = TC_Private_Files::root();
