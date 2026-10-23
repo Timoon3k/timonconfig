@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: PHP version
         run: php --version
       - name: Lint WordPress theme, plugin and PHP tests
@@ -24,4 +26,4 @@ jobs:
           find wp-content/themes/timonconfigs wp-content/plugins/timonconfigs-core tests -type f -name '*.php' -print0 |
             xargs -0 -r -n1 php -l
       - name: Check whitespace errors
-        run: git diff --check HEAD~1 HEAD
+        run: git diff --check origin/main...HEAD
