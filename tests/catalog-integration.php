@@ -84,6 +84,12 @@ try {
 	$visible = array( $ids['monthly'], $ids['free'], $ids['coming'], $ids['legacy'] );
 	sort( $visible );
 	$tc_test_expect( $tc_test_query( array( 'tc_game' => $slug ) ) === $visible, 'taxonomy shows published available, coming-soon and legacy cards, never archived' );
+	$columns = TC_Catalog::admin_columns( array( 'title' => 'Title' ) );
+	$tc_test_expect( isset( $columns['tc_release'], $columns['tc_catalog_visibility'] ), 'admin Configs list explains release status and catalogue visibility' );
+	ob_start(); TC_Catalog::admin_column( 'tc_catalog_visibility', $ids['coming'] ); $notice = (string) ob_get_clean();
+	$tc_test_expect( str_contains( $notice, 'Visible preview' ), 'published Coming soon state is clearly labelled in the admin' );
+	ob_start(); TC_Catalog::admin_column( 'tc_catalog_visibility', $ids['archived'] ); $notice = (string) ob_get_clean();
+	$tc_test_expect( str_contains( $notice, 'Archived' ) && str_contains( $notice, 'hidden' ), 'archived config remains hidden and labelled' );
 	$tc_test_expect( $tc_test_query( array(), array( 'game' => $slug, 'tier' => 'monthly', 'device' => 'cronus-zen', 'input' => 'controller', 'platform' => 'pc' ) ) === array_values( array_intersect( $visible, array( $ids['monthly'], $ids['coming'] ) ) ), 'combined catalogue filters' );
 	$tc_test_expect( $tc_test_query( array( 'tc_game' => $slug ), array( 'tier' => 'free', 'platform' => 'xbox' ) ) === array( $ids['free'] ), 'filters work on game collection' );
 	$tc_test_expect( $tc_test_query( array( 'tc_device' => 'cronus-zen' ), array( 'game' => $slug, 'input' => 'mnk' ) ) === array( $ids['legacy'] ), 'device collection preserves base term and applies input/game filters' );
