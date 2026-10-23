@@ -120,6 +120,9 @@ try {
 	TC_Discord::$state = 'monthly';
 	TC_Discord::$allowed = true;
 	$assert( TC_Catalog::download_cta( $ids[1] )['action'] === 'download', 'entitled Monthly members receive protected download presentation' );
+	update_post_meta( $ids[1], 'tc_release_status', 'coming-soon' );
+	$assert( TC_Catalog::download_cta( $ids[1] )['action'] === 'pending', 'published Coming soon preview remains non-downloadable even for entitled VIP members' );
+	update_post_meta( $ids[1], 'tc_release_status', 'available' );
 	$html = $render_card( $ids[1] );
 	$assert( str_contains( $html, '<form method="post"' ) && str_contains( $html, '>Download<' ) && ! str_contains( $html, '/outside/private' ), 'entitled cards render the protected POST button without a direct file URL' );
 	TC_Discord::$state = 'lifetime';

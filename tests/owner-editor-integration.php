@@ -29,8 +29,12 @@ try {
         update_user_meta( $uid, '_tc_discord_token', $encrypt( wp_json_encode( array( 'access_token' => 'owner-test-access', 'refresh_token' => 'owner-test-refresh', 'expires' => time() + 3600 ) ) ) );
         delete_user_meta( $uid, '_tc_discord_status' ); delete_user_meta( $uid, '_tc_discord_attempt' ); delete_option( '_tc_discord_lock_' . $uid );
     };
-    $data = static function ( string $operation = 'save', int $id = 0 ) use ( $uid ): array {
-        return array( '_wpnonce' => wp_create_nonce( 'tc_owner_config' ), 'operation' => $operation, 'config_id' => (string) $id, 'title' => 'Disposable owner configuration', 'description' => '<p>Test-only description</p>', 'excerpt' => 'Test-only summary', 'status' => 'draft', 'tc_tier' => 'free', 'tc_release_status' => 'available', 'tc_input_method' => 'controller', 'tc_guide_content' => '', 'tc_guide_visibility' => 'free', 'tc_values_content' => '', 'tc_values_visibility' => 'free' );
+    TC_Catalog::seed_core_terms();
+    $game = get_term_by( 'slug', 'apex-legends', 'tc_game' );
+    $device = get_term_by( 'slug', 'cronus-zen', 'tc_device' );
+    if ( ! ( $game instanceof WP_Term ) || ! ( $device instanceof WP_Term ) ) { throw new RuntimeException( 'Missing test-only game/device fixture terms.' ); }
+    $data = static function ( string $operation = 'save', int $id = 0 ) use ( $uid, $game, $device ): array {
+        return array( '_wpnonce' => wp_create_nonce( 'tc_owner_config' ), 'operation' => $operation, 'config_id' => (string) $id, 'title' => 'Disposable owner configuration', 'description' => '<p>Test-only description</p>', 'excerpt' => 'Test-only summary', 'status' => 'draft', 'tc_game' => array( (string) $game->term_id ), 'tc_device' => array( (string) $device->term_id ), 'tc_tier' => 'free', 'tc_release_status' => 'available', 'tc_input_method' => 'controller', 'tc_guide_content' => '', 'tc_guide_visibility' => 'free', 'tc_values_content' => '', 'tc_values_visibility' => 'free' );
     };
     $expect( ! current_user_can( 'manage_options' ) && ! current_user_can( 'edit_posts' ) && ! current_user_can( 'edit_tc_configs' ), 'Subscriber starts without generic or config administration.' );
     $operations = array( 'save', 'trash', 'upload', 'replace', 'delete', 'update', 'image' );
@@ -65,6 +69,15 @@ try {
     $result = TC_Owner_Editor::perform( $edit );
     $expect( $created === $result && 'publish' === get_post_status( $created ) && 'Owner-edited release' === get_the_title( $created ), 'Owner can edit and publish the existing config.' );
     $expect( ! str_contains( get_post_field( 'post_content', $created ), '<script' ), 'Unsafe description markup is removed.' );
+    $expect( 'game' === get_post_meta( $created, '_tc_card_art', true ), 'Shared game artwork is the default for new Owner cards.' );
+    $seed(); $broken = $data( 'save', $created ); $broken['status'] = 'publish'; $broken['tc_game'] = array();
+    $expect( is_wp_error( TC_Owner_Editor::perform( $broken ) ), 'Published config without a game is rejected with a clear message.' );
+    $seed(); $broken = $data( 'save', $created ); $broken['status'] = 'publish'; $broken['tc_device'] = array();
+    $expect( is_wp_error( TC_Owner_Editor::perform( $broken ) ), 'Published config without a device is rejected.' );
+    $seed(); $custom = $data( 'save', $created ); $custom['status'] = 'publish'; $custom['card_art'] = 'custom';
+    $expect( $created === TC_Owner_Editor::perform( $custom ) && 'custom' === get_post_meta( $created, '_tc_card_art', true ), 'Owner can opt into a custom cover.' );
+    $seed(); $shared = $data( 'save', $created ); $shared['status'] = 'publish'; $shared['card_art'] = 'game';
+    $expect( $created === TC_Owner_Editor::perform( $shared ) && 'game' === get_post_meta( $created, '_tc_card_art', true ), 'Owner can restore the common game cover.' );
     $expect( false === TC_Discord::can_access( $created ), 'Owner privilege does not grant VIP file entitlement.' );
     $rest = new WP_REST_Request( 'POST', '/wp/v2/tc_config' ); $rest->set_param( 'title', 'Forbidden REST config' );
     $expect( rest_do_request( $rest )->get_status() === 403, 'Owner subscriber cannot bypass the editor through generic REST create.' );
@@ -102,7 +115,7 @@ try {
     $seed(); $trash = $data( 'trash', $created ); $trash['confirm'] = '1';
     $expect( 0 === TC_Owner_Editor::perform( $trash ) && 'trash' === get_post_status( $created ), 'Approved Owner can move a config to Trash.' );
     $audit = get_post_meta( $created, '_tc_owner_audit', false );
-    $expect( array( 'created', 'edited', 'trashed' ) === wp_list_pluck( $audit, 'action' ) && array( $uid ) === array_values( array_unique( wp_list_pluck( $audit, 'actor' ) ) ), 'Successful writes alone record actor/time/action audit.' );
+    $expect( array( 'created', 'edited', 'edited', 'edited', 'trashed' ) === wp_list_pluck( $audit, 'action' ) && array( $uid ) === array_values( array_unique( wp_list_pluck( $audit, 'actor' ) ) ), 'Successful writes alone record actor/time/action audit.' );
     $expect( ! TC_Owner_Editor::in_authorized_context() && ! current_user_can( 'manage_options' ) && ! current_user_can( 'edit_tc_configs' ) && array( 'subscriber' ) === get_userdata( $uid )->roles, 'Owner remains a subscriber after all success/failure paths.' );
     WP_CLI::success( "Owner editor integration: $checks assertions; disposable fixtures, mocked Discord only." );
 } finally {

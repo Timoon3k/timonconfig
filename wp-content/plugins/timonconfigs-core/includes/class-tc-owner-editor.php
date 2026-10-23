@@ -46,7 +46,45 @@ final class TC_Owner_Editor {
         self::$authorized = true;
         try {
             if ( $id && ! current_user_can( 'edit_post', $id ) ) { return self::forbidden(); }
-            if ( 'save' === $operation ) { return self::save( $id, $data ); }
+            if ( 'save' === $operation ) {
+                // New config wizard: optional first batch of protected files in the same form.
+                // Store the record as a draft until validation and private upload succeed.
+                $incoming = $files['tc_private_files'] ?? null;
+                $names = is_array( $incoming ) && is_array( $incoming['name'] ?? null ) ? $incoming['name'] : array();
+                $errors = is_array( $incoming ) && is_array( $incoming['error'] ?? null ) ? $incoming['error'] : array();
+                $has_files = count( array_filter( $names, static fn( mixed $name ): bool => is_string( $name ) && '' !== trim( $name ) ) ) > 0
+                    || count( array_filter( $errors, static fn( mixed $err ): bool => UPLOAD_ERR_NO_FILE !== (int) $err ) ) > 0;
+                if ( ! $id && $has_files ) {
+                    $root = TC_Private_Files::root();
+                    if ( is_wp_error( $root ) ) { return self::forbidden( $root->get_error_message() ); }
+                    $requested_status = self::scalar( $data, 'status' );
+                    if ( ! in_array( $requested_status, array( 'draft', 'publish' ), true ) ) {
+                        return self::forbidden( 'Choose Draft or Published.' );
+                    }
+                    if ( 'publish' === $requested_status && ( empty( array_filter( (array) ( $data['tc_game'] ?? array() ) ) ) || empty( array_filter( (array) ( $data['tc_device'] ?? array() ) ) ) ) ) {
+                        return self::forbidden( 'Choose a Game and Device before publishing your new configuration.' );
+                    }
+                    $draft_data = $data;
+                    $draft_data['status'] = 'draft';
+                    $created = self::save( 0, $draft_data );
+                    if ( is_wp_error( $created ) ) { return $created; }
+                    $stored = TC_Private_Files::manage( $created, 'upload', array(
+                        'version' => self::scalar( $data, 'file_version' ),
+                        'notes' => self::scalar( $data, 'file_notes' ),
+                    ), $incoming );
+                    if ( is_wp_error( $stored ) ) {
+                        return self::forbidden( 'Config #' . $created . ' remains a draft because the file upload failed: ' . $stored->get_error_message() . ' Open it from Existing configurations to retry.' );
+                    }
+                    if ( 'publish' === $requested_status ) {
+                        $published = wp_update_post( array( 'ID' => $created, 'post_status' => 'publish' ), true );
+                        if ( is_wp_error( $published ) ) {
+                            return self::forbidden( 'Config #' . $created . ' and its files were saved as draft, but publication failed. Open the draft to retry.' );
+                        }
+                    }
+                    return $created;
+                }
+                return self::save( $id, $data );
+            }
             if ( 'trash' === $operation ) {
                 if ( '1' !== self::scalar( $data, 'confirm' ) || ! current_user_can( 'delete_post', $id ) ) { return self::forbidden( 'Confirm moving this config to Trash.' ); }
                 if ( ! wp_trash_post( $id ) ) { return self::forbidden( 'The config could not be moved to Trash.' ); }
@@ -75,9 +113,15 @@ final class TC_Owner_Editor {
             if ( ! is_array( $values ) || count( $values ) > 30 ) { return self::forbidden( 'Invalid collection selection.' ); }
             $taxes[ $tax ] = array();
             foreach ( $values as $value ) {
+                if ( '' === $value && in_array( $tax, array( 'tc_game', 'tc_device' ), true ) ) { continue; }
                 if ( ! is_string( $value ) || ! ctype_digit( $value ) || ! term_exists( (int) $value, $tax ) ) { return self::forbidden( 'Select existing games, devices and platforms.' ); }
                 $taxes[ $tax ][] = (int) $value;
             }
+        }
+        // A public release must belong to a browsable game and device collection.
+        // Drafts may be incomplete while the Owner prepares artwork and private files.
+        if ( 'publish' === $status && ( empty( $taxes['tc_game'] ) || empty( $taxes['tc_device'] ) ) ) {
+            return self::forbidden( 'Choose one Game and one Device before publishing. Otherwise the card cannot appear in the correct collection.' );
         }
         // Validate protected editorial fields before changing a post.
         if ( class_exists( 'TC_Config_Content' ) ) {
@@ -89,6 +133,8 @@ final class TC_Owner_Editor {
         $result = wp_insert_post( wp_slash( $post ), true );
         if ( is_wp_error( $result ) ) { return self::forbidden( 'The config could not be saved.' ); }
         foreach ( $meta as $key => $value ) { update_post_meta( $result, $key, $value ); }
+        // All configs in a game inherit one branded cover unless Owner explicitly selects custom.
+        update_post_meta( $result, '_tc_card_art', 'custom' === self::scalar( $data, 'card_art' ) ? 'custom' : 'game' );
         foreach ( $taxes as $tax => $ids ) { wp_set_object_terms( $result, $ids, $tax ); }
         if ( class_exists( 'TC_Config_Content' ) ) { $saved = TC_Config_Content::save_fields( $result, $data ); if ( is_wp_error( $saved ) ) { return $saved; } }
         self::audit( $result, $id ? 'edited' : 'created' ); return $result;
@@ -158,25 +204,58 @@ final class TC_Owner_Editor {
         $feedback = get_transient( 'tc_owner_feedback_' . get_current_user_id() ); if ( is_string( $feedback ) && $feedback ) { echo '<p role="status">' . esc_html( $feedback ) . '</p>'; delete_transient( 'tc_owner_feedback_' . get_current_user_id() ); }
         $page_raw = $_GET['manage_page'] ?? '1'; $page = is_string( $page_raw ) && ctype_digit( $page_raw ) ? max( 1, min( 100000, (int) $page_raw ) ) : 1;
         $configs = new WP_Query( array( 'post_type' => 'tc_config', 'post_status' => array( 'draft', 'publish', 'private', 'pending' ), 'posts_per_page' => 20, 'paged' => $page, 'orderby' => array( 'modified' => 'DESC', 'ID' => 'DESC' ) ) );
-        echo '<details><summary>Existing configurations</summary><ul>'; foreach ( $configs->posts as $config ) { echo '<li><a href="' . esc_url( self::url( $config->ID ) ) . '">' . esc_html( $config->post_title ) . '</a> · ' . esc_html( $config->post_status ) . '</li>'; } echo '</ul><nav aria-label="Managed configurations">';
+        echo '<details open><summary>Existing configurations — click to edit</summary><ul>';
+        foreach ( $configs->posts as $config ) {
+            $release = (string) get_post_meta( $config->ID, 'tc_release_status', true );
+            $games = wp_get_object_terms( $config->ID, 'tc_game', array( 'fields' => 'names' ) );
+            $devices = wp_get_object_terms( $config->ID, 'tc_device', array( 'fields' => 'names' ) );
+            $labels = ! is_wp_error( $games ) ? implode( ', ', $games ) : '';
+            $device_labels = ! is_wp_error( $devices ) ? implode( ', ', $devices ) : '';
+            echo '<li><a href="' . esc_url( self::url( $config->ID ) ) . '">' . esc_html( $config->post_title ) . '</a> — ' . esc_html( $config->post_status ) . ' / ' . esc_html( $release ?: 'legacy release' ) . ' · ' . esc_html( $labels ?: 'No game selected' ) . ' · ' . esc_html( $device_labels ?: 'No device selected' );
+            if ( 'publish' === $config->post_status && 'archived' !== $release ) {
+                echo ' · <a href="' . esc_url( get_permalink( $config->ID ) ) . '">View card</a>';
+            }
+            echo '</li>';
+        }
+        echo '</ul><nav aria-label="Managed configurations">';
         if ( $page > 1 ) { echo '<a href="' . esc_url( add_query_arg( 'manage_page', $page - 1, self::url() ) ) . '">Previous configurations</a> '; }
         if ( $page < $configs->max_num_pages ) { echo '<a href="' . esc_url( add_query_arg( 'manage_page', $page + 1, self::url() ) ) . '">More configurations</a>'; }
         echo '</nav></details>';
         self::form_start( $id, 'save' );
         self::input( 'title', 'Title', $post->post_title ?? '' ); self::input( 'excerpt', 'Short description', $post->post_excerpt ?? '', true ); self::input( 'description', 'Description (safe HTML)', $post->post_content ?? '', true );
         self::select( 'status', 'Publication', $post->post_status ?? 'draft', array( 'draft' => 'Draft', 'publish' => 'Published' ) );
-        foreach ( array( 'tc_game' => 'Games', 'tc_device' => 'Devices', 'tc_platform' => 'Platforms' ) as $tax => $label ) {
+        foreach ( array( 'tc_game' => 'Game', 'tc_device' => 'Device', 'tc_platform' => 'Platforms' ) as $tax => $label ) {
             $assigned = $id ? wp_get_object_terms( $id, $tax, array( 'fields' => 'ids' ) ) : array();
             echo '<fieldset><legend>' . esc_html( $label ) . '</legend>';
-            foreach ( get_terms( array( 'taxonomy' => $tax, 'hide_empty' => false ) ) as $term ) { echo '<label class="tc-owner-check"><input type="checkbox" name="' . esc_attr( $tax ) . '[]" value="' . esc_attr( (string) $term->term_id ) . '" ' . checked( in_array( $term->term_id, $assigned, true ), true, false ) . '>' . esc_html( $term->name ) . '</label>'; } echo '</fieldset>';
+            if ( in_array( $tax, array( 'tc_game', 'tc_device' ), true ) ) {
+                echo '<select name="' . esc_attr( $tax ) . '[]" ' . ( 'publish' === ( $post->post_status ?? '' ) ? 'required' : '' ) . '><option value="">Choose ' . esc_html( $label ) . '…</option>';
+                foreach ( get_terms( array( 'taxonomy' => $tax, 'hide_empty' => false ) ) as $term ) {
+                    echo '<option value="' . esc_attr( (string) $term->term_id ) . '" ' . selected( in_array( $term->term_id, $assigned, true ), true, false ) . '>' . esc_html( $term->name ) . '</option>';
+                }
+                echo '</select>';
+            } else {
+                foreach ( get_terms( array( 'taxonomy' => $tax, 'hide_empty' => false ) ) as $term ) {
+                    echo '<label class="tc-owner-check"><input type="checkbox" name="' . esc_attr( $tax ) . '[]" value="' . esc_attr( (string) $term->term_id ) . '" ' . checked( in_array( $term->term_id, $assigned, true ), true, false ) . '>' . esc_html( $term->name ) . '</label>';
+                }
+            }
+            echo '</fieldset>';
         }
         self::select( 'tc_tier', 'Access tier', (string) get_post_meta( $id, 'tc_tier', true ), array( 'free' => 'Free Member', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' ) );
+        echo '<p class="tc-owner-help">Published + Coming soon = visible preview card with no download. Published + Available + uploaded private file = downloadable card for entitled members. Archived = hidden from the public catalogue.</p>';
+        self::select( 'card_art', 'Card cover artwork', (string) ( get_post_meta( $id, '_tc_card_art', true ) ?: 'game' ), array( 'game' => 'Use shared game cover (recommended)', 'custom' => 'Use uploaded custom thumbnail' ) );
         self::select( 'tc_release_status', 'Release', (string) get_post_meta( $id, 'tc_release_status', true ), array( 'coming-soon' => 'Coming soon', 'available' => 'Available', 'archived' => 'Archived' ) );
         self::select( 'tc_input_method', 'Input', (string) get_post_meta( $id, 'tc_input_method', true ), array( '' => 'Not yet verified', 'controller' => 'Controller', 'mnk' => 'Mouse & keyboard' ) );
         foreach ( array( 'tc_config_version' => 'Version', 'tc_game_version' => 'Game version', 'tc_creator' => 'Creator', 'tc_publisher' => 'Publisher', 'tc_release_date' => 'Release date (YYYY-MM-DD)', 'tc_tutorial_url' => 'Public preview / tutorial URL (HTTPS)' ) as $key => $label ) { self::input( $key, $label, (string) get_post_meta( $id, $key, true ) ); }
         foreach ( array( 'tc_compatibility' => 'Verified compatibility', 'tc_changelog' => 'Changelog' ) as $key => $label ) { self::input( $key, $label, (string) get_post_meta( $id, $key, true ), true ); }
         if ( class_exists( 'TC_Config_Content' ) ) { echo TC_Config_Content::editor_fields( $id ); }
-        echo '<button class="tc-button" type="submit">Save configuration</button></form>';
+        if ( ! $id ) {
+            echo '<div class="tc-owner-first-upload"><h3>Optional: attach your first script files</h3><p>Choose up to 10 private config files now, or add them after saving. The script must pass format and malware/inspector checks and is never uploaded to Media Library. If a file fails, the new configuration stays unpublished.</p>';
+            echo '<label>Config files <input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple></label>';
+            self::input( 'file_version', 'File version (optional)', '' );
+            self::input( 'file_notes', 'File notes (optional)', '', true );
+            echo '</div>';
+        }
+        echo '<button class="tc-button" type="submit">' . ( $id ? 'Save changes' : 'Create configuration' ) . '</button></form>';
         if ( $id ) {
             self::form_start( $id, 'image' ); echo '<h3>Public preview image</h3><input type="file" name="preview_image" accept="image/jpeg,image/png,image/webp,image/avif" required><button class="tc-button" type="submit">Upload public image</button></form>';
             $storage = TC_Private_Files::root();

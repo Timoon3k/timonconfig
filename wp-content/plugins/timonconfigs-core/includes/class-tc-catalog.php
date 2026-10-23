@@ -33,6 +33,8 @@ final class TC_Catalog {
 		add_action( 'init', array( __CLASS__, 'register_content_types' ) );
 		add_action( 'init', array( __CLASS__, 'register_landing_rewrites' ) );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_meta_box' ) );
+		add_filter( 'manage_tc_config_posts_columns', array( __CLASS__, 'admin_columns' ) );
+		add_action( 'manage_tc_config_posts_custom_column', array( __CLASS__, 'admin_column' ), 10, 2 );
 		add_action( 'save_post_' . self::POST_TYPE, array( __CLASS__, 'save_meta' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'filter_archive' ) );
 		add_filter( 'posts_clauses', array( __CLASS__, 'download_order_clauses' ), 10, 2 );
@@ -331,6 +333,39 @@ final class TC_Catalog {
 		return $details;
 	}
 
+	/** Explain why a published config does or does not appear in the public collections. */
+	public static function admin_columns( array $columns ): array {
+		$columns['tc_release'] = __( 'Release', 'timonconfigs-core' );
+		$columns['tc_catalog_visibility'] = __( 'Catalog visibility', 'timonconfigs-core' );
+		return $columns;
+	}
+
+	public static function admin_column( string $column, int $post_id ): void {
+		if ( 'tc_release' !== $column && 'tc_catalog_visibility' !== $column ) { return; }
+		$release = (string) get_post_meta( $post_id, 'tc_release_status', true );
+		if ( 'tc_release' === $column ) {
+			echo esc_html( array( 'available' => 'Available', 'coming-soon' => 'Coming soon', 'archived' => 'Archived' )[ $release ] ?? 'Legacy / unspecified' );
+			return;
+		}
+		$status = get_post_status( $post_id );
+		if ( 'publish' !== $status ) {
+			echo esc_html__( 'Not published — hidden', 'timonconfigs-core' );
+		} elseif ( 'archived' === $release ) {
+			echo esc_html__( 'Archived — hidden', 'timonconfigs-core' );
+		} elseif ( 'coming-soon' === $release ) {
+			echo esc_html__( 'Visible preview — downloads disabled', 'timonconfigs-core' );
+		} else {
+			echo esc_html__( 'Visible in all configs', 'timonconfigs-core' );
+		}
+		if ( 'publish' === $status && 'archived' !== $release ) {
+			$games = get_the_terms( $post_id, 'tc_game' );
+			$devices = get_the_terms( $post_id, 'tc_device' );
+			if ( ! $games || is_wp_error( $games ) || ! $devices || is_wp_error( $devices ) ) {
+				echo '<br><em>' . esc_html__( 'Assign a Game and Device for filtered collections.', 'timonconfigs-core' ) . '</em>';
+			}
+		}
+	}
+
 	public static function add_meta_box(): void {
 		add_meta_box( 'tc_config_details', esc_html__( 'Config details', 'timonconfigs-core' ), array( __CLASS__, 'render_meta_box' ), self::POST_TYPE, 'normal', 'high' );
 	}
@@ -391,6 +426,19 @@ final class TC_Catalog {
 		update_term_meta( $term_id, 'tc_collection_image', self::sanitize_public_url( wp_unslash( $_POST['tc_collection_image'] ) ) );
 	}
 
+	/**
+	 * Public catalogue includes published Coming soon cards, but never archived releases.
+	 * This is a visibility check, NOT a download entitlement check. The protected
+	 * delivery path still requires tc_release_status=available and a verified role.
+	 */
+	public static function catalog_visible_meta_query(): array {
+		return array(
+			'relation' => 'OR',
+			array( 'key' => 'tc_release_status', 'compare' => 'NOT EXISTS' ),
+			array( 'key' => 'tc_release_status', 'value' => array( '', 'available', 'coming-soon' ), 'compare' => 'IN' ),
+		);
+	}
+
 	/** A left join retains new releases with no recorded deliveries; option names are unique. */
 	public static function download_order_clauses( array $clauses, WP_Query $query ): array {
 		if ( ! $query->get( '_tc_download_order' ) || is_admin() || ! $query->is_main_query() || ( ! $query->is_post_type_archive( self::POST_TYPE ) && ! $query->is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) ) { return $clauses; }
@@ -418,7 +466,7 @@ final class TC_Catalog {
 			if ( '' !== $slug ) { $tax_query[] = array( 'taxonomy' => $taxonomy, 'field' => 'slug', 'terms' => $slug ); }
 		}
 		if ( $tax_query ) { $tax_query['relation'] = 'AND'; $query->set( 'tax_query', $tax_query ); }
-		$meta_query = array( 'relation' => 'AND', self::released_meta_query() );
+		$meta_query = array( 'relation' => 'AND', self::catalog_visible_meta_query() );
 		$existing_meta = $query->get( 'meta_query' );
 		if ( is_array( $existing_meta ) && $existing_meta ) { $meta_query[] = $existing_meta; }
 		$tier = self::sanitize_tier( self::request_value( 'tier' ) );
