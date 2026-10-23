@@ -2,6 +2,12 @@
 
 Last updated: 2026-10-23
 
+## HTTPS staging — blokada połączenia z Hostingerem (2026-10-23)
+
+- Rozpoczęto następny etap zgodnie z potwierdzeniem właściciela, że staging jeszcze nie istnieje. Sprawdzono instrukcję konektora: Node 24 spełnia wymagania, ale sesja nie udostępnia narzędzi Hostinger i nie ma rejestracji dziewięciu serwerów MCP.
+- Próba `codex mcp add` po uzyskaniu uprawnień do katalogu konfiguracji zakończyła się błędem `Read-only file system` dla rzeczywistego katalogu Codex `/run/codex-environment/codex-home`. Nie zarejestrowano serwerów; sam restart nie jest potwierdzonym rozwiązaniem tej blokady. Nie zmieniano chronionego katalogu ani nie obchodzono konektora bezpośrednim API.
+- Do kontynuacji potrzebna jest sesja udostępniająca działające narzędzia Hostinger Connector albo staging utworzony w hPanel i dostępne połączenie do jego wdrożenia. Dopiero odczyt konta pozwoli ustalić konkretny hosting i adres stagingu. Nie utworzono zdalnej witryny, nie zmieniono produkcji, OAuth ani płatności. Kod pozostaje na zweryfikowanym Core 0.7.1 / motywie 0.9.0.
+
 ## Private format validation — Core 0.7.1
 
 - Właściciel potwierdził, że HTTPS staging nie jest jeszcze utworzony. Prawdziwe testy Discord OAuth i konfiguracja hostingu pozostają niewykonane; OAuth pozostaje wyłączony.

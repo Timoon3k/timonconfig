@@ -12,3 +12,5 @@
 10. Etap UI ze zrzutów coldz.pro jest ukończony: Member login → karta TimonConfigs → dashboard z avatarem, rzeczywistym statusem i kafelkami. Zweryfikowano lokalne HTTP, stany konta i responsywność. Następny etap z Astra Medium to końcowy przegląd bezpieczeństwa oraz testy prawdziwego OAuth/pobrań na HTTPS stagingu, opisane w punktach 3–4; nie buduj panelu ponownie.
 
 Publiczna witryna i podgląd Hostinger nie były zweryfikowane zdalnie z powodu blokady proxy. Brak callable narzędzi Hostinger, a API GitHub GraphQL zwraca Forbidden. Kod jest na `main`; push do GitHub nie oznacza wdrożenia na hosting ani zatwierdzenia audytu. Publiczny odczyt coldz.pro również zablokowało proxy — handoff opiera się na zrzutach właściciela.
+
+Blokada stagingu 2026-10-23: `codex mcp add` nie może zapisać konfiguracji w `/run/codex-environment/codex-home` (read-only filesystem). Rejestracja nie nastąpiła. Nie obiecuj, że sam restart wystarczy, i nie powtarzaj tej samej próby bez zmiany środowiska. Potrzebne callable narzędzia Hostinger Connector; następnie odczyt listy witryn i przygotowanie odizolowanego HTTPS stagingu. Nie proś o sekrety na czacie.
