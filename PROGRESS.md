@@ -2,6 +2,11 @@
 
 Last updated: 2026-10-24
 
+## Publication to GitHub main — owner authorized
+
+- Na polecenie „wypchnij w produkcje” przeniesiono cztery przetestowane commity do `main` przez fast-forward bez konfliktów i force push. GitHub main potwierdzono na `17441cb` (motyw 0.10.0 / Core 0.8.0); gałąź feature zachowano.
+- Nie było nowych zmian kodu od pełnej weryfikacji wydania. Brak callable narzędzi Hostinger nadal uniemożliwia bezpośrednią instalację paczek i weryfikację działającego WordPressa. Nie potwierdzono zdalnego automatycznego wdrożenia ani nie zmieniano bazy, ról lub płatności.
+
 ## Release verification — theme 0.10.0 / Core 0.8.0
 
 - Wymagania nowych briefów wdrożono etapami na gałęzi `feature/owner-catalog-guides-seo`, zachowując bazę `main` i wszystkie istniejące integracje. Checkpointy: `2d08a00` (role/formaty), `d8d76dc` (edytor/katalog/treści), `7528775` (Home/SEO). Ostatni checkpoint obejmuje dokumentację i weryfikację wydania.
