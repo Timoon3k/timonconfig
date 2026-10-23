@@ -58,6 +58,12 @@ final class TC_Owner_Editor {
                     $root = TC_Private_Files::root();
                     if ( is_wp_error( $root ) ) { return self::forbidden( $root->get_error_message() ); }
                     $requested_status = self::scalar( $data, 'status' );
+                    if ( ! in_array( $requested_status, array( 'draft', 'publish' ), true ) ) {
+                        return self::forbidden( 'Choose Draft or Published.' );
+                    }
+                    if ( 'publish' === $requested_status && ( empty( array_filter( (array) ( $data['tc_game'] ?? array() ) ) ) || empty( array_filter( (array) ( $data['tc_device'] ?? array() ) ) ) ) ) {
+                        return self::forbidden( 'Choose a Game and Device before publishing your new configuration.' );
+                    }
                     $draft_data = $data;
                     $draft_data['status'] = 'draft';
                     $created = self::save( 0, $draft_data );
