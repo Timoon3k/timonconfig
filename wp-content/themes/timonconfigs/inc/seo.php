@@ -11,7 +11,7 @@ function timonconfigs_external_seo_active(): bool {
 /** @return array<string,array{title:string,description:string}> */
 function timonconfigs_seo_page_defaults(): array {
 	return array(
-		'home' => array( 'title' => 'TimonConfigs — Cronus Zen & XIM Matrix Configs', 'description' => 'Explore TimonConfigs game configurations for Cronus Zen and XIM Matrix, Apex Legends demonstrations, setup guidance, and Free or VIP membership options.' ),
+		'home' => array( 'title' => 'XIM Matrix & Cronus Zen Configs for Apex Legends | TimonConfigs', 'description' => 'Explore Apex Legends configs for XIM Matrix and Cronus Zen. Compare controller and MnK compatibility, release guides, gameplay videos, and Free or VIP access.' ),
 		'games' => array( 'title' => 'Game Config Collections & Roadmap | TimonConfigs', 'description' => 'Explore Apex Legends and the TimonConfigs game roadmap. Check each collection for released configurations, supported devices, input methods, and availability.' ),
 		'pricing' => array( 'title' => 'Free, VIP Monthly & Lifetime Pricing | TimonConfigs', 'description' => 'Compare Free access, VIP Monthly at €40 per month, and VIP Lifetime at €100 one time. Review renewal, license terms, and the official Upgrade.chat checkout.' ),
 		'vip-monthly' => array( 'title' => 'TimonConfigs VIP Monthly — €40 per Month', 'description' => 'VIP Monthly offers premium config access, covered updates while subscribed, private Discord channels, and VIP support. Review recurring billing and cancellation.' ),

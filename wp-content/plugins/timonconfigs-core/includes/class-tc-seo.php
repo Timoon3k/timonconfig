@@ -17,13 +17,16 @@ final class TC_SEO {
 			add_action( 'edited_' . $taxonomy, array( __CLASS__, 'save_term' ) );
 		}
 		add_filter( 'wp_robots', array( __CLASS__, 'robots' ), 99 );
+		add_filter( 'wp_sitemaps_enabled', static fn( bool $enabled ): bool => self::temporary_host() ? false : $enabled );
+		add_filter( 'robots_txt', array( __CLASS__, 'robots_text' ), 100 );
+		add_action( 'send_headers', array( __CLASS__, 'temporary_headers' ) );
 		add_filter( 'wp_sitemaps_posts_query_args', array( __CLASS__, 'sitemap_posts_query' ), 10, 2 );
 		add_filter( 'wp_sitemaps_taxonomies_query_args', array( __CLASS__, 'sitemap_terms_query' ), 10, 2 );
 		add_filter( 'wpseo_sitemap_entry', array( __CLASS__, 'sitemap_entry' ), 10, 3 );
 		add_filter( 'rank_math/sitemap/entry', array( __CLASS__, 'sitemap_entry' ), 10, 3 );
-		add_filter( 'wpseo_robots_array', array( __CLASS__, 'provider_robots' ) );
-		add_filter( 'rank_math/frontend/robots', array( __CLASS__, 'provider_robots' ) );
-		add_filter( 'aioseo_robots_meta', array( __CLASS__, 'aioseo_robots' ) );
+		add_filter( 'wpseo_robots_array', array( __CLASS__, 'provider_robots' ), 99 );
+		add_filter( 'rank_math/frontend/robots', array( __CLASS__, 'provider_robots' ), 99 );
+		add_filter( 'aioseo_robots_meta', array( __CLASS__, 'aioseo_robots' ), 99 );
 	}
 
 	public static function register_metadata(): void {
@@ -117,8 +120,27 @@ final class TC_SEO {
 		return false;
 	}
 
+	/** Keep the hosting preview hostname out of search without changing site URLs or canonical ownership. */
+	public static function temporary_host(): bool {
+		$home_host = wp_parse_url( home_url( '/' ), PHP_URL_HOST );
+		$request_host = $_SERVER['HTTP_HOST'] ?? '';
+		foreach ( array( $home_host, $request_host ) as $host ) {
+			if ( is_string( $host ) && 1 === preg_match( '/^(?:[a-z0-9-]+\.)+hostingersite\.com(?::[0-9]{1,5})?$/iD', $host ) ) { return true; }
+		}
+		return false;
+	}
+
+	public static function temporary_headers(): void {
+		if ( self::temporary_host() && ! headers_sent() ) { header( 'X-Robots-Tag: noindex, noarchive', true ); }
+	}
+
+	public static function robots_text( string $output ): string {
+		// Do not disallow crawling: crawlers must be able to see the noindex directive.
+		return self::temporary_host() ? (string) preg_replace( '/^\s*Sitemap:[^\r\n]*(?:\r?\n|$)/mi', '', $output ) : $output;
+	}
+
 	public static function should_noindex(): bool {
-		if ( is_404() || is_search() || is_preview() ) { return true; }
+		if ( self::temporary_host() || is_404() || is_search() || is_preview() ) { return true; }
 		if ( is_post_type_archive( 'tc_config' ) || is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) {
 			foreach ( array( 'config_search', 'game', 'device', 'tier', 'input', 'platform', 'sort' ) as $key ) {
 				if ( isset( $_GET[ $key ] ) && ( ! is_scalar( $_GET[ $key ] ) || '' !== (string) $_GET[ $key ] ) ) { return true; }
@@ -163,6 +185,6 @@ final class TC_SEO {
 	}
 
 	public static function sitemap_entry( mixed $entry, mixed $type, mixed $object ): mixed {
-		return ( $object instanceof WP_Post || $object instanceof WP_Term ) && self::object_noindex( $object ) ? false : $entry;
+		return self::temporary_host() || ( ( $object instanceof WP_Post || $object instanceof WP_Term ) && self::object_noindex( $object ) ) ? false : $entry;
 	}
 }

@@ -2,6 +2,13 @@
 
 Last updated: 2026-10-24
 
+## Home, search intent and preview-domain SEO
+
+- Domyślne H1/title/copy i CTA kierują do rzeczywistych kolekcji XIM Matrix/Cronus Zen dla Apex/CoD. Rozwinięto istniejące kolekcje o sekcje urządzeń i praktyczną orientację zamiast mnożyć cienkie strony. Zachowano nadpisania Gutenberga/Customizera i provider-aware SEO.
+- Końcowe CTA ma jednolite ciemne tło bez obrazu i pseudo-overlay; FAQ zachowuje krajobraz. Edytor nie proponuje już obrazu dla tego konkretnego CTA. Odnośniki tematyczne i mobile wrapping zweryfikowano.
+- `*.hostingersite.com` ma noindex w nagłówku i obsługiwanych providerach oraz wyłączone reklamowanie sitemap. Nie zmieniono DNS, home/siteurl ani przekierowań produkcyjnych. Realne aliasy/cache i Search Console nadal wymagają weryfikacji hostingu.
+- Testy: 21 Home/SEO, 20 tymczasowej domeny, 9 rzeczywistych widoków Home/Apex/CoD przy 390/768/1440. Wszystkie zaliczone. Binarne referencje A–E nie są w repo; zaimplementowano ich opisane wymagania, bez deklaracji porównania pikselowego. Handoff: `docs/SEARCH_INTENT_HANDOFF_2026-10-24.md`.
+
 ## Frontend Owner editor, catalog and protected Guide/Values
 
 - Dodano frontend Manage Configs dla zweryfikowanego Ownera: tworzenie/edycja/publikacja/Trash, taksonomie i metadane, Guide/Values, bezpieczne obrazy podglądu oraz wieloplikowy magazyn prywatny z wersjami, kolejnością, potwierdzeniem zmian i audytem. Osobne capabilities CPT są przyznawane Subscriberowi wyłącznie w autoryzowanej operacji; wp-admin pozostaje fallbackiem administratora. Wcześniejsza walidacja zapobiega częściowej publikacji po błędnych Guide/Values.

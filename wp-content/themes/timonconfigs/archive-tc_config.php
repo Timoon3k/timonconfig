@@ -50,6 +50,7 @@ $selected_sort = is_callable( array( 'TC_Catalog', 'selected_sort' ) ) ? TC_Cata
 			</div>
 		</div>
 	</section>
+	<?php if ( $is_game ) { get_template_part( 'template-parts/collection-intent' ); } ?>
 	<section class="tc-section tc-section--topless">
 		<div class="tc-shell">
 			<form class="tc-catalog-filter" action="<?php echo esc_url( $form_url ); ?>" method="get" role="search">

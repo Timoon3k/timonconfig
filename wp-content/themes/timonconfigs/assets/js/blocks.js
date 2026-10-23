@@ -26,7 +26,6 @@
         controls.push(el(TextControl, { key: 'primaryLabel', label: 'Primary button label', value: attributes.primaryLabel || '', onChange: primaryLabel => setAttributes({ primaryLabel }) }));
         controls.push(el(TextControl, { key: 'primaryUrl', label: 'Primary button destination', type: 'url', value: attributes.primaryUrl || '', onChange: primaryUrl => setAttributes({ primaryUrl }) }));
       }
-      if (section === 'cta') controls.push(el(TextControl, { key: 'image', label: 'Background image URL', type: 'url', value: attributes.image || '', onChange: image => setAttributes({ image }) }));
       if (section === 'hero') {
         controls.push(el(TextControl, { key: 'eyebrow', label: 'Eyebrow', value: attributes.eyebrow || '', onChange: eyebrow => setAttributes({ eyebrow }) }));
         controls.push(el(TextControl, { key: 'tagline', label: 'Tagline', value: attributes.tagline || '', onChange: tagline => setAttributes({ tagline }) }));

@@ -1,0 +1,19 @@
+# Search intent and reference A/B changes
+
+The existing game routes `/apex-legends-configs/` and `/call-of-duty-configs/`, plus `/xim-matrix-configs/` and `/cronus-zen-configs/`, already own the relevant collection canonicals. This update enriches the two game collections with device-specific setup orientation and anchors, and links Home to them. Device-filtered catalogue variants remain discovery URLs rather than competing indexable landing pages.
+
+No `/xim-matrix-apex-legends/` or three similar thin pages were created. Distinct landing pages can be justified later by owner-supplied, verified firmware/Manager or Zen Studio requirements, actual published releases, independent setup instructions, dated release history, correctly labeled first-party demonstrations and specific FAQ. None of those facts were fabricated. Draft or empty collections keep their existing noindex/sitemap protections; editorial guidance alone does not mark scripts released.
+
+Home fallback metadata now targets `XIM Matrix & Cronus Zen Configs for Apex Legends | TimonConfigs`. Default H1/copy and a dedicated editable Apex CTA follow the same intent. Existing authored Gutenberg headings/buttons and saved Customizer copy remain authoritative. The dedicated Apex button settings avoid changing the header/final sales CTA. Two supporting Home H2 cards add useful context and internal links. If a saved Home heading still uses earlier copy, review it deliberately in Gutenberg/Customizer instead of overwriting authored content programmatically.
+
+The fallback continues to yield title, canonical, social tags and schema to an active supported SEO provider. If AIOSEO or another supported plugin owns metadata, enter the desired production title/description there; the theme must not emit duplicates. No ranking guarantee or special Google FAQ/review outcome is promised.
+
+Reference A: only the final `Join the TimonConfigs Community` CTA receives a solid near-black surface. Its image node, old image control and pseudo-element backgrounds are removed. FAQ keeps the landscape. References A–E are described in the requested markdown files; `docs/reference-images/` contains no binary screenshots at this checkpoint, so exact pixel matching to those additional files is not asserted. Local rendered screenshots from the targeted browser checks are saved under ignored `artifacts/home-solid-cta-{390,768,1440}.png`.
+
+## Owner production checks, without automatic deployment
+
+- Confirm `timonconfigs.com` is the canonical HTTPS installation. Configure the Hostinger temporary hostname to redirect or prevent its indexing as appropriate after verifying actual hosting/domain routing. This task did not mutate DNS, site URLs, canonical-host redirects or the production database.
+- In Search Console, verify the canonical domain property and submit the active provider's actual sitemap URL (WordPress `/wp-sitemap.xml` only when WordPress owns it). Inspect Home and the released Apex/CoD collections; do not force indexing of empty/noindex collections or member pages.
+- Record a baseline before publication: 28-day Search Console clicks, impressions, CTR and average position for the four game/device query groups, plus the currently indexed canonical page for each. Values are **not collected in this environment**, so no metrics are invented. Compare an equivalent 28-day window after Google has recrawled the changed pages; search outcomes cannot be guaranteed.
+- Measure the deployed Home and two collections on mobile, retaining actual LCP/CLS/INP or available lab proxies and test conditions. Local responsive checks are not field Core Web Vitals evidence.
+- Prioritize verified XIM Matrix Apex release documentation, then XIM Matrix Call of Duty, Cronus Zen Apex and Cronus Zen Call of Duty. Publish independently useful facts before introducing new intent URLs or changing existing canonicals.

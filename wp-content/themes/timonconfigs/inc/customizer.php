@@ -21,9 +21,11 @@ add_action(
 
 		$fields = array(
 			'hero_eyebrow' => array( 'label' => __( 'Hero eyebrow', 'timonconfigs' ), 'default' => 'PRECISION × CONSISTENCY × REAL SETUPS' ),
-			'hero_title'   => array( 'label' => __( 'Hero title', 'timonconfigs' ), 'default' => 'Elite Configs for Serious Players' ),
+			'hero_title'   => array( 'label' => __( 'Hero title', 'timonconfigs' ), 'default' => 'XIM Matrix & Cronus Zen Configs for Apex Legends' ),
 			'hero_tagline' => array( 'label' => __( 'Hero tagline', 'timonconfigs' ), 'default' => 'Play Smarter. Hit Different.' ),
-			'hero_copy'    => array( 'label' => __( 'Hero description', 'timonconfigs' ), 'default' => 'Professional configs for Cronus Zen and XIM Matrix. Find the right setup, explore real gameplay, and join the TimonConfigs community.' ),
+			'hero_copy'    => array( 'label' => __( 'Hero description', 'timonconfigs' ), 'default' => 'Explore Apex Legends configurations for XIM Matrix and Cronus Zen, including controller and mouse & keyboard setups. Check release-specific compatibility, setup guidance, and Free or VIP access.' ),
+			'apex_cta' => array( 'label' => __( 'Hero Apex button label', 'timonconfigs' ), 'default' => 'Explore XIM Matrix Apex Configs' ),
+			'apex_cta_url' => array( 'label' => __( 'Hero Apex destination', 'timonconfigs' ), 'default' => home_url( '/apex-legends-configs/#xim-matrix' ), 'url' => true ),
 			'hero_cta'     => array( 'label' => __( 'Hero primary button label', 'timonconfigs' ), 'default' => 'Get Started' ),
 			'hero_cta_url' => array( 'label' => __( 'Primary CTA destination', 'timonconfigs' ), 'default' => home_url( '/pricing/' ), 'url' => true ),
 			'trust_access' => array( 'label' => __( 'Hero benefit 1', 'timonconfigs' ), 'default' => 'Instant Access' ),
@@ -66,8 +68,6 @@ add_action(
 			'label' => __( 'Hero background artwork', 'timonconfigs' ),
 			'section' => 'timonconfigs_home',
 		) ) );
-		$manager->add_setting( 'timonconfigs_cta_image', array( 'default' => '', 'sanitize_callback' => 'esc_url_raw' ) );
-		$manager->add_control( new WP_Customize_Image_Control( $manager, 'timonconfigs_cta_image', array( 'label' => __( 'Final CTA background artwork', 'timonconfigs' ), 'section' => 'timonconfigs_home' ) ) );
 		$manager->add_setting( 'timonconfigs_member_hero_image', array( 'default' => '', 'sanitize_callback' => 'esc_url_raw' ) );
 		$manager->add_control( new WP_Customize_Image_Control( $manager, 'timonconfigs_member_hero_image', array( 'label' => __( 'Member profile background artwork', 'timonconfigs' ), 'section' => 'timonconfigs_home' ) ) );
 
