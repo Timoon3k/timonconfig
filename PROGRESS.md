@@ -2,6 +2,13 @@
 
 Last updated: 2026-10-23
 
+## OAuth callback diagnostics — Core 0.7.3
+
+- Właściciel zgłosił ogólny błąd callbacku po consent mimo poprawnego pilot User ID. Bez zdalnego dostępu przyczyna nie jest ustalona; nie przypisano jej brakowi bota ani nie osłabiono kontroli OAuth.
+- Dodano administrator-only panel Last Discord sign-in failure w ustawieniach. Ostatnia nieudana próba callbacku zapisuje na maksymalnie 24 godziny wyłącznie czas UTC, etap, allowlistowany powód i status HTTP. Nie zapisuje treści odpowiedzi, URL, code/state, tokenów, sekretów ani tożsamości użytkownika. Komunikat publiczny pozostaje ogólny.
+- Rozróżniono token/identity/binding, transport, błędy HTTP, invalid_client/invalid_grant, malformed_response, scope_mismatch, pilot_denied i konflikt konta. Zachowano ograniczenia pilota, rolę Upgrade.chat i istniejące dane konfiguracyjne.
+- Lokalne testy: OAuth 93 asercje (11 nowych diagnostyki i braku wycieku), pobieranie 59 — zaliczone z symulowanym Discordem. PHP lint i diff check poprawne. ZIP zgodny bajtowo ze źródłami; świeża instalacja WordPress 6.8.3/PHP 8.2 zaliczyła 68 asercji. Następny krok właściciela: aktualizacja Core, świeża próba logowania, odczyt Stage/Reason/HTTP w panelu. Faktyczny błąd hostingu wymaga tego wyniku.
+
 ## Restricted Discord pilot — Core 0.7.2
 
 - Na prośbę właściciela, który uzupełnił poświadczenia i chce rozpocząć testy na głównej stronie, dodano oddzielny tryb pilotażowy. Nie wymaga fałszywego potwierdzenia stagingu. OAuth nadal domyślnie OFF; wdrożenie/konfiguracja produkcyjna nie zostały wykonane.

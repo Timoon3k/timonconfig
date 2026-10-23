@@ -24,3 +24,18 @@ The sign-in entry point remains reachable publicly: an unlisted person may see D
 No payments, role writes, callback URI conventions, token storage or private-file format policies were changed. Up to 60 seconds of Discord role-cache freshness still applies to listed users. The allowlist itself is checked on every authorization call.
 
 Local verification: 82 OAuth assertions (including 22 new pilot/settings checks), 59 download assertions and 37 member UI assertions passed with mocked Discord HTTP. A real provider login and the actual hosting cache/HTTPS configuration still require owner testing. No production settings were changed by this implementation.
+
+## Callback troubleshooting — Core 0.7.3
+
+Update the plugin, attempt a new login from `/account/` in a private window, then open Settings → Discord membership in the administrator window. Report only the **Stage / Reason / HTTP** from **Last Discord sign-in failure**, confirming the timestamp matches your attempt. It stores only the latest failure, expires after 24 hours and may be overwritten by another attempt. It does not diagnose prior attempts retroactively.
+
+- `token / invalid_client`: check the client ID and OAuth client secret belong to the same application (not a bot token).
+- `token / invalid_grant`: begin a fresh flow; verify the exact callback and PKCE setting. Do not reuse callback URLs.
+- `transport`: the WordPress server could not complete its HTTP request; investigate outbound connectivity/TLS without sharing raw credential-bearing logs.
+- `identity / http`: identity lookup was rejected; report the HTTP status.
+- `binding / pilot_denied`: authenticated Discord identity is not on the configured pilot list.
+- `binding / account_conflict`: sign out of WordPress in the test window; if it persists, an administrator must inspect the existing identity binding. Do not delete user accounts or bindings blindly.
+- `binding / account_create_failed`: WordPress account creation failed; investigate the local user creation/plugin policy.
+- `token / malformed_response` or `scope_mismatch`: the provider response does not satisfy the expected token contract. Do not weaken validation before inspecting the cause.
+
+These are diagnostic leads, not proof of a specific hosting fault. The module uses user OAuth and does not require a bot installation for these endpoints. Never share the callback query containing code/state, client secrets or token values.

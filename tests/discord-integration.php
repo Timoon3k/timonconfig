@@ -3,6 +3,7 @@
 defined( 'ABSPATH' ) || exit;
 if ( ! defined( 'WP_CLI' ) || ! WP_CLI || ! in_array( wp_parse_url( home_url(), PHP_URL_HOST ), array( 'localhost', '127.0.0.1' ), true ) ) { throw new RuntimeException( 'Disposable localhost WordPress required.' ); }
 if ( ! class_exists( 'TC_Discord' ) ) { require WP_PLUGIN_DIR . '/timonconfigs-core/includes/class-tc-discord.php'; }
+$old_failure = get_transient( 'tc_discord_last_failure' );
 $checks = 0;
 $assert = static function ( bool $ok, string $message ) use ( &$checks ) { if ( ! $ok ) { throw new RuntimeException( $message ); } ++$checks; };
 $call = static function ( string $method, ...$args ) { $m = new ReflectionMethod( TC_Discord::class, $method ); $m->setAccessible( true ); return $m->invoke( null, ...$args ); };
@@ -12,6 +13,8 @@ $roles = array(); $mode = 'ok'; $requests = array(); $id = '900000000000000001';
 $http = static function ( $pre, $args, $url ) use ( &$roles, &$mode, &$requests, $id ) {
     $requests[] = array( $url, $args );
     if ( ! str_starts_with( $url, 'https://discord.com/api/v10/users/' ) && ! in_array( $url, array( 'https://discord.com/api/oauth2/token', 'https://discord.com/api/oauth2/token/revoke' ), true ) ) { throw new RuntimeException( 'Unexpected outbound request blocked.' ); }
+    if ( 'invalid-client' === $mode ) { return array( 'response' => array( 'code' => 401 ), 'body' => wp_json_encode( array( 'error' => 'invalid_client', 'error_description' => 'SECRET-MUST-NOT-LEAK' ) ), 'headers' => array() ); }
+    if ( 'unknown-error' === $mode ) { return array( 'response' => array( 'code' => 400 ), 'body' => wp_json_encode( array( 'error' => 'SECRET-MUST-NOT-LEAK' ) ), 'headers' => array() ); }
     if ( 'error' === $mode ) { return new WP_Error( 'fake', 'Never expose upstream details' ); }
     if ( str_ends_with( $url, '/oauth2/token' ) ) { $body = array( 'access_token' => 'fake-access-new', 'refresh_token' => 'fake-refresh-new', 'token_type' => 'Bearer', 'scope' => 'identify guilds.members.read', 'expires_in' => 3600 ); if ( 'scope-array' === $mode ) { $body['scope'] = array( 'identify' ); } if ( 'expiry-negative' === $mode ) { $body['expires_in'] = -1; } }
     else { $body = array( 'user' => array( 'id' => 'wrong-user' === $mode ? '900000000000000099' : $id ), 'roles' => $roles ); if ( 'wrong-guild' === $mode ) { $body['guild_id'] = '900000000000000099'; } }
@@ -25,6 +28,18 @@ try {
     update_option( 'timonconfigs_discord', $settings, false );
     $assert( TC_Discord::is_ready(), 'Explicit fake configured staging is ready.' );
     foreach ( array( 'scope-array', 'expiry-negative' ) as $bad_response ) { $mode = $bad_response; $assert( is_wp_error( $call( 'token_request', array( 'grant_type' => 'authorization_code', 'code' => 'synthetic' ) ) ), 'Malformed provider response fails closed without PHP diagnostics: ' . $mode ); }
+    foreach ( array( 'invalid-client' => 'invalid_client', 'unknown-error' => 'http', 'error' => 'transport', 'scope-array' => 'malformed_response' ) as $diagnostic_mode => $reason ) {
+        $mode = $diagnostic_mode;
+        $failure = $call( 'token_request', array( 'grant_type' => 'authorization_code', 'code' => 'synthetic' ) );
+        $assert( is_wp_error( $failure ) && $failure->get_error_data()['stage'] === 'token' && $failure->get_error_data()['reason'] === $reason, 'Token diagnostics preserve safe stage/reason: ' . $mode );
+        $call( 'record_failure', $failure );
+        $stored = get_transient( 'tc_discord_last_failure' );
+        $assert( array_keys( $stored ) === array( 'time', 'stage', 'reason', 'http' ) && ! str_contains( wp_json_encode( $stored ), 'SECRET' ), 'Stored diagnostics contain only safe fields.' );
+    }
+    $call( 'record_failure', new WP_Error( 'external', 'SECRET', array( 'stage' => 'SECRET', 'reason' => 'SECRET', 'http' => 999, 'token' => 'SECRET' ) ) );
+    $assert( 'unavailable' === get_transient( 'tc_discord_last_failure' )['reason'] && 0 === get_transient( 'tc_discord_last_failure' )['http'], 'Unknown diagnostic input is not persisted.' );
+    ob_start(); TC_Discord::settings_page(); $anon_html = ob_get_clean();
+    $assert( '' === $anon_html, 'Diagnostics are not rendered for anonymous users.' );
     $mode = 'ok';
     $cipher = $call( 'encrypt', 'secret-test' );
     $assert( ! str_contains( $cipher, 'secret-test' ) && 'secret-test' === $call( 'decrypt', $cipher ), 'Authenticated encryption round-trip.' );
@@ -98,6 +113,8 @@ try {
     $assert( TC_Discord::is_ready() === in_array( wp_get_environment_type(), array( 'local', 'development', 'staging' ), true ), 'Unconfirmed OAuth is restricted to explicitly configured test environments.' );
     $admins = get_users( array( 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ) );
     wp_set_current_user( (int) $admins[0] );
+    ob_start(); TC_Discord::settings_page(); $admin_html = ob_get_clean();
+    $assert( str_contains( $admin_html, 'Last Discord sign-in failure' ) && ! str_contains( $admin_html, 'SECRET' ), 'Administrator sees redacted diagnostic panel.' );
     $saved = TC_Discord::sanitize_settings( array_merge( $settings, array( 'pilot_enabled' => 1, 'pilot_ids' => $id . ', ' . $id ) ) );
     $assert( 1 === $saved['pilot_enabled'] && $id === $saved['pilot_ids'], 'Admin can save a normalized pilot list.' );
     $assert( $settings['secret_encrypted'] === $saved['secret_encrypted'], 'Pilot configuration preserves the existing encrypted secret.' );
@@ -139,6 +156,7 @@ try {
     $assert( ! TC_Discord::is_ready() && TC_Discord::login_url() === home_url( '/account/' ), 'Disabled mode has no OAuth handoff.' );
     WP_CLI::success( "Discord integration: $checks assertions; fake HTTP only, no real Discord verification." );
 } finally {
+    false === $old_failure ? delete_transient( 'tc_discord_last_failure' ) : set_transient( 'tc_discord_last_failure', $old_failure, DAY_IN_SECONDS );
     remove_filter( 'pre_http_request', $http, 10 ); remove_filter( 'option_home', $https );
     foreach ( $posts as $post ) { wp_delete_post( $post, true ); }
     require_once ABSPATH . 'wp-admin/includes/user.php';

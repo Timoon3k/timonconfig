@@ -1,4 +1,4 @@
-# Installation and update — theme 0.9.0 / Core 0.7.2
+# Installation and update — theme 0.9.0 / Core 0.7.3
 
 ## Environment requirements
 
@@ -37,3 +37,5 @@ ZNBK and XIMMR require explicit approval from the existing file inspector even w
 ## Core 0.7.2 — restricted Discord pilot
 
 Optional administrator-configured Discord identity allowlist permits controlled HTTPS testing without claiming completed staging tests. Existing credentials are preserved. See [pilot instructions](DISCORD_PILOT_0.7.2.md) before enabling; public production access retains the staging-confirmation gate.
+
+Core 0.7.3 adds administrator-only, redacted callback failure diagnostics. Existing credentials and pilot settings are preserved. See the troubleshooting section in `DISCORD_PILOT_0.7.2.md`.

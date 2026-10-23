@@ -62,6 +62,10 @@ final class TC_Discord {
     public static function settings_page(): void {
         if ( ! current_user_can( 'manage_options' ) ) { return; }
         $s = self::settings();
+        $failure = get_transient( 'tc_discord_last_failure' );
+        if ( is_array( $failure ) ) {
+            echo '<div class="notice notice-warning"><p><strong>Last Discord sign-in failure (UTC)</strong>: ' . esc_html( (string) ( $failure['time'] ?? '' ) ) . ' — Stage: ' . esc_html( (string) ( $failure['stage'] ?? '' ) ) . '; Reason: ' . esc_html( (string) ( $failure['reason'] ?? '' ) ) . '; HTTP: ' . esc_html( (string) ( $failure['http'] ?? 0 ) ) . '</p><p>Only the most recent failed sign-in is shown, for up to 24 hours. HTTP 0 means no HTTP status was recorded. No credentials or provider response bodies are stored.</p></div>';
+        }
         echo '<div class="wrap"><h1>Discord membership</h1><p>Disabled until configured. Public production access requires confirmed real staging account tests. Alternatively, enable the restricted pilot for up to 10 specified Discord user IDs; this does not confirm staging tests or grant VIP roles. Set WP_ENVIRONMENT_TYPE to staging on an isolated HTTPS staging site to run those tests before production confirmation. Scope: identify guilds.members.read. No role writes. Free accepts all verified plans; Monthly accepts Monthly or Lifetime; Lifetime accepts Lifetime only. Role cache expires after 60 seconds; API errors deny access.</p><p>Register this exact callback: <code>' . esc_html( home_url( '/?tc_discord_callback=1' ) ) . '</code></p><form method="post" action="options.php">';
         settings_fields( 'tc_discord' );
         foreach ( array( 'enabled' => 'Enable OAuth', 'pilot_enabled' => 'Restricted pilot: only the listed Discord users may sign in and access member files', 'staging_confirmed' => 'I confirmed IDs, policy and real account tests on isolated staging', 'pkce' => 'Send PKCE S256 (enable only after Discord application support is verified; not live verified by this code)' ) as $k => $label ) { echo '<p><label><input type="checkbox" name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="1" ' . checked( ! empty( $s[ $k ] ), true, false ) . '> ' . esc_html( $label ) . '</label></p>'; }
@@ -86,7 +90,19 @@ final class TC_Discord {
     public static function login_url(): string { return self::is_ready() ? home_url( '/?tc_discord_start=1' ) : home_url( '/account/' ); }
     public static function logout_url(): string { return add_query_arg( '_wpnonce', wp_create_nonce( 'tc_discord_logout' ), home_url( '/?tc_discord_logout=1' ) ); }
     public static function refresh_url(): string { return add_query_arg( '_wpnonce', wp_create_nonce( 'tc_discord_refresh' ), home_url( '/?tc_discord_refresh=1' ) ); }
-    private static function error(): WP_Error { return new WP_Error( 'tc_discord_unavailable', 'Discord verification is unavailable. Please reconnect or try again shortly.' ); }
+    private static function error( string $stage = 'verification', string $reason = 'unavailable', int $http = 0 ): WP_Error { return new WP_Error( 'tc_discord_unavailable', 'Discord verification is unavailable. Please reconnect or try again shortly.', array( 'stage' => $stage, 'reason' => $reason, 'http' => $http ) ); }
+    /** Store only our enumerated diagnostics, never provider bodies, URLs or credentials. */
+    private static function record_failure( WP_Error $error ): void {
+        $data = $error->get_error_data();
+        $stages = array( 'token', 'identity', 'membership', 'binding', 'verification' );
+        $reasons = array( 'transport', 'http', 'invalid_client', 'invalid_grant', 'invalid_request', 'unauthorized_client', 'invalid_scope', 'malformed_response', 'scope_mismatch', 'pilot_denied', 'identity_invalid', 'account_conflict', 'account_create_failed', 'unavailable' );
+        set_transient( 'tc_discord_last_failure', array(
+            'time' => gmdate( 'Y-m-d H:i:s' ),
+            'stage' => in_array( $data['stage'] ?? '', $stages, true ) ? $data['stage'] : 'verification',
+            'reason' => in_array( $data['reason'] ?? '', $reasons, true ) ? $data['reason'] : 'unavailable',
+            'http' => is_int( $data['http'] ?? null ) && $data['http'] >= 100 && $data['http'] <= 599 ? $data['http'] : 0,
+        ), DAY_IN_SECONDS );
+    }
     private static function cookie( string $value, int $expires ): void { setcookie( self::COOKIE, $value, array( 'expires' => $expires, 'path' => '/', 'secure' => true, 'httponly' => true, 'samesite' => 'Lax' ) ); }
     /** Atomic single-use database claim; object-cache stale reads cannot replay state. */
     private static function consume( string $key, mixed $expected = null ): mixed {
@@ -121,30 +137,38 @@ final class TC_Discord {
         if ( $token ) { $args['headers']['Authorization'] = 'Bearer ' . $token; }
         $endpoint = str_starts_with( $path, '/oauth2/' ) ? 'https://discord.com/api' . $path : self::API . $path;
         $r = wp_remote_request( $endpoint, $args );
-        if ( is_wp_error( $r ) || 200 !== wp_remote_retrieve_response_code( $r ) ) { return self::error(); }
+        $stage = '/oauth2/token' === $path ? 'token' : ( '/users/@me' === $path ? 'identity' : 'membership' );
+        if ( is_wp_error( $r ) ) { return self::error( $stage, 'transport' ); }
+        $http = (int) wp_remote_retrieve_response_code( $r );
         $data = json_decode( wp_remote_retrieve_body( $r ), true );
-        return is_array( $data ) ? $data : self::error();
+        if ( 200 !== $http ) {
+            $reason = is_array( $data ) && in_array( $data['error'] ?? '', array( 'invalid_client', 'invalid_grant', 'invalid_request', 'unauthorized_client', 'invalid_scope' ), true ) ? $data['error'] : 'http';
+            return self::error( $stage, $reason, $http );
+        }
+        return is_array( $data ) ? $data : self::error( $stage, 'malformed_response', $http );
     }
     private static function token_request( array $params ): array|WP_Error {
         $s = self::settings();
         $r = self::request( '/oauth2/token', array_merge( array( 'client_id' => $s['client_id'], 'client_secret' => $s['client_secret'] ), $params ) );
-        if ( is_wp_error( $r ) || ! is_string( $r['access_token'] ?? null ) || '' === $r['access_token'] || ! is_string( $r['refresh_token'] ?? null ) || '' === $r['refresh_token'] || ! is_int( $r['expires_in'] ?? null ) || $r['expires_in'] <= 0 || ! is_string( $r['scope'] ?? null ) || 'Bearer' !== ( $r['token_type'] ?? '' ) ) { return self::error(); }
+        if ( is_wp_error( $r ) ) { return $r; }
+        if ( ! is_string( $r['access_token'] ?? null ) || '' === $r['access_token'] || ! is_string( $r['refresh_token'] ?? null ) || '' === $r['refresh_token'] || ! is_int( $r['expires_in'] ?? null ) || $r['expires_in'] <= 0 || ! is_string( $r['scope'] ?? null ) || 'Bearer' !== ( $r['token_type'] ?? '' ) ) { return self::error( 'token', 'malformed_response', 200 ); }
         $scopes = explode( ' ', $r['scope'] ?? '' );
-        if ( array_diff( array( 'identify', 'guilds.members.read' ), $scopes ) || array_diff( $scopes, array( 'identify', 'guilds.members.read' ) ) ) { return self::error(); }
+        if ( array_diff( array( 'identify', 'guilds.members.read' ), $scopes ) || array_diff( $scopes, array( 'identify', 'guilds.members.read' ) ) ) { return self::error( 'token', 'scope_mismatch', 200 ); }
         return array( 'access_token' => $r['access_token'], 'refresh_token' => $r['refresh_token'], 'expires' => time() + min( 604800, absint( $r['expires_in'] ) ) );
     }
     /** Never links by email or username; binding options and WP login are unique. */
     private static function bind( array $identity ): int|WP_Error {
         $id = $identity['id'] ?? '';
-        if ( ! self::identity_allowed( $id ) ) { return self::error(); }
+        if ( ! self::snowflake( $id ) ) { return self::error( 'identity', 'identity_invalid' ); }
+        if ( ! self::identity_allowed( $id ) ) { return self::error( 'binding', 'pilot_denied' ); }
         $key = '_tc_discord_binding_' . $id;
         $bound = (int) get_option( $key, 0 ); $current = get_current_user_id();
-        if ( $bound ) { return get_userdata( $bound ) && ( ! $current || $current === $bound ) && $id === get_user_meta( $bound, '_tc_discord_id', true ) ? $bound : self::error(); }
+        if ( $bound ) { return get_userdata( $bound ) && ( ! $current || $current === $bound ) && $id === get_user_meta( $bound, '_tc_discord_id', true ) ? $bound : self::error( 'binding', 'account_conflict' ); }
         // Existing WordPress accounts require a separate administrative migration; no implicit attachment.
-        if ( $current || ! add_option( $key, -1, '', false ) ) { return self::error(); }
+        if ( $current || ! add_option( $key, -1, '', false ) ) { return self::error( 'binding', 'account_conflict' ); }
         // Keep the Discord snowflake out of potentially public WordPress author slugs.
         $uid = wp_insert_user( array( 'user_login' => 'tc_member_' . bin2hex( random_bytes( 12 ) ), 'user_pass' => wp_generate_password( 64, true, true ), 'display_name' => sanitize_text_field( $identity['global_name'] ?? $identity['username'] ?? 'Discord member' ), 'role' => 'subscriber' ) );
-        if ( is_wp_error( $uid ) ) { delete_option( $key ); return self::error(); }
+        if ( is_wp_error( $uid ) ) { delete_option( $key ); return self::error( 'binding', 'account_create_failed' ); }
         update_user_meta( $uid, '_tc_discord_id', $id ); update_option( $key, $uid, false );
         return $uid;
     }
@@ -169,7 +193,7 @@ final class TC_Discord {
         $tokens = self::token_request( $params );
         $identity = is_wp_error( $tokens ) ? $tokens : self::request( '/users/@me', null, $tokens['access_token'] );
         $uid = is_wp_error( $identity ) ? $identity : self::bind( $identity );
-        if ( is_wp_error( $uid ) ) { wp_die( self::error()->get_error_message(), '', array( 'response' => 403 ) ); }
+        if ( is_wp_error( $uid ) ) { self::record_failure( $uid ); wp_die( self::error()->get_error_message(), '', array( 'response' => 403 ) ); }
         update_user_meta( $uid, self::TOKEN, self::encrypt( wp_json_encode( $tokens ) ) ); delete_user_meta( $uid, self::CACHE );
         $name = sanitize_text_field( $identity['global_name'] ?? $identity['username'] ?? 'Discord member' );
         update_user_meta( $uid, '_tc_discord_name', $name );
