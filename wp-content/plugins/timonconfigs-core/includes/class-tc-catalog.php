@@ -33,6 +33,8 @@ final class TC_Catalog {
 		add_action( 'init', array( __CLASS__, 'register_content_types' ) );
 		add_action( 'init', array( __CLASS__, 'register_landing_rewrites' ) );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_meta_box' ) );
+		add_filter( 'manage_tc_config_posts_columns', array( __CLASS__, 'admin_columns' ) );
+		add_action( 'manage_tc_config_posts_custom_column', array( __CLASS__, 'admin_column' ), 10, 2 );
 		add_action( 'save_post_' . self::POST_TYPE, array( __CLASS__, 'save_meta' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'filter_archive' ) );
 		add_filter( 'posts_clauses', array( __CLASS__, 'download_order_clauses' ), 10, 2 );
@@ -329,6 +331,39 @@ final class TC_Catalog {
 			$details['message'] = 'Compare memberships for access covered by this release.';
 		}
 		return $details;
+	}
+
+	/** Explain why a published config does or does not appear in the public collections. */
+	public static function admin_columns( array $columns ): array {
+		$columns['tc_release'] = __( 'Release', 'timonconfigs-core' );
+		$columns['tc_catalog_visibility'] = __( 'Catalog visibility', 'timonconfigs-core' );
+		return $columns;
+	}
+
+	public static function admin_column( string $column, int $post_id ): void {
+		if ( 'tc_release' !== $column && 'tc_catalog_visibility' !== $column ) { return; }
+		$release = (string) get_post_meta( $post_id, 'tc_release_status', true );
+		if ( 'tc_release' === $column ) {
+			echo esc_html( array( 'available' => 'Available', 'coming-soon' => 'Coming soon', 'archived' => 'Archived' )[ $release ] ?? 'Legacy / unspecified' );
+			return;
+		}
+		$status = get_post_status( $post_id );
+		if ( 'publish' !== $status ) {
+			echo esc_html__( 'Not published — hidden', 'timonconfigs-core' );
+		} elseif ( 'archived' === $release ) {
+			echo esc_html__( 'Archived — hidden', 'timonconfigs-core' );
+		} elseif ( 'coming-soon' === $release ) {
+			echo esc_html__( 'Visible preview — downloads disabled', 'timonconfigs-core' );
+		} else {
+			echo esc_html__( 'Visible in all configs', 'timonconfigs-core' );
+		}
+		if ( 'publish' === $status && 'archived' !== $release ) {
+			$games = get_the_terms( $post_id, 'tc_game' );
+			$devices = get_the_terms( $post_id, 'tc_device' );
+			if ( ! $games || is_wp_error( $games ) || ! $devices || is_wp_error( $devices ) ) {
+				echo '<br><em>' . esc_html__( 'Assign a Game and Device for filtered collections.', 'timonconfigs-core' ) . '</em>';
+			}
+		}
 	}
 
 	public static function add_meta_box(): void {
