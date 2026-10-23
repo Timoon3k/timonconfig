@@ -391,6 +391,19 @@ final class TC_Catalog {
 		update_term_meta( $term_id, 'tc_collection_image', self::sanitize_public_url( wp_unslash( $_POST['tc_collection_image'] ) ) );
 	}
 
+	/**
+	 * Public catalogue includes published Coming soon cards, but never archived releases.
+	 * This is a visibility check, NOT a download entitlement check. The protected
+	 * delivery path still requires tc_release_status=available and a verified role.
+	 */
+	public static function catalog_visible_meta_query(): array {
+		return array(
+			'relation' => 'OR',
+			array( 'key' => 'tc_release_status', 'compare' => 'NOT EXISTS' ),
+			array( 'key' => 'tc_release_status', 'value' => array( '', 'available', 'coming-soon' ), 'compare' => 'IN' ),
+		);
+	}
+
 	/** A left join retains new releases with no recorded deliveries; option names are unique. */
 	public static function download_order_clauses( array $clauses, WP_Query $query ): array {
 		if ( ! $query->get( '_tc_download_order' ) || is_admin() || ! $query->is_main_query() || ( ! $query->is_post_type_archive( self::POST_TYPE ) && ! $query->is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) ) { return $clauses; }
@@ -418,7 +431,7 @@ final class TC_Catalog {
 			if ( '' !== $slug ) { $tax_query[] = array( 'taxonomy' => $taxonomy, 'field' => 'slug', 'terms' => $slug ); }
 		}
 		if ( $tax_query ) { $tax_query['relation'] = 'AND'; $query->set( 'tax_query', $tax_query ); }
-		$meta_query = array( 'relation' => 'AND', self::released_meta_query() );
+		$meta_query = array( 'relation' => 'AND', self::catalog_visible_meta_query() );
 		$existing_meta = $query->get( 'meta_query' );
 		if ( is_array( $existing_meta ) && $existing_meta ) { $meta_query[] = $existing_meta; }
 		$tier = self::sanitize_tier( self::request_value( 'tier' ) );
