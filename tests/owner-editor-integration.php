@@ -70,13 +70,13 @@ try {
     $expect( $created === $result && 'publish' === get_post_status( $created ) && 'Owner-edited release' === get_the_title( $created ), 'Owner can edit and publish the existing config.' );
     $expect( ! str_contains( get_post_field( 'post_content', $created ), '<script' ), 'Unsafe description markup is removed.' );
     $expect( 'game' === get_post_meta( $created, '_tc_card_art', true ), 'Shared game artwork is the default for new Owner cards.' );
-    $seed(); $broken = $data( 'save', $created ); $broken['tc_game'] = array();
+    $seed(); $broken = $data( 'save', $created ); $broken['status'] = 'publish'; $broken['tc_game'] = array();
     $expect( is_wp_error( TC_Owner_Editor::perform( $broken ) ), 'Published config without a game is rejected with a clear message.' );
-    $seed(); $broken = $data( 'save', $created ); $broken['tc_device'] = array();
+    $seed(); $broken = $data( 'save', $created ); $broken['status'] = 'publish'; $broken['tc_device'] = array();
     $expect( is_wp_error( TC_Owner_Editor::perform( $broken ) ), 'Published config without a device is rejected.' );
-    $seed(); $custom = $data( 'save', $created ); $custom['card_art'] = 'custom';
+    $seed(); $custom = $data( 'save', $created ); $custom['status'] = 'publish'; $custom['card_art'] = 'custom';
     $expect( $created === TC_Owner_Editor::perform( $custom ) && 'custom' === get_post_meta( $created, '_tc_card_art', true ), 'Owner can opt into a custom cover.' );
-    $seed(); $shared = $data( 'save', $created ); $shared['card_art'] = 'game';
+    $seed(); $shared = $data( 'save', $created ); $shared['status'] = 'publish'; $shared['card_art'] = 'game';
     $expect( $created === TC_Owner_Editor::perform( $shared ) && 'game' === get_post_meta( $created, '_tc_card_art', true ), 'Owner can restore the common game cover.' );
     $expect( false === TC_Discord::can_access( $created ), 'Owner privilege does not grant VIP file entitlement.' );
     $rest = new WP_REST_Request( 'POST', '/wp/v2/tc_config' ); $rest->set_param( 'title', 'Forbidden REST config' );
