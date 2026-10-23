@@ -24,3 +24,7 @@ Logout: lokalne rzeczywiste HTTP logout/reload i replay starego cookie zaliczone
 ## Nowe wymagania właściciela — zrzuty 1–6 i SEO (2026-10-23)
 
 Przed kolejnym etapem **przeczytaj `docs/CODEX_NEXT_FEATURES_AND_SEO_2026-10-23.md` i 6 załączonych w rozmowie Codex obrazów**. Dokument opisuje dodatkowe wymagania: role Staff/Owner, wyłącznie Owner jako autor frontendowego katalogu, filtry/karty, sortowanie wg realnych pobrań, modale Guide/Values, usunięcie pobrań z dashboardu OAuth, komunikat VIP dla Free, korektę końcowego CTA i SEO z priorytetem „xim matrix apex legends”. Zachowaj działający OAuth, prywatne pliki, pilot i płatności; bez wdrożenia produkcyjnego bez zgody. Nie wklejaj zdjęć/base64 ani megabajtów logów do odpowiedzi narzędzi.
+
+## Zrzuty A–E — uzupełnienie do kolejnego etapu (2026-10-24)
+
+Przeczytaj `docs/CODEX_VISUAL_REFERENCES_2026-10-24.md` wraz z `docs/CODEX_NEXT_FEATURES_AND_SEO_2026-10-23.md`. Pięć nowych obrazów opisuje: A—FAQ/CTA bez tła tylko w dolnym CTA, B—aktualny Home/SEO, C—karty Call of Duty i modale Guides/Values, D—wielokartowy Apex katalog, E—dashboard OAuth bez My Downloads/Recent downloads. Dokumentacja nie oznacza jeszcze ukończonej implementacji ani rzeczywistego umieszczenia binarnych obrazów w repozytorium.
