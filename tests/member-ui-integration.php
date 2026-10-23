@@ -50,13 +50,14 @@ try {
 		$html = TC_Member_Area::render();
 		$assert( str_contains( $html, 'data-state="' . $state . '"' ) && str_contains( $html, $label ), 'Dashboard matches real server-derived state: ' . $state );
 		$assert( str_contains( $html, esc_html( $name ) ) && ! str_contains( $html, '<script>' ), 'Owner name is escaped: ' . $state );
-		$assert( 4 === substr_count( $html, 'class="tc-member-quick__card"' ), 'Four working actions: ' . $state );
+		$assert( 3 === substr_count( $html, 'class="tc-member-quick__card"' ), 'Three contextual profile actions: ' . $state );
 		$assert( str_contains( $html, 'tc-member-avatar--placeholder' ), 'Missing avatar has a stable fallback: ' . $state );
 		$assert( ! str_contains( $html, 'synthetic-access' ) && ! str_contains( $html, 'PRIVATE upstream error' ), 'No credentials/provider diagnostics in markup: ' . $state );
 		$assert( ! str_contains( $html, 'tc_download=' ) && ! str_contains( $html, '/var/lib/' ), 'Dashboard has no download grants or storage paths: ' . $state );
 		if ( in_array( $state, array( 'unverified', 'unavailable' ), true ) ) {
 			$assert( str_contains( $html, 'Reconnect Discord' ) && ! str_contains( $html, 'Current membership' ) && ! str_contains( $html, 'Current license' ), 'Unverified/failed state has reconnect and no VIP claim.' );
 		}
+		$assert( ! str_contains( $html, 'My Downloads' ) && ! str_contains( $html, 'Recent downloads' ) && ! str_contains( $html, 'Manage Configs' ), 'Member dashboard has no download listings or unapproved Owner tools.' );
 		$fixtures[ $state ] = $html;
 	}
 	wp_set_current_user( 0 );

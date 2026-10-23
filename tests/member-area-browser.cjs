@@ -79,10 +79,10 @@ const directory = path.resolve(__dirname, '../artifacts');
           assert.equal(await owner.locator('.tc-member-identity').count(), 1);
           assert.equal(await owner.locator('.tc-member-login__card').count(), 0);
           const isDownloads = route.startsWith('/my-downloads/');
-          assert.equal(await owner.locator('.tc-member-quick__card').count(), isDownloads ? 0 : 4);
+          assert.equal(await owner.locator('.tc-member-quick__card').count(), isDownloads ? 0 : 3);
           if (!isDownloads) {
             const destinations = await owner.locator('.tc-member-quick__card').evaluateAll(links => links.map(link => new URL(link.href).pathname + new URL(link.href).hash));
-            assert.deepEqual(destinations, ['/configs/', '/my-downloads/', '/account/#tc-member-profile', '/contact/']);
+            assert.deepEqual(destinations, ['/configs/', '/account/#tc-member-profile', '/contact/']);
           }
           assert.equal(await owner.locator('.tc-member-plan').count(), 3);
           assert.equal(await owner.getByRole('link', { name: 'Logout', exact: true }).count(), 1);
@@ -93,7 +93,7 @@ const directory = path.resolve(__dirname, '../artifacts');
           const schemas = await owner.locator('script[type="application/ld+json"]').allTextContents();
           assert.equal(/discord_id|Last Checked|tc-member-state/.test(schemas.join('\n')), false, 'Owner-specific membership details are absent from schema');
           if (!isDownloads) {
-            await owner.locator('.tc-member-quick__card').nth(2).click();
+            await owner.locator('.tc-member-quick__card').nth(1).click();
             assert.equal(new URL(owner.url()).hash, '#tc-member-profile');
           }
           report.ownerChecks.push({ route, width, status: 200, state: 'unverified', ownerOnly: true });

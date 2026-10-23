@@ -2,6 +2,13 @@
 
 Last updated: 2026-10-24
 
+## Frontend Owner editor, catalog and protected Guide/Values
+
+- Dodano frontend Manage Configs dla zweryfikowanego Ownera: tworzenie/edycja/publikacja/Trash, taksonomie i metadane, Guide/Values, bezpieczne obrazy podglądu oraz wieloplikowy magazyn prywatny z wersjami, kolejnością, potwierdzeniem zmian i audytem. Osobne capabilities CPT są przyznawane Subscriberowi wyłącznie w autoryzowanej operacji; wp-admin pozostaje fallbackiem administratora. Wcześniejsza walidacja zapobiega częściowej publikacji po błędnych Guide/Values.
+- Dashboard nie zawiera My Downloads ani Recent downloads; stary adres pozostaje prywatnym widokiem z odsyłaczem do konfiguracji. Zachowano dane historii, podpisane pobieranie i kontrolę tierów. Staff/Owner mają osobne odznaki i nie uzyskują automatycznie VIP.
+- Karty zachowują filtry i układ 3/2/1. Dodano atomowy licznik zakończonych dostaw oraz sortowanie Downloads, bez fikcyjnego uzupełniania historii. Chronione Guide/Values są pobierane dopiero po autoryzacji; osobne poziomy widoczności, rewizje, natywny dialog, kopiowanie i klawiatura.
+- Nowe testy: Owner 211 asercji, treści 47, agregacja 16, dashboard 42. Przeglądarka: 27 kontroli treści, 18 stanów panelu i 18 realnych operacji Ownera przez lokalny TLS (Discord API mock; tymczasowe konta/MU plugin/proxy usunięte). Zrzuty w ignorowanych artifacts. Test nie zastępuje rzeczywistego OAuth/hostingu. Wszystkie wymienione kontrole zaliczone; bez produkcji.
+
 ## Owner/Staff policy and file formats — first feature checkpoint
 
 - Kontynuacja `main` po nowych dokumentach (baseline `c32fefd`), gałąź `feature/owner-catalog-guides-seo`. Użytkownik potwierdził poprawny Free Member po ponownym logowaniu; to oczekiwane zachowanie, nie błąd wylogowania.

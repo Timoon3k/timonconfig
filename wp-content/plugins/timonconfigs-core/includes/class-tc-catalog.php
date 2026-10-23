@@ -35,6 +35,7 @@ final class TC_Catalog {
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_meta_box' ) );
 		add_action( 'save_post_' . self::POST_TYPE, array( __CLASS__, 'save_meta' ) );
 		add_action( 'pre_get_posts', array( __CLASS__, 'filter_archive' ) );
+		add_filter( 'posts_clauses', array( __CLASS__, 'download_order_clauses' ), 10, 2 );
 		add_action( 'template_redirect', array( __CLASS__, 'private_member_cache' ), 1 );
 		add_filter( 'term_link', array( __CLASS__, 'filter_core_term_links' ), 10, 3 );
 		foreach ( array( 'tc_game', 'tc_device' ) as $taxonomy ) {
@@ -125,6 +126,7 @@ final class TC_Catalog {
 		register_post_type( self::POST_TYPE, array(
 			'labels' => array( 'name' => __( 'Configs', 'timonconfigs-core' ), 'singular_name' => __( 'Config', 'timonconfigs-core' ), 'add_new_item' => __( 'Add new config', 'timonconfigs-core' ), 'edit_item' => __( 'Edit config', 'timonconfigs-core' ) ),
 			'public' => true, 'show_in_rest' => true, 'has_archive' => 'configs',
+			'capability_type' => array( 'tc_config', 'tc_configs' ), 'map_meta_cap' => true,
 			'rewrite' => array( 'slug' => 'config', 'with_front' => false ), 'menu_icon' => 'dashicons-admin-generic',
 			'supports' => array( 'title', 'editor', 'excerpt', 'thumbnail', 'revisions', 'custom-fields' ),
 		) );
@@ -266,7 +268,7 @@ final class TC_Catalog {
 
 	/** Stable sort keys; raw request values never reach an SQL clause. */
 	public static function sort_options(): array {
-		return array( 'updated' => 'Recently updated', 'newest' => 'Newest uploads', 'title' => 'Title: A–Z' );
+		return array( 'updated' => 'Recently updated', 'newest' => 'Upload Date', 'title' => 'A–Z', 'downloads' => 'Downloads' );
 	}
 
 	public static function selected_sort(): string {
@@ -389,12 +391,22 @@ final class TC_Catalog {
 		update_term_meta( $term_id, 'tc_collection_image', self::sanitize_public_url( wp_unslash( $_POST['tc_collection_image'] ) ) );
 	}
 
+	/** A left join retains new releases with no recorded deliveries; option names are unique. */
+	public static function download_order_clauses( array $clauses, WP_Query $query ): array {
+		if ( ! $query->get( '_tc_download_order' ) || is_admin() || ! $query->is_main_query() || ( ! $query->is_post_type_archive( self::POST_TYPE ) && ! $query->is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) ) { return $clauses; }
+		global $wpdb;
+		$clauses['join'] .= " LEFT JOIN {$wpdb->options} AS tc_delivery_counts ON tc_delivery_counts.option_name = CONCAT('_tc_delivery_count_', {$wpdb->posts}.ID)";
+		$clauses['orderby'] = "CAST(COALESCE(tc_delivery_counts.option_value, '0') AS UNSIGNED) DESC, {$wpdb->posts}.post_date DESC, {$wpdb->posts}.ID DESC";
+		return $clauses;
+	}
+
 	public static function filter_archive( WP_Query $query ): void {
 		if ( is_admin() || ! $query->is_main_query() || ( ! $query->is_post_type_archive( self::POST_TYPE ) && ! $query->is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) ) { return; }
 		$query->set( 'post_type', self::POST_TYPE );
 		$query->set( 'posts_per_page', 12 );
 		$sort = self::selected_sort();
-		$column = array( 'newest' => 'date', 'updated' => 'modified', 'title' => 'title' )[ $sort ];
+		$column = array( 'newest' => 'date', 'updated' => 'modified', 'title' => 'title', 'downloads' => 'date' )[ $sort ];
+		$query->set( '_tc_download_order', 'downloads' === $sort );
 		$direction = 'title' === $sort ? 'ASC' : 'DESC';
 		$query->set( 'orderby', array( $column => $direction, 'ID' => $direction ) );
 		$query->set( 'order', $direction );

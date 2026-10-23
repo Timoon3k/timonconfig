@@ -6,6 +6,7 @@ final class TC_Downloads {
 	private const TTL = 60;
 	private const CLAIM_PREFIX = '_tc_download_claim_';
 	private const RECENT_META = '_tc_recent_downloads';
+	private const COUNT_PREFIX = '_tc_delivery_count_';
 
 	public static function init(): void {
 		add_action( 'admin_post_tc_request_download', array( __CLASS__, 'request' ) );
@@ -13,6 +14,7 @@ final class TC_Downloads {
 		add_action( 'template_redirect', array( __CLASS__, 'deliver' ), 0 );
 		add_action( 'init', array( __CLASS__, 'protect_cache' ), 0 );
 		add_action( 'tc_download_cleanup', array( __CLASS__, 'cleanup' ) );
+		add_action( 'deleted_post', static function ( int $id ): void { delete_option( self::COUNT_PREFIX . $id ); } );
 	}
 
 	public static function protect_cache(): void {
@@ -139,9 +141,27 @@ final class TC_Downloads {
 	}
 
 	private static function record( int $user_id, int $config_id, string $name ): void {
+		self::increment_count( $config_id );
 		$recent = self::recent( $user_id, 49 );
 		array_unshift( $recent, array( 'config_id' => $config_id, 'title' => get_the_title( $config_id ), 'file_name' => $name, 'downloaded_at' => time() ) );
 		update_user_meta( $user_id, self::RECENT_META, $recent );
+	}
+
+	/** Aggregate completed server deliveries only; no identity, IP or retroactive estimate. */
+	private static function increment_count( int $config_id ): void {
+		if ( 'tc_config' !== get_post_type( $config_id ) ) { return; }
+		global $wpdb;
+		$key = self::COUNT_PREFIX . $config_id;
+		// option_name is unique in WordPress, so concurrent first/increment requests are atomic.
+		$wpdb->query( $wpdb->prepare( "INSERT INTO {$wpdb->options} (option_name, option_value, autoload) VALUES (%s, '1', 'no') ON DUPLICATE KEY UPDATE option_value = LEAST(CAST(option_value AS UNSIGNED), 2147483646) + 1", $key ) );
+		wp_cache_delete( $key, 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
+		wp_cache_set_posts_last_changed(); // Invalidate cached catalogue queries sorted by this aggregate.
+	}
+
+	public static function count( int $config_id ): int {
+		if ( 'tc_config' !== get_post_type( $config_id ) || 'publish' !== get_post_status( $config_id ) ) { return 0; }
+		return min( 2147483647, max( 0, (int) get_option( self::COUNT_PREFIX . $config_id, 0 ) ) );
 	}
 
 	public static function recent( int $user_id, int $limit = 10 ): array {

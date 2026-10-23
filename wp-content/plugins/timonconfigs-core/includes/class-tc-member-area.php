@@ -113,7 +113,7 @@ final class TC_Member_Area {
 		<nav class="tc-member-nav" aria-label="Member navigation">
 			<a href="<?php echo esc_url( self::account_url() ); ?>" <?php if ( ! $downloads ) : ?>aria-current="page"<?php endif; ?>>Dashboard</a>
 			<a href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">Configs</a>
-			<a href="<?php echo esc_url( home_url( '/my-downloads/' ) ); ?>" <?php if ( $downloads ) : ?>aria-current="page"<?php endif; ?>>My Downloads</a>
+			<?php if ( class_exists( 'TC_Owner_Editor' ) && true === TC_Discord::can_manage_configs( 0, false ) ) : ?><a href="<?php echo esc_url( TC_Owner_Editor::url() ); ?>">Manage Configs</a><?php endif; ?>
 			<a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Browse Memberships</a>
 			<a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Support</a>
 			<?php if ( is_user_logged_in() && class_exists( 'TC_Discord' ) && is_callable( array( 'TC_Discord', 'logout_url' ) ) ) : ?><a href="<?php echo esc_url( TC_Discord::logout_url() ); ?>">Logout</a><?php endif; ?>
@@ -153,10 +153,10 @@ final class TC_Member_Area {
 	private static function quick_actions(): void {
 		$actions = array(
 			array( 'gamepad', 'View Configs', 'Find your next setup by game and device.', home_url( '/configs/' ) ),
-			array( 'download', 'My Downloads', 'Open the releases available to your membership.', home_url( '/my-downloads/' ) ),
 			array( 'users', 'Your Profile', 'Check your Discord connection and access.', self::account_url() . '#tc-member-profile' ),
 			array( 'discord', 'Support', 'Get help with your setup or membership.', home_url( '/contact/' ) ),
 		);
+		if ( class_exists( 'TC_Owner_Editor' ) && true === TC_Discord::can_manage_configs( 0, false ) ) { $actions[] = array( 'settings', 'Manage Configs', 'Create and manage configuration releases.', TC_Owner_Editor::url() ); }
 		?>
 		<section class="tc-member-quick" aria-labelledby="tc-member-quick-heading">
 			<div class="tc-member-section-heading"><h2 id="tc-member-quick-heading">Quick actions</h2></div>
@@ -168,6 +168,7 @@ final class TC_Member_Area {
 	}
 
 	public static function render( bool $downloads = false ): string {
+		if ( isset( $_GET['tc_manage_configs'] ) && class_exists( 'TC_Owner_Editor' ) ) { return TC_Owner_Editor::render(); }
 		// Public/editor REST content never receives owner details from shortcode rendering.
 		if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) { return '<p><a href="' . esc_url( self::account_url() ) . '">Open your private member area</a> to view account information.</p>'; }
 		ob_start();
@@ -180,13 +181,13 @@ final class TC_Member_Area {
 				<?php self::navigation( $downloads ); ?>
 				<section id="tc-member-profile" class="tc-member-profile" aria-labelledby="tc-profile-heading" tabindex="-1">
 					<?php if ( $art ) : ?><img class="tc-member-profile__art" src="<?php echo esc_url( $art ); ?>" alt="" width="1200" height="420" decoding="async"><?php endif; ?>
-					<div class="tc-member-identity"><?php if ( ! empty( $status['avatar'] ) ) : ?><img class="tc-member-avatar" src="<?php echo esc_url( $status['avatar'], array( 'https' ) ); ?>" alt="" width="80" height="80" referrerpolicy="no-referrer"><?php else : ?><span class="tc-member-avatar tc-member-avatar--placeholder" aria-hidden="true"><?php echo esc_html( strtoupper( function_exists( 'mb_substr' ) ? mb_substr( $name, 0, 1 ) : substr( $name, 0, 1 ) ) ); ?></span><?php endif; ?><div><p class="tc-eyebrow">WELCOME BACK</p><h2 id="tc-profile-heading"><?php echo esc_html( $name ); ?></h2><p class="tc-member-profile__intro">Your home for configs, updates and member access.</p><span class="tc-member-state" data-state="<?php echo esc_attr( $state ); ?>"><?php echo self::icon( in_array( $state, array( 'free', 'monthly', 'lifetime' ), true ) ? 'shield' : 'users' ); ?><?php echo esc_html( $labels[ $state ] ?? 'Verification required' ); ?></span></div></div>
+					<div class="tc-member-identity"><?php if ( ! empty( $status['avatar'] ) ) : ?><img class="tc-member-avatar" src="<?php echo esc_url( $status['avatar'], array( 'https' ) ); ?>" alt="" width="80" height="80" referrerpolicy="no-referrer"><?php else : ?><span class="tc-member-avatar tc-member-avatar--placeholder" aria-hidden="true"><?php echo esc_html( strtoupper( function_exists( 'mb_substr' ) ? mb_substr( $name, 0, 1 ) : substr( $name, 0, 1 ) ) ); ?></span><?php endif; ?><div><p class="tc-eyebrow">WELCOME BACK</p><h2 id="tc-profile-heading"><?php echo esc_html( $name ); ?></h2><p class="tc-member-profile__intro">Your home for configs, updates and member access.</p><span class="tc-member-state" data-state="<?php echo esc_attr( $state ); ?>"><?php echo self::icon( in_array( $state, array( 'free', 'monthly', 'lifetime' ), true ) ? 'shield' : 'users' ); ?><?php echo esc_html( $labels[ $state ] ?? 'Verification required' ); ?></span><?php if ( ! empty( $status['badges'] ) ) : ?><div class="tc-member-badges"><?php foreach ( $status['badges'] as $key => $label ) : ?><?php if ( ! in_array( $key, array( 'free', 'monthly', 'lifetime' ), true ) ) : ?><span class="tc-member-state" data-state="<?php echo esc_attr( $key ); ?>"><?php echo esc_html( $label ); ?></span><?php endif; ?><?php endforeach; ?></div><?php endif; ?></div></div>
 					<dl class="tc-member-details"><?php if ( ! empty( $status['discord_id'] ) ) : ?><div><dt>Discord User ID</dt><dd><?php echo esc_html( (string) $status['discord_id'] ); ?></dd></div><?php endif; ?><div><dt>Last Checked</dt><dd><?php echo ! empty( $status['checked_at'] ) ? esc_html( wp_date( 'j M Y, H:i T', (int) $status['checked_at'] ) ) : 'Not checked yet'; ?></dd></div><div><dt>Access verification</dt><dd><?php echo in_array( $state, array( 'free', 'monthly', 'lifetime' ), true ) ? 'Verified with Discord' : 'Required before protected downloads'; ?></dd></div></dl>
 					<div class="tc-actions"><?php if ( self::ready() ) : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( TC_Discord::refresh_url() ); ?>">Refresh Roles</a><?php if ( empty( $status['discord_id'] ) || in_array( $state, array( 'unverified', 'unavailable' ), true ) ) : ?><a class="tc-button" href="<?php echo esc_url( TC_Discord::login_url() ); ?>"><?php echo empty( $status['discord_id'] ) ? 'Continue with Discord' : 'Reconnect Discord'; ?></a><?php endif; ?><?php endif; ?><a class="tc-text-link" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Browse Memberships</a></div>
 					<?php if ( ! empty( $status['error'] ) || 'unavailable' === $state ) : ?><p class="tc-member-message" role="status"><?php echo esc_html( ! empty( $status['error'] ) ? (string) $status['error'] : 'Membership verification is temporarily unavailable. Protected files remain locked. Please try again shortly.' ); ?></p><?php elseif ( 'unverified' === $state ) : ?><p class="tc-member-note"><?php if ( ! self::ready() ) { echo 'Discord sign-in is not available yet. '; } ?>Complete verification in the TimonConfigs Discord server using the existing verification flow. Access is checked again before a protected file is served.</p><?php endif; ?>
 				</section>
 				<?php if ( ! $downloads ) { self::quick_actions(); } ?>
-				<?php if ( $downloads ) { self::library( $state ); } else { self::recent(); } ?>
+				<?php if ( $downloads ) : ?><p class="tc-member-note">Downloads are available on each <a href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">configuration page</a>. Your download history remains private.</p><?php endif; ?>
 				<?php self::memberships( $state ); ?>
 				<section class="tc-member-management"><div class="tc-member-section-heading"><h2>Membership management</h2></div><p>Manage an existing subscription in the Upgrade.chat account used for your purchase. Cancellation and billing stay with Upgrade.chat and its payment providers. For a missing role or account mismatch, contact support.</p><div class="tc-actions"><a class="tc-button tc-button--ghost" href="https://upgrade.chat/" rel="noopener noreferrer">Open Upgrade.chat</a><a class="tc-text-link" href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Get membership support</a></div></section>
 			<?php endif; ?>

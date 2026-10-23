@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.9.0' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.10.0' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 require_once get_template_directory() . '/inc/seo.php';
@@ -42,11 +42,12 @@ add_action(
 	static function (): void {
 		wp_enqueue_style( 'timonconfigs', get_template_directory_uri() . '/assets/css/main.css', array(), TIMONCONFIGS_THEME_VERSION );
 		wp_enqueue_style( 'timonconfigs-premium', get_template_directory_uri() . '/assets/css/premium.css', array( 'timonconfigs' ), TIMONCONFIGS_THEME_VERSION );
-		foreach ( array( 'catalog', 'media', 'member' ) as $stylesheet ) {
+		foreach ( array( 'catalog', 'media', 'member', 'config-content', 'owner-editor' ) as $stylesheet ) {
 			if ( file_exists( get_template_directory() . '/assets/css/' . $stylesheet . '.css' ) ) {
 				wp_enqueue_style( 'timonconfigs-' . $stylesheet, get_template_directory_uri() . '/assets/css/' . $stylesheet . '.css', array( 'timonconfigs-premium' ), TIMONCONFIGS_THEME_VERSION );
 			}
 		}
+		wp_enqueue_script( 'timonconfigs-config-content', get_template_directory_uri() . '/assets/js/config-content.js', array(), TIMONCONFIGS_THEME_VERSION, true );
 		wp_enqueue_script( 'timonconfigs', get_template_directory_uri() . '/assets/js/main.js', array(), TIMONCONFIGS_THEME_VERSION, true );
 	}
 );
