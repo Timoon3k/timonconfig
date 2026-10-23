@@ -101,6 +101,29 @@ const directory = path.resolve(__dirname, '../artifacts');
           await owner.screenshot({ path: path.join(directory, `member-${isDownloads ? 'downloads' : 'profile'}-owner-${width}.png`), fullPage: true });
         }
       }
+      // Exercise the real logout route and prove server-side session invalidation.
+      const oldCookies = await owner.context().cookies();
+      assert.ok(oldCookies.some(cookie => cookie.name.startsWith('wordpress_logged_in_')));
+      await Promise.all([
+        owner.waitForURL(url => url.pathname === '/account/' && !url.search),
+        owner.getByRole('link', { name: 'Logout', exact: true }).click(),
+      ]);
+      await owner.waitForLoadState('networkidle');
+      assert.equal(await owner.locator('.tc-member-login__card').count(), 1, 'Logout returns the guest sign-in card');
+      assert.equal(await owner.locator('.tc-member-identity').count(), 0, 'Logout removes the member profile');
+      assert.equal(await owner.context().cookies().then(cookies => cookies.some(cookie => cookie.name.startsWith('wordpress_logged_in_'))), false, 'Login cookie is cleared');
+      const afterLogout = await owner.reload({ waitUntil: 'networkidle' });
+      assert.match(afterLogout.headers()['cache-control'] || '', /no-store/);
+      assert.equal(await owner.locator('.tc-member-login__card').count(), 1, 'Reload stays signed out');
+      const replayContext = await browser.newContext();
+      try {
+        await replayContext.addCookies(oldCookies);
+        const replay = await replayContext.newPage();
+        await replay.goto(new URL('/account/', baseURL).href, { waitUntil: 'networkidle' });
+        assert.equal(await replay.locator('.tc-member-login__card').count(), 1, 'Previously valid session cookie is rejected after logout');
+        assert.equal(await replay.locator('.tc-member-identity').count(), 0, 'Replayed cookie cannot restore the profile');
+      } finally { await replayContext.close(); }
+      report.logoutChecks = { guestAfterLogout: true, guestAfterReload: true, cookieCleared: true, replayRejected: true };
       await owner.close();
     }
     assert.deepEqual(report.errors, []);

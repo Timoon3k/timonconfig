@@ -2,6 +2,11 @@
 
 Last updated: 2026-10-23
 
+## Logout regression verification
+
+- Po zgłoszeniu „po wylogowaniu dalej Free Member” poproszono o rozróżnienie widoku bez ponownego logowania od prawidłowego przywrócenia statusu po nowym logowaniu. Wynik z hostingu pozostaje nieustalony; nie założono automatycznie błędu sesji ani LiteSpeed.
+- Rozszerzono rzeczywisty test przeglądarkowy o kliknięcie Logout, powrót do karty gościa, usunięcie cookie, odświeżenie oraz próbę użycia poprzedniego cookie w nowym kontekście. Wszystkie 8 asercji przeszło, podobnie dotychczasowe 6 widoków gościa, 6 właściciela i 4 szerokości nagłówka. Test używa lokalnego konta WordPress, nie prawdziwego Discorda ani LiteSpeed. Kod runtime i wersja Core 0.7.3 bez zmian.
+
 ## OAuth callback diagnostics — Core 0.7.3
 
 - Właściciel zgłosił ogólny błąd callbacku po consent mimo poprawnego pilot User ID. Bez zdalnego dostępu przyczyna nie jest ustalona; nie przypisano jej brakowi bota ani nie osłabiono kontroli OAuth.
