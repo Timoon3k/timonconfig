@@ -1,0 +1,27 @@
+name: WordPress PHP lint
+on:
+  pull_request:
+    paths:
+      - 'wp-content/**/*.php'
+      - 'tests/**/*.php'
+      - '.github/workflows/php-lint.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: PHP version
+        run: php --version
+      - name: Lint WordPress theme, plugin and PHP tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          find wp-content/themes/timonconfigs wp-content/plugins/timonconfigs-core tests -type f -name '*.php' -print0 |
+            xargs -0 -r -n1 php -l
+      - name: Check whitespace errors
+        run: git diff --check HEAD~1 HEAD
