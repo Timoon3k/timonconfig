@@ -1,5 +1,13 @@
 # TimonConfigs project progress
 
+## Config catalog visibility + Owner workflow (2026-10-24; PR #2 Draft)
+
+- Identified source-level issue: Public catalogue excluded posts with WordPress `publish` and `tc_release_status=coming-soon`. New `catalog_visible_meta_query()` includes these as non-downloadable public preview cards but continues to hide Archived; released-only/SEO and `TC_Downloads` authorization remain protected.
+- Owner interface simplified: single Game and Device selectors (required for new publishing), expanded published/coming/archived diagnostics and relevant links, per-game cover as default with explicit per-config custom override, optional first private upload during initial creation. New uploads are staged as drafts and published only after validated storage. Existing admin editor remains a fallback.
+- Added Configs admin list diagnostics, CSS, updated catalogue and Owner regression-test source and new PHP-lint workflow. No production database/files/user roles/billing or Hostinger settings were changed.
+- GitHub Actions PR #2 workflow `php-lint` run `40041566716` completed successfully (PHP syntax + whitespace check). **WordPress integration/browser tests on disposable staging and actual Hostinger access remain unverified**, as does the live availability of any owner-created configuration.
+- Handoff: `docs/CONFIG_CATALOG_VISIBILITY_AND_OWNER_WORKFLOW.md`, `NEXT_SESSION.md`. PR is a Draft and must not be merged or deployed without review and further tests.
+
 Last updated: 2026-10-24
 
 ## Publication to GitHub main — owner authorized
