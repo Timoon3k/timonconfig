@@ -232,8 +232,23 @@ final class TC_Private_Files {
 		$mime = ( new finfo( FILEINFO_MIME_TYPE ) )->buffer( $content );
 		if ( ! is_string( $mime ) ) { return $bad( 'File type inspection is unavailable. Please retry.' ); }
 		$inspection_text = self::inspection_text( $content, $extension, $mime );
-		if ( is_wp_error( $inspection_text ) ) { return $inspection_text; }
-		$text = 1 === preg_match( '//u', $inspection_text ) && ! preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $inspection_text );
+		if ( is_wp_error( $inspection_text ) ) {
+			// Not every Windows GPC source maps to CP1252: genuine legacy comments
+			// can contain undefined codepage bytes. Check the original textual bytes
+			// without transcoding and preserve the actual file on disk.
+			$legacy_without_bom = ! str_starts_with( $content, "\xef\xbb\xbf" )
+				&& ! str_starts_with( $content, "\xff\xfe" )
+				&& ! str_starts_with( $content, "\xfe\xff" );
+			if ( 'gpc' !== $extension || ! $legacy_without_bom || ! str_starts_with( $mime, 'text/' )
+				|| str_contains( $content, "\x00" ) ) { return $inspection_text; }
+			$inspection_text = $content;
+		}
+		$strict_text = 1 === preg_match( '//u', $inspection_text ) && ! preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $inspection_text );
+		// GPC is downloaded as a private attachment and is never executed by PHP.
+		// Accept genuine text/plain source with benign legacy control/codepage
+		// characters (e.g. VT, FF, ESC), without weakening TXT/JSON checks.
+		$gpc_legacy_text = 'gpc' === $extension && 'text/plain' === $mime && ! str_contains( $inspection_text, "\x00" );
+		$text = $strict_text || $gpc_legacy_text;
 		$zip_znbk = 'znbk' === $extension && str_starts_with( $content, "PK\x03\x04" );
 		if ( $zip_znbk ) {
 			$validated = self::inspect_znbk_zip( $path );
@@ -243,7 +258,7 @@ final class TC_Private_Files {
 			$signatures = array( "PK\x03\x04", "PK\x05\x06", "PK\x07\x08", "Rar!\x1a\x07", "7z\xbc\xaf\x27\x1c", "\x1f\x8b", 'BZh', "\xfd7zXZ\x00", 'MZ', "\x7fELF", "\xcf\xfa\xed\xfe", "\xfe\xed\xfa\xcf", '#!' );
 			foreach ( $signatures as $signature ) {
 				// The two printable letters MZ alone are not an executable header in genuine source text.
-				if ( 'MZ' === $signature && in_array( $extension, array( 'txt', 'gpc', 'cfg', 'ini' ), true ) && $text ) { continue; }
+				if ( 'MZ' === $signature && in_array( $extension, array( 'txt', 'gpc', 'cfg', 'ini' ), true ) && $strict_text ) { continue; }
 				if ( str_starts_with( $content, $signature ) ) { return $bad( 'txt' === $extension ? 'This TXT contains archive, executable or shell data. Export actual configuration text; renaming a binary backup to .txt does not convert it.' : 'Archive, executable, and shell payloads are not accepted.' ); }
 			}
 			if ( str_starts_with( $inspection_text, '#!' ) ) { return $bad( 'Shell scripts cannot be uploaded as configuration files.' ); }
