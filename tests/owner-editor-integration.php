@@ -92,9 +92,9 @@ try {
     $expect( is_wp_error( TC_Owner_Editor::perform( $broken ) ), 'Published config without a game is rejected with a clear message.' );
     $seed(); $broken = $data( 'save', $created ); $broken['status'] = 'publish'; $broken['tc_device'] = array();
     $expect( is_wp_error( TC_Owner_Editor::perform( $broken ) ), 'Published config without a device is rejected.' );
-    $seed(); $custom = $data( 'save', $created ); $custom['status'] = 'publish'; $custom['card_art'] = 'custom';
+    $seed(); $custom = $data( 'save', $created ); $custom['status'] = 'publish'; $custom['title'] = 'Owner-edited release'; $custom['card_art'] = 'custom';
     $expect( $created === TC_Owner_Editor::perform( $custom ) && 'custom' === get_post_meta( $created, '_tc_card_art', true ), 'Owner can opt into a custom cover.' );
-    $seed(); $shared = $data( 'save', $created ); $shared['status'] = 'publish'; $shared['card_art'] = 'game';
+    $seed(); $shared = $data( 'save', $created ); $shared['status'] = 'publish'; $shared['title'] = 'Owner-edited release'; $shared['card_art'] = 'game';
     $expect( $created === TC_Owner_Editor::perform( $shared ) && 'game' === get_post_meta( $created, '_tc_card_art', true ), 'Owner can restore the common game cover.' );
     $expect( false === TC_Discord::can_access( $created ), 'Owner privilege does not grant VIP file entitlement.' );
     $rest = new WP_REST_Request( 'POST', '/wp/v2/tc_config' ); $rest->set_param( 'title', 'Forbidden REST config' );
