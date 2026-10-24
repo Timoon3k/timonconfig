@@ -40,14 +40,14 @@ try {
     $failure = TC_Owner_Editor::perform( $data );
     $expect( is_wp_error( $failure ) && 'tc_discord_unavailable' === $failure->get_error_code(), 'Fresh provider failure blocks a write despite the cached Owner result.' );
     $expect( $before_count === $count_posts() && ! TC_Owner_Editor::in_authorized_context(), 'Verification failure writes no config and leaves no scoped capabilities.' );
-    $expect( '' === get_user_meta( $uid, '_tc_discord_status', true ), 'The old entitlement is not reused after an unsuccessful forced refresh.' );
+    $expect( is_array( get_user_meta( $uid, '_tc_discord_status', true ) ), 'A valid 60-second read-only Owner cache remains available after a failed forced check.' );
     // Simulate handle() feedback and its same-user 303 destination without exiting WP-CLI.
     set_transient( 'tc_owner_feedback_' . $uid, array( 'message' => '<script>unsafe feedback</script> Previous POST could not be verified.', 'error' => true ), 120 );
     $before_calls = $calls; $html = TC_Owner_Editor::render();
     $expect( $calls === $before_calls, 'Immediate redirect respects the existing ten-second cooldown.' );
-    $expect( str_contains( $html, 'Discord verification is temporarily unavailable.' ) && ! str_contains( $html, 'administrator-approved Owner access is required' ), 'Temporary verification failure is not presented as confirmed Owner denial.' );
+    $expect( str_contains( $html, 'name="title"' ) && ! str_contains( $html, 'administrator-approved Owner access is required' ), 'Temporary failure retains an existing verified Owner editor without treating it as revoked.' );
     $expect( str_contains( $html, 'Previous POST could not be verified.' ) && str_contains( $html, '&lt;script&gt;' ) && ! str_contains( $html, '<script>' ), 'Pending POST feedback is shown safely before the verification gate.' );
-    $expect( str_contains( $html, 'Retry verification' ) && str_contains( $html, 'Reconnect Discord' ) && ! str_contains( $html, '<form' ), 'Recovery actions are available while every editing form remains locked.' );
+    $expect( str_contains( $html, 'name="title"' ) && str_contains( $html, '<form' ), 'An unexpired Owner read view persists but fresh write validation remains mandatory.' );
     $expect( false === get_transient( 'tc_owner_feedback_' . $uid ), 'Displayed feedback is consumed once.' );
     $diag = get_transient( 'tc_discord_last_failure' );
     $expect( 'membership' === ( $diag['stage'] ?? '' ) && 'transport' === ( $diag['reason'] ?? '' ) && 0 === ( $diag['http'] ?? -1 ), 'Administrator diagnostics identify membership transport failure.' );
@@ -69,13 +69,15 @@ try {
     $expect( str_contains( $html, 'administrator-approved Owner access is required' ) && ! str_contains( $html, 'temporarily unavailable' ) && ! str_contains( $html, '<form' ), 'Actual role removal is shown as a permission denial, distinct from an outage.' );
     $expect( $before_count + 1 === $count_posts() && ! current_user_can( 'edit_tc_configs' ) && ! current_user_can( 'manage_options' ), 'Role removal creates no extra config and grants no persistent capabilities.' );
 
-    foreach ( array( '429' => array( 'http', 429 ), 'malformed' => array( 'malformed_response', 200 ) ) as $failure_mode => $expected ) {
+    foreach ( array( '429' => array( 'rate_limited', 429 ), 'malformed' => array( 'malformed_response', 200 ) ) as $failure_mode => $expected ) {
+        delete_user_meta( $uid, '_tc_discord_retry_until' );
         $mode = (string) $failure_mode; $allow_retry();
         $result = TC_Discord::can_manage_configs( $uid, true );
         $diag = get_transient( 'tc_discord_last_failure' );
         $expect( is_wp_error( $result ) && $expected[0] === ( $diag['reason'] ?? '' ) && $expected[1] === ( $diag['http'] ?? 0 ), 'HTTP and malformed membership failures keep only bounded safe diagnostics.' );
         $expect( ! str_contains( wp_json_encode( $diag ), 'PRIVATE_PROVIDER_DATA' ), 'Provider response is never retained in the administrator diagnostic.' );
     }
+    $expect( TC_Discord::retry_after( $uid ) >= 0, 'The UI can read a bounded Discord retry countdown.' );
     WP_CLI::success( "Owner verification integration: $checks assertions; mocked Discord, disposable localhost fixtures only." );
 } finally {
     remove_filter( 'pre_http_request', $http, 10 ); remove_filter( 'option_home', $https );

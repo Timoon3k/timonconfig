@@ -96,6 +96,14 @@ final class TC_Discord {
         $plain = openssl_decrypt( substr( $raw, 28 ), 'aes-256-gcm', hash( 'sha256', wp_salt( 'auth' ), true ), OPENSSL_RAW_DATA, substr( $raw, 0, 12 ), substr( $raw, 12, 16 ), 'tc-discord-v1' );
         return false === $plain ? '' : $plain;
     }
+    /** Safe UI-only hint; does not grant or remove any member access. */
+    public static function is_pilot_enabled(): bool { return ! empty( self::settings()['pilot_enabled'] ); }
+    /** The effective waiting period for a fresh role check (not a bypass). */
+    public static function retry_after( int $uid = 0 ): int {
+        $uid = $uid ?: get_current_user_id();
+        if ( ! $uid ) { return 0; }
+        return max( 0, (int) get_user_meta( $uid, '_tc_discord_attempt', true ) + 10 - time(), (int) get_user_meta( $uid, '_tc_discord_retry_until', true ) - time() );
+    }
     public static function login_url(): string { return self::is_ready() ? home_url( '/?tc_discord_start=1' ) : home_url( '/account/' ); }
     public static function logout_url(): string { return add_query_arg( '_wpnonce', wp_create_nonce( 'tc_discord_logout' ), home_url( '/?tc_discord_logout=1' ) ); }
     public static function refresh_url(): string { return add_query_arg( '_wpnonce', wp_create_nonce( 'tc_discord_refresh' ), home_url( '/?tc_discord_refresh=1' ) ); }
@@ -104,7 +112,7 @@ final class TC_Discord {
     private static function record_failure( WP_Error $error ): void {
         $data = $error->get_error_data();
         $stages = array( 'token', 'identity', 'membership', 'binding', 'verification' );
-        $reasons = array( 'transport', 'http', 'invalid_client', 'invalid_grant', 'invalid_request', 'unauthorized_client', 'invalid_scope', 'malformed_response', 'scope_mismatch', 'pilot_denied', 'identity_invalid', 'account_conflict', 'account_create_failed', 'unavailable' );
+        $reasons = array( 'transport', 'http', 'invalid_client', 'invalid_grant', 'invalid_request', 'unauthorized_client', 'invalid_scope', 'malformed_response', 'scope_mismatch', 'pilot_denied', 'identity_invalid', 'account_conflict', 'account_create_failed', 'rate_limited', 'unavailable' );
         set_transient( 'tc_discord_last_failure', array(
             'time' => gmdate( 'Y-m-d H:i:s' ),
             'stage' => in_array( $data['stage'] ?? '', $stages, true ) ? $data['stage'] : 'verification',
@@ -151,8 +159,17 @@ final class TC_Discord {
         $http = (int) wp_remote_retrieve_response_code( $r );
         $data = json_decode( wp_remote_retrieve_body( $r ), true );
         if ( 200 !== $http ) {
-            $reason = is_array( $data ) && in_array( $data['error'] ?? '', array( 'invalid_client', 'invalid_grant', 'invalid_request', 'unauthorized_client', 'invalid_scope' ), true ) ? $data['error'] : 'http';
-            return self::error( $stage, $reason, $http );
+            // Discord returns Retry-After with HTTP 429. Never retry immediately.
+            $reason = 429 === $http ? 'rate_limited' : ( is_array( $data ) && in_array( $data['error'] ?? '', array( 'invalid_client', 'invalid_grant', 'invalid_request', 'unauthorized_client', 'invalid_scope' ), true ) ? $data['error'] : 'http' );
+            $error = self::error( $stage, $reason, $http );
+            if ( 429 === $http ) {
+                $header = wp_remote_retrieve_header( $r, 'retry-after' );
+                $delay = is_numeric( $header ) ? (float) $header : ( is_array( $data ) && is_numeric( $data['retry_after'] ?? null ) ? (float) $data['retry_after'] : 10.0 );
+                $meta = $error->get_error_data();
+                $meta['retry_after'] = max( 1, min( 300, (int) ceil( $delay ) ) );
+                $error->add_data( $meta );
+            }
+            return $error;
         }
         return is_array( $data ) ? $data : self::error( $stage, 'malformed_response', $http );
     }
@@ -202,7 +219,18 @@ final class TC_Discord {
         $tokens = self::token_request( $params );
         $identity = is_wp_error( $tokens ) ? $tokens : self::request( '/users/@me', null, $tokens['access_token'] );
         $uid = is_wp_error( $identity ) ? $identity : self::bind( $identity );
-        if ( is_wp_error( $uid ) ) { self::record_failure( $uid ); wp_die( self::error()->get_error_message(), '', array( 'response' => 403 ) ); }
+        if ( is_wp_error( $uid ) ) {
+            self::record_failure( $uid );
+            $data = $uid->get_error_data();
+            $reason = is_array( $data ) ? (string) ( $data['reason'] ?? '' ) : '';
+            if ( 'pilot_denied' === $reason ) {
+                wp_die( 'Discord sign-in is currently limited to invited test accounts. Please contact the TimonConfigs team for access.', 'Limited beta access', array( 'response' => 403, 'link_url' => home_url( '/' ), 'link_text' => 'Back to TimonConfigs' ) );
+            }
+            if ( 'account_conflict' === $reason ) {
+                wp_die( 'A different WordPress account is already signed in, or this Discord identity is already linked elsewhere. Sign out of WordPress and retry in a private browser tab, or contact support.', 'Account linking conflict', array( 'response' => 403, 'link_url' => home_url( '/account/' ), 'link_text' => 'Back to account' ) );
+            }
+            wp_die( self::error()->get_error_message(), '', array( 'response' => 403 ) );
+        }
         update_user_meta( $uid, self::TOKEN, self::encrypt( wp_json_encode( $tokens ) ) ); delete_user_meta( $uid, self::CACHE );
         $name = sanitize_text_field( $identity['global_name'] ?? $identity['username'] ?? 'Discord member' );
         update_user_meta( $uid, '_tc_discord_name', $name );
@@ -236,6 +264,15 @@ final class TC_Discord {
         $s = self::settings(); $fingerprint = hash( 'sha256', $blob . wp_json_encode( array_intersect_key( $s, array_flip( array( 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'staff_role', 'owner_role', 'owner_ids', 'client_id' ) ) ) ) );
         $cache = get_user_meta( $uid, self::CACHE, true );
         if ( ! $force && is_array( $cache ) && ( $cache['fingerprint'] ?? '' ) === $fingerprint && ( $cache['expires_at'] ?? 0 ) > time() && $tokens['expires'] > time() + 30 ) { unset( $cache['fingerprint'] ); return $cache; }
+        // Discard expired/mismatched credentials; keep only a truly valid short-lived
+        // cache during a forced write verification or transient provider failure.
+        if ( is_array( $cache ) && ( ( $cache['fingerprint'] ?? '' ) !== $fingerprint || ( $cache['expires_at'] ?? 0 ) <= time() || $tokens['expires'] <= time() + 30 ) ) {
+            delete_user_meta( $uid, self::CACHE );
+        }
+        // Respect Discord rate limits. Successful cached reads are handled above;
+        // privileged writes still require a fresh verification and fail closed.
+        $rate_retry = (int) get_user_meta( $uid, '_tc_discord_retry_until', true );
+        if ( $rate_retry > time() ) { return self::unavailable( $base ); }
         // Short lease acquired atomically. Never serve stale entitlements while refreshing.
         $lock = '_tc_discord_lock_' . $uid;
         $owner = ( time() + 30 ) . ':' . bin2hex( random_bytes( 16 ) );
@@ -247,7 +284,10 @@ final class TC_Discord {
         try {
             $last = (int) get_user_meta( $uid, '_tc_discord_attempt', true );
             if ( $last > time() - 10 ) { return self::unavailable( $base ); }
-            update_user_meta( $uid, '_tc_discord_attempt', time() ); delete_user_meta( $uid, self::CACHE );
+            // Preserve the last successful short-lived result while verifying.
+            // On failure the *write* must still fail closed; a GET may display
+            // the existing 60-second cached Owner page without a fake logout.
+            update_user_meta( $uid, '_tc_discord_attempt', time() );
             if ( $tokens['expires'] <= time() + 30 ) {
                 $fresh = self::token_request( array( 'grant_type' => 'refresh_token', 'refresh_token' => $tokens['refresh_token'] ) );
                 if ( is_wp_error( $fresh ) ) { self::record_failure( $fresh ); return self::unavailable( $base ); }
@@ -261,7 +301,15 @@ final class TC_Discord {
                 $fingerprint = hash( 'sha256', $blob . wp_json_encode( array_intersect_key( $s, array_flip( array( 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'staff_role', 'owner_role', 'owner_ids', 'client_id' ) ) ) ) );
             }
             $member = self::request( '/users/@me/guilds/' . $s['guild_id'] . '/member', null, $tokens['access_token'] );
-            if ( is_wp_error( $member ) ) { self::record_failure( $member ); return self::unavailable( $base ); }
+            if ( is_wp_error( $member ) ) {
+                self::record_failure( $member );
+                $info = $member->get_error_data();
+                if ( is_array( $info ) && 'rate_limited' === ( $info['reason'] ?? '' ) ) {
+                    update_user_meta( $uid, '_tc_discord_retry_until', time() + max( 1, min( 300, (int) ( $info['retry_after'] ?? 10 ) ) ) );
+                }
+                return self::unavailable( $base );
+            }
+            delete_user_meta( $uid, '_tc_discord_retry_until' );
             if ( ! is_array( $member['roles'] ?? null ) || ( $member['user']['id'] ?? '' ) !== $id || ( isset( $member['guild_id'] ) && $member['guild_id'] !== $s['guild_id'] ) ) { self::record_failure( self::error( 'membership', 'malformed_response', 200 ) ); return self::unavailable( $base ); }
             if ( $blob !== get_user_meta( $uid, self::TOKEN, true ) ) { return self::unavailable( $base ); }
             foreach ( $member['roles'] as $role ) { if ( ! self::snowflake( $role ) ) { self::record_failure( self::error( 'membership', 'malformed_response', 200 ) ); return self::unavailable( $base ); } }
@@ -282,7 +330,13 @@ final class TC_Discord {
         $uid = $user_id ?: get_current_user_id();
         if ( ! $uid || ! get_userdata( $uid ) ) { return false; }
         $status = self::status( $uid, $force );
-        if ( 'unavailable' === $status['state'] ) { return self::error(); }
+        if ( 'unavailable' === $status['state'] ) {
+            $error = self::error();
+            $data = $error->get_error_data();
+            $data['retry_after'] = self::retry_after( $uid );
+            $error->add_data( $data );
+            return $error;
+        }
         return ! empty( $status['owner_verified'] ) && ! empty( $status['checked_at'] ) && $status['expires_at'] > time();
     }
     public static function can_access( int $config_id, int $user_id = 0, bool $force = false ): bool|WP_Error {
