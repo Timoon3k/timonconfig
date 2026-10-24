@@ -199,6 +199,47 @@ final class TC_Owner_Editor {
         foreach ( $choices as $key_value => $text ) { echo '<option value="' . esc_attr( $key_value ) . '" ' . selected( $current, $key_value, false ) . '>' . esc_html( $text ) . '</option>'; }
         echo '</select></label>';
     }
+    /** Primary Owner action: attach private scripts, not public cover pictures. */
+    private static function render_script_uploads( int $id ): void {
+        echo '<section id="tc-owner-script-files" class="tc-owner-upload-panel" aria-labelledby="tc-owner-script-files-title">';
+        echo '<h3 id="tc-owner-script-files-title">Upload configuration / script files</h3>';
+        echo '<p>Attach a real Cronus Zen script or XIM Matrix TXT code. A cover image is not required: the card automatically uses the artwork of its game. These files are private and never added to WordPress Media Library.</p>';
+        $storage = TC_Private_Files::root();
+        if ( is_wp_error( $storage ) ) {
+            echo '<div class="tc-owner-feedback tc-owner-feedback--error" role="alert"><strong>Script uploads are blocked by hosting configuration.</strong> ' . esc_html( $storage->get_error_message() );
+            echo '<p><strong>How to enable uploads:</strong> In Hostinger File Manager, create a private folder outside all public_html/document roots, check that PHP can write to it, then set TIMONCONFIGS_PRIVATE_STORAGE_DIR to its verified absolute path in wp-config.php. Refresh this page. Do not upload paid scripts through Public preview image or Media Library.</p>';
+            echo '<p>Your configuration #' . esc_html( (string) $id ) . ' is still editable. You can save its title, game, device and Values without uploading a file.</p></div></section>';
+            return;
+        }
+        self::form_start( $id, 'upload' );
+        echo '<label class="tc-owner-script-picker"><strong>Choose private script files</strong><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple required></label>';
+        echo '<p class="tc-owner-upload-hint">Up to 10 files per upload, 20 MB each. Formats depend on your safe-format settings. ZNBK and XIMMR require the configured format inspector. For XIM Matrix, upload actual .txt code; never rename a binary XIMMR to .txt.</p>';
+        self::input( 'version', 'File version (optional)', '' );
+        self::input( 'notes', 'Notes (optional)', '', true );
+        echo '<button class="tc-button" type="submit">Upload script files</button></form>';
+        $files = TC_Private_Files::files( $id );
+        if ( ! $files ) {
+            echo '<p class="tc-owner-upload-hint">No private script files have been uploaded for this configuration yet.</p>';
+        }
+        foreach ( $files as $file ) {
+            echo '<details class="tc-owner-uploaded-file"><summary>' . esc_html( $file['name'] . ' · ' . $file['version'] ) . '</summary>';
+            self::form_start( $id, 'update' );
+            echo '<input type="hidden" name="file_id" value="' . esc_attr( $file['id'] ) . '">';
+            self::input( 'version', 'Version', $file['version'] );
+            self::input( 'notes', 'Notes', $file['notes'], true );
+            self::input( 'order', 'Order', (string) $file['order'] );
+            echo '<button class="tc-button" type="submit">Update file details</button></form>';
+            self::form_start( $id, 'replace' );
+            echo '<input type="hidden" name="file_id" value="' . esc_attr( $file['id'] ) . '"><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" required>';
+            self::input( 'version', 'New version', $file['version'] );
+            self::input( 'notes', 'Notes', $file['notes'], true );
+            echo '<label><input type="checkbox" name="confirm" value="1" required>Confirm replacement; old download ID will stop working.</label><button type="submit">Replace file</button></form>';
+            self::form_start( $id, 'delete' );
+            echo '<input type="hidden" name="file_id" value="' . esc_attr( $file['id'] ) . '"><label><input type="checkbox" name="confirm" value="1" required>Confirm deleting this file.</label><button type="submit">Delete file</button></form></details>';
+        }
+        echo '</section>';
+    }
+
     public static function render(): string {
         if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) { return '<p>Config management is private.</p>'; }
         self::headers();
@@ -208,7 +249,7 @@ final class TC_Owner_Editor {
         if ( $id && ( 'tc_config' !== get_post_type( $id ) || ! in_array( get_post_status( $id ), array( 'draft', 'publish', 'pending', 'private' ), true ) ) ) { return '<p>This configuration cannot be managed.</p>'; }
         $post = $id ? get_post( $id ) : null;
         ob_start();
-        echo '<section class="tc-owner-editor"><h2>Manage Configs</h2><p>Owner tools · public preview images are separate from protected script files. Role verification is refreshed for every write; allow at least 10 seconds between actions.</p><p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a> · <a href="' . esc_url( self::url() ) . '">New configuration</a></p>';
+        echo '<section class="tc-owner-editor"><h2>Manage Configs</h2><p>Owner tools · upload private scripts directly from this panel. Shared game card artwork is automatic and optional to replace. Discord verification is refreshed for every write; allow at least 10 seconds between actions.</p><p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a> · <a href="' . esc_url( self::url() ) . '">New configuration</a></p>';
         $feedback = get_transient( 'tc_owner_feedback_' . get_current_user_id() );
         $feedback_text = is_array( $feedback ) ? (string) ( $feedback['message'] ?? '' ) : ( is_string( $feedback ) ? $feedback : '' );
         if ( $feedback_text ) {
@@ -235,6 +276,7 @@ final class TC_Owner_Editor {
         if ( $page > 1 ) { echo '<a href="' . esc_url( add_query_arg( 'manage_page', $page - 1, self::url() ) ) . '">Previous configurations</a> '; }
         if ( $page < $configs->max_num_pages ) { echo '<a href="' . esc_url( add_query_arg( 'manage_page', $page + 1, self::url() ) ) . '">More configurations</a>'; }
         echo '</nav></details>';
+        if ( $id ) { self::render_script_uploads( $id ); }
         self::form_start( $id, 'save' );
         self::input( 'title', 'Title', $post->post_title ?? '' ); self::input( 'excerpt', 'Short description', $post->post_excerpt ?? '', true ); self::input( 'description', 'Description (safe HTML)', $post->post_content ?? '', true );
         self::select( 'status', 'Publication', $post->post_status ?? 'draft', array( 'draft' => 'Draft', 'publish' => 'Published' ) );
@@ -276,20 +318,11 @@ final class TC_Owner_Editor {
         }
         echo '<button class="tc-button" type="submit">' . ( $id ? 'Save changes' : 'Create configuration' ) . '</button></form>';
         if ( $id ) {
-            self::form_start( $id, 'image' ); echo '<h3>Public preview image</h3><input type="file" name="preview_image" accept="image/jpeg,image/png,image/webp,image/avif" required><button class="tc-button" type="submit">Upload public image</button></form>';
-            $storage = TC_Private_Files::root();
-            echo '<h3>Protected script files</h3><p>Upload up to 10 separate files, 20 MB each. ZNBK and XIMMR require an approved format inspector, including text-encoded backups. Scripts stay outside the public media library.</p>';
-            if ( is_wp_error( $storage ) ) { echo '<p role="alert">' . esc_html( $storage->get_error_message() ) . '</p>'; }
-            else {
-                self::form_start( $id, 'upload' ); echo '<input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple required>'; self::input( 'version', 'File version', '' ); self::input( 'notes', 'Release notes', '', true ); echo '<button class="tc-button" type="submit">Add protected files</button></form>';
-                foreach ( TC_Private_Files::files( $id ) as $file ) {
-                    echo '<details><summary>' . esc_html( $file['name'] . ' · ' . $file['version'] ) . '</summary>';
-                    self::form_start( $id, 'update' ); echo '<input type="hidden" name="file_id" value="' . esc_attr( $file['id'] ) . '">'; self::input( 'version', 'Version', $file['version'] ); self::input( 'notes', 'Notes', $file['notes'], true ); self::input( 'order', 'Order', (string) $file['order'] ); echo '<button class="tc-button" type="submit">Update file details</button></form>';
-                    self::form_start( $id, 'replace' ); echo '<input type="hidden" name="file_id" value="' . esc_attr( $file['id'] ) . '"><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" required>'; self::input( 'version', 'New version', $file['version'] ); self::input( 'notes', 'Notes', $file['notes'], true ); echo '<label><input type="checkbox" name="confirm" value="1" required>Confirm replacement; old download ID will stop working.</label><button type="submit">Replace file</button></form>';
-                    self::form_start( $id, 'delete' ); echo '<input type="hidden" name="file_id" value="' . esc_attr( $file['id'] ) . '"><label><input type="checkbox" name="confirm" value="1" required>Confirm deleting this file.</label><button type="submit">Delete file</button></form></details>';
-                }
-            }
-            self::form_start( $id, 'trash' ); echo '<label><input type="checkbox" name="confirm" value="1" required>Move configuration to Trash. Protected files stay backed up; downloads stop.</label><button type="submit">Move to Trash</button></form>';
+            echo '<details class="tc-owner-public-image"><summary>Optional: custom card artwork (not a script file)</summary><p>Your configuration card uses the shared game banner by default. You do not need to upload a picture to add a script. To use a custom cover, select custom artwork above and upload a JPG, PNG, WebP or AVIF.</p>';
+            self::form_start( $id, 'image' );
+            echo '<label>Optional public picture <input type="file" name="preview_image" accept="image/jpeg,image/png,image/webp,image/avif" required></label><button class="tc-button" type="submit">Upload custom picture</button></form></details>';
+            self::form_start( $id, 'trash' );
+            echo '<label><input type="checkbox" name="confirm" value="1" required>Move configuration to Trash. Protected files stay backed up; downloads stop.</label><button type="submit">Move to Trash</button></form>';
         }
         echo '</section>'; return (string) ob_get_clean();
     }
