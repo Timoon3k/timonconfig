@@ -111,6 +111,7 @@ try {
 	TC_Private_Files::$entries = array( array( 'id' => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'name' => 'binary-backup.ximmr' ) );
 	$assert( TC_Catalog::download_cta( $ids[1] )['action'] === 'pending', 'Matrix binary backup alone does not pretend to be a TXT code.' );
 	update_post_meta( $ids[1], '_tc_values_content', "XIM_CODE_SAMPLE\\n" );
+	wp_set_current_user( 0 );
 	$matrix_cta = TC_Catalog::download_cta( $ids[1] );
 	$assert( $matrix_cta['action'] === 'login' && $matrix_cta['files'][0]['id'] === TC_Downloads::MATRIX_TEXT_ID, 'Matrix Values allow a signed TXT export selection without exposing code to guests.' );
 	delete_post_meta( $ids[1], '_tc_values_content' );
