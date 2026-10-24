@@ -264,6 +264,11 @@ final class TC_Discord {
         $s = self::settings(); $fingerprint = hash( 'sha256', $blob . wp_json_encode( array_intersect_key( $s, array_flip( array( 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'staff_role', 'owner_role', 'owner_ids', 'client_id' ) ) ) ) );
         $cache = get_user_meta( $uid, self::CACHE, true );
         if ( ! $force && is_array( $cache ) && ( $cache['fingerprint'] ?? '' ) === $fingerprint && ( $cache['expires_at'] ?? 0 ) > time() && $tokens['expires'] > time() + 30 ) { unset( $cache['fingerprint'] ); return $cache; }
+        // Discard expired/mismatched credentials; keep only a truly valid short-lived
+        // cache during a forced write verification or transient provider failure.
+        if ( is_array( $cache ) && ( ( $cache['fingerprint'] ?? '' ) !== $fingerprint || ( $cache['expires_at'] ?? 0 ) <= time() || $tokens['expires'] <= time() + 30 ) ) {
+            delete_user_meta( $uid, self::CACHE );
+        }
         // Respect Discord rate limits. Successful cached reads are handled above;
         // privileged writes still require a fresh verification and fail closed.
         $rate_retry = (int) get_user_meta( $uid, '_tc_discord_retry_until', true );
