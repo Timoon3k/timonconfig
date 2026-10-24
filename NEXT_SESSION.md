@@ -1,3 +1,7 @@
+## Aktualizacja: poprawki są już na GitHub main
+
+Na wyraźne polecenie właściciela opublikowano fast-forward kod `b5d4de2` na `main` i zweryfikowano zdalny ref. Nie trzeba ponownie scalać `fix/owner-upload-recovery`. Core 0.8.6 / theme 0.10.5; kod i paczki pozostają zgodne z wcześniejszymi testami. Nie potwierdzono aktualizacji WordPressa na Hostingerze; push nie jest dowodem instalacji paczek. Następny priorytet to rzeczywista wersja hostingu, purge cache i próba oryginalnego pliku właściciela, bez zmian ról/płatności.
+
 ## Najnowszy etap: Owner upload recovery — Core 0.8.6 / theme 0.10.5
 
 Przeczytaj `docs/OWNER_UPLOAD_RECOVERY_0.8.6.md` i najnowszy wpis PROGRESS.md. Gałąź `fix/owner-upload-recovery`, checkpointy `1deb95a`, `abc2287`; baza main `6d1e20e`. Nie przywracaj wymogu zewnętrznej zgody dla ZNBK. Windows GPC/TXT obsługuje UTF-8, BOM UTF-16 i ANSI z zachowaniem bajtów. Formularz zachowuje dane i wybrany plik po tymczasowym błędzie Discorda, nadal wymaga świeżego Owner + approved ID i nonce. Błąd usługi nie jest przedstawiany jako odebranie roli.

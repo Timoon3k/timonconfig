@@ -1,3 +1,9 @@
+## Publikacja Core 0.8.6 / theme 0.10.5 na GitHub main — zatwierdzona przez właściciela
+
+- Na polecenie „WYPCHNIJ to na produkcje na gicie” przeniesiono `fix/owner-upload-recovery` do `main` przez fast-forward, bez konfliktów i force push. Push został przyjęty; osobny odczyt `refs/heads/main` potwierdził kod `b5d4de2`.
+- Brak nowych zmian kodu od testów: 726 asercji PHP, 39 Owner browser, 24 widoki i 76 asercji instalacji ZIP. Potwierdzono zgodność paczek i źródeł. Aktualne wersje: Core 0.8.6 / motyw 0.10.5.
+- Nie wykonano instalacji paczek na Hostingerze ani nie potwierdzono automatycznego deploymentu hostingu. Nie modyfikowano produkcyjnej bazy, płatności ani ról Discord.
+
 ## Upload recovery — Core 0.8.6 / theme 0.10.5 (2026-10-24)
 
 - Baza: najnowszy `main` (`6d1e20e`, kod `19ae648`). Praca na `fix/owner-upload-recovery`; dotychczasowe zmiany zachowano.
