@@ -79,7 +79,7 @@ final class TC_Discord {
         foreach ( array( 'enabled' => 'Enable OAuth', 'pilot_enabled' => 'Restricted pilot: only the listed Discord users may sign in and access member files', 'staging_confirmed' => 'I confirmed IDs, policy and real account tests on isolated staging', 'pkce' => 'Send PKCE S256 (enable only after Discord application support is verified; not live verified by this code)' ) as $k => $label ) { echo '<p><label><input type="checkbox" name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="1" ' . checked( ! empty( $s[ $k ] ), true, false ) . '> ' . esc_html( $label ) . '</label></p>'; }
         echo '<p><label>Pilot Discord user IDs (one per line, maximum 10)<br><textarea name="' . esc_attr( self::OPTION . '[pilot_ids]' ) . '" rows="4" cols="30">' . esc_textarea( $s['pilot_ids'] ?? '' ) . '</textarea></label></p><p>The pilot requires Enable OAuth and a valid allowlist. Use a private browser window signed out of WordPress. Other Discord users are denied after identity verification, before a WordPress account is created. Removing an ID also blocks its existing member access. Disabling the pilot does not approve public production access.</p>';
         foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'staff_role', 'owner_role' ) as $k ) { echo '<p><label>' . esc_html( ucwords( str_replace( '_', ' ', $k ) ) ) . ' <input name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="' . esc_attr( $s[ $k ] ?? '' ) . '" pattern="[0-9]{17,20}"></label></p>'; }
-        echo '<p><label>Approved Owner Discord user IDs (one per line, maximum 10)<br><textarea name="' . esc_attr( self::OPTION . '[owner_ids]' ) . '" rows="4" cols="30">' . esc_textarea( $s['owner_ids'] ?? '' ) . '</textarea></label></p><p>Staff and Owner roles are optional and must use distinct role IDs. Badges show only these configured roles verified by Discord; arbitrary guild role names are not fetched. Frontend management requires the Owner role plus an approved Discord user ID and its unique WordPress binding. Staff and Owner badges do not grant paid downloads, administrator access or additional Discord permissions. Pilot access remains a separate restriction.</p>';
+        echo '<p><label>Approved Owner Discord user IDs (one per line, maximum 10)<br><textarea name="' . esc_attr( self::OPTION . '[owner_ids]' ) . '" rows="4" cols="30">' . esc_textarea( $s['owner_ids'] ?? '' ) . '</textarea></label></p><p>Staff and Owner roles are optional and must use distinct role IDs. Badges show only these configured roles verified by Discord; arbitrary guild role names are not fetched. Frontend config management requires an approved Owner Discord user ID, its unique WordPress binding and an active WordPress login created through Discord OAuth2. It does not require a live Discord Owner role check on each edit or upload. Staff and Owner badges do not grant paid downloads, administrator access or additional Discord permissions. Pilot access remains a separate restriction.</p>';
         echo '<p>Client secret: ' . ( empty( $s['client_secret'] ) ? 'Not configured' : 'Configured (redacted)' ) . '</p><p><input type="password" autocomplete="new-password" name="' . esc_attr( self::OPTION ) . '[client_secret]" value="" aria-label="Replace client secret"></p><label><input type="checkbox" name="' . esc_attr( self::OPTION ) . '[clear_secret]" value="1">Clear stored secret (wp-config constant takes precedence)</label>';
         submit_button(); echo '</form></div>';
     }
@@ -325,6 +325,29 @@ final class TC_Discord {
             return $base;
         } finally { self::consume( $lock, $owner ); }
     }
+    /**
+     * Frontend Owner tools are restricted to authenticated, explicitly allowlisted
+     * Discord IDs bound one-to-one to their current WordPress account.
+     * Does NOT request guild roles or call Discord API on reads or writes.
+     * Does not confer VIP downloads or WordPress administrator privileges.
+     */
+    public static function can_manage_configs_local( int $user_id = 0 ): bool {
+        $current = get_current_user_id();
+        $uid = $user_id ?: $current;
+        if ( ! $current || $uid !== $current || ! is_user_logged_in() || ! self::is_ready() || ! get_userdata( $uid ) ) { return false; }
+        $id = get_user_meta( $uid, '_tc_discord_id', true );
+        if ( ! self::identity_allowed( $id ) || (int) get_option( '_tc_discord_binding_' . $id ) !== $uid ) { return false; }
+        $owner_ids = self::pilot_ids( self::settings()['owner_ids'] ?? '' );
+        if ( ! in_array( $id, $owner_ids, true ) ) { return false; }
+        // A valid OAuth-bound WordPress session must still have the encrypted
+        // credential set by our callback. Logout/revocation removes it.
+        $blob = get_user_meta( $uid, self::TOKEN, true );
+        $tokens = json_decode( self::decrypt( $blob ), true );
+        return is_array( $tokens )
+            && is_string( $tokens['access_token'] ?? null ) && '' !== $tokens['access_token']
+            && is_string( $tokens['refresh_token'] ?? null ) && '' !== $tokens['refresh_token'];
+    }
+
     /** Fresh Owner authorization for writes; no WordPress administrator or membership-tier bypass. */
     public static function can_manage_configs( int $user_id = 0, bool $force = true ): bool|WP_Error {
         $uid = $user_id ?: get_current_user_id();
