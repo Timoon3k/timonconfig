@@ -39,6 +39,29 @@ try {
             $assert( is_wp_error( $inspect->invoke( null, $fixture( $encoded ), 'bad.' . $extension ) ), 'Encoded active payload rejected: ' . $extension );
         }
     }
+    // Real Cronus GPC source can have legacy control bytes or undefined
+    // Windows codepage bytes while PHP/libmagic still identifies text/plain.
+    // They must survive storage byte-for-byte rather than requiring iconv.
+    foreach ( array( 'vertical-tab' => "\x0b", 'form-feed' => "\x0c", 'escape' => "\x1b", 'undefined-cp1252' => "\x81", 'undefined-cp1252-2' => "\x8d" ) as $kind => $suffix ) {
+        $bytes = "// Test GPC script\r\nmain { set_val(PS4_RX, 0); }" . $suffix . "\r\n";
+        $path = $fixture( $bytes );
+        $mime = ( new finfo( FILEINFO_MIME_TYPE ) )->file( $path );
+        $assert( 'text/plain' === $mime, 'Legacy GPC fixture remains text/plain: ' . $kind );
+        $result = $inspect->invoke( null, $path, 'PREDATOR SCRIPT S29_PIN_350305.gpc' );
+        $assert( is_array( $result ), 'Legacy text/plain GPC accepted without unnecessary encoding or control-byte rejection: ' . $kind );
+        $assert( $bytes === file_get_contents( $path ) && $result['checksum'] === hash( 'sha256', $bytes ), 'GPC bytes and SHA-256 stay unchanged: ' . $kind );
+        $assert( is_wp_error( $inspect->invoke( null, $path, 'invalid.txt' ) ), 'Strict TXT handling remains unchanged for GPC-only legacy controls: ' . $kind );
+    }
+    foreach ( array(
+        'php' => "<?php echo 123;\x0b",
+        'html' => "<script>alert(1)</script>\x0c",
+        'shell' => "#!/bin/sh\nexit 0\x1b",
+        'nul' => "// sample\nmain { set_val(PS4_RX, 0); }\x00",
+        'zip' => "PK\x03\x04malicious",
+        'elf' => "\x7fELF\x00binary"
+    ) as $kind => $payload ) {
+        $assert( is_wp_error( $inspect->invoke( null, $fixture( $payload ), 'PREDATOR SCRIPT S29_PIN_350305.gpc' ) ), 'Active/binary content is still rejected for GPC: ' . $kind );
+    }
     // libmagic language guesses must not veto plain GPC source with harmless syntax.
     $pascal = "program LocalFixture;\nvar x: integer;\nbegin x := 1; end.\n";
     $assert( is_array( $inspect->invoke( null, $fixture( $pascal ), 'source.gpc' ) ), 'Benign text language heuristic is accepted as source text.' );
