@@ -248,7 +248,7 @@ final class TC_Owner_Editor {
         if ( ! class_exists( 'ZipArchive' ) && in_array( 'znbk', TC_Private_Files::extensions(), true ) ) {
             echo '<p class="tc-owner-upload-hint">ZIP-backed ZNBK also requires the PHP ZIP extension on your host.</p>';
         }
-        echo '<p class="tc-owner-upload-hint">Uploader version: ' . esc_html( TIMONCONFIGS_CORE_VERSION ) . '. GPC/TXT supports UTF-8, BOM-marked Windows UTF-16 and Windows ANSI text; uploaded bytes are preserved.</p>';
+        echo '<p class="tc-owner-upload-hint">Uploader version: ' . esc_html( TIMONCONFIGS_CORE_VERSION ) . '. GPC accepts source text with legacy Windows/control bytes; TXT uses stricter text validation. Original file bytes are always preserved.</p>';
         self::form_start( $id, 'upload' );
         echo '<label class="tc-owner-script-picker"><strong>Choose private script files</strong><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple required></label>';
         echo '<p class="tc-owner-upload-hint">Up to 10 files per upload, 20 MB each. Formats depend on your safe-format settings. ZNBK is checked automatically; no external approval is required. XIMMR requires its format inspector. For XIM Matrix, upload actual .txt code; never rename a binary XIMMR to .txt.</p>';
