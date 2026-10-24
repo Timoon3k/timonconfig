@@ -96,6 +96,14 @@ final class TC_Discord {
         $plain = openssl_decrypt( substr( $raw, 28 ), 'aes-256-gcm', hash( 'sha256', wp_salt( 'auth' ), true ), OPENSSL_RAW_DATA, substr( $raw, 0, 12 ), substr( $raw, 12, 16 ), 'tc-discord-v1' );
         return false === $plain ? '' : $plain;
     }
+    /** Safe UI-only hint; does not grant or remove any member access. */
+    public static function is_pilot_enabled(): bool { return ! empty( self::settings()['pilot_enabled'] ); }
+    /** The effective waiting period for a fresh role check (not a bypass). */
+    public static function retry_after( int $uid = 0 ): int {
+        $uid = $uid ?: get_current_user_id();
+        if ( ! $uid ) { return 0; }
+        return max( 0, (int) get_user_meta( $uid, '_tc_discord_attempt', true ) + 10 - time(), (int) get_user_meta( $uid, '_tc_discord_retry_until', true ) - time() );
+    }
     public static function login_url(): string { return self::is_ready() ? home_url( '/?tc_discord_start=1' ) : home_url( '/account/' ); }
     public static function logout_url(): string { return add_query_arg( '_wpnonce', wp_create_nonce( 'tc_discord_logout' ), home_url( '/?tc_discord_logout=1' ) ); }
     public static function refresh_url(): string { return add_query_arg( '_wpnonce', wp_create_nonce( 'tc_discord_refresh' ), home_url( '/?tc_discord_refresh=1' ) ); }
@@ -317,7 +325,13 @@ final class TC_Discord {
         $uid = $user_id ?: get_current_user_id();
         if ( ! $uid || ! get_userdata( $uid ) ) { return false; }
         $status = self::status( $uid, $force );
-        if ( 'unavailable' === $status['state'] ) { return self::error(); }
+        if ( 'unavailable' === $status['state'] ) {
+            $error = self::error();
+            $data = $error->get_error_data();
+            $data['retry_after'] = self::retry_after( $uid );
+            $error->add_data( $data );
+            return $error;
+        }
         return ! empty( $status['owner_verified'] ) && ! empty( $status['checked_at'] ) && $status['expires_at'] > time();
     }
     public static function can_access( int $config_id, int $user_id = 0, bool $force = false ): bool|WP_Error {
