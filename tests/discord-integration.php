@@ -14,6 +14,7 @@ $http = static function ( $pre, $args, $url ) use ( &$roles, &$mode, &$requests,
     $requests[] = array( $url, $args );
     if ( ! str_starts_with( $url, 'https://discord.com/api/v10/users/' ) && ! in_array( $url, array( 'https://discord.com/api/oauth2/token', 'https://discord.com/api/oauth2/token/revoke' ), true ) ) { throw new RuntimeException( 'Unexpected outbound request blocked.' ); }
     if ( 'invalid-client' === $mode ) { return array( 'response' => array( 'code' => 401 ), 'body' => wp_json_encode( array( 'error' => 'invalid_client', 'error_description' => 'SECRET-MUST-NOT-LEAK' ) ), 'headers' => array() ); }
+    if ( 'rate-limit' === $mode ) { return array( 'response' => array( 'code' => 429 ), 'body' => wp_json_encode( array( 'retry_after' => 12, 'message' => 'Rate limited' ) ), 'headers' => array( 'retry-after' => '12' ) ); }
     if ( 'unknown-error' === $mode ) { return array( 'response' => array( 'code' => 400 ), 'body' => wp_json_encode( array( 'error' => 'SECRET-MUST-NOT-LEAK' ) ), 'headers' => array() ); }
     if ( 'error' === $mode ) { return new WP_Error( 'fake', 'Never expose upstream details' ); }
     if ( str_ends_with( $url, '/oauth2/token' ) ) { $body = array( 'access_token' => 'fake-access-new', 'refresh_token' => 'fake-refresh-new', 'token_type' => 'Bearer', 'scope' => 'identify guilds.members.read', 'expires_in' => 3600 ); if ( 'scope-array' === $mode ) { $body['scope'] = array( 'identify' ); } if ( 'expiry-negative' === $mode ) { $body['expires_in'] = -1; } }
@@ -63,7 +64,7 @@ try {
     $assert( is_wp_error( $call( 'bind', array( 'id' => 'bad', 'email' => get_userdata( $uid )->user_email ) ) ), 'Malformed identity cannot email-link.' );
     wp_set_current_user( $uid );
     $assert( is_wp_error( $call( 'bind', array( 'id' => '900000000000000007' ) ) ), 'Logged-in account cannot attach a different Discord ID.' );
-    $seed = static function ( int $expiry = 3600 ) use ( $call, $uid ) { update_user_meta( $uid, '_tc_discord_token', $call( 'encrypt', wp_json_encode( array( 'access_token' => 'fake-access', 'refresh_token' => 'fake-refresh', 'expires' => time() + $expiry ) ) ) ); delete_user_meta( $uid, '_tc_discord_status' ); delete_user_meta( $uid, '_tc_discord_attempt' ); };
+    $seed = static function ( int $expiry = 3600 ) use ( $call, $uid ) { update_user_meta( $uid, '_tc_discord_token', $call( 'encrypt', wp_json_encode( array( 'access_token' => 'fake-access', 'refresh_token' => 'fake-refresh', 'expires' => time() + $expiry ) ) ) ); delete_user_meta( $uid, '_tc_discord_status' ); delete_user_meta( $uid, '_tc_discord_attempt' ); delete_user_meta( $uid, '_tc_discord_retry_until' ); };
     $post = wp_insert_post( array( 'post_type' => 'tc_config', 'post_status' => 'publish', 'post_title' => 'Disposable Discord test', 'meta_input' => array( 'tc_tier' => 'free', 'tc_release_status' => 'available' ) ) ); $posts[] = $post;
     foreach ( array( 'unverified', 'free', 'monthly', 'lifetime' ) as $member_tier ) {
         $roles = 'unverified' === $member_tier ? array() : array( $settings[ $member_tier . '_role' ] ); $seed();
@@ -87,7 +88,20 @@ try {
     $assert( 'unavailable' === TC_Discord::status()['state'], 'Concurrent refresh never serves stale roles.' ); delete_option( '_tc_discord_lock_' . $uid );
     $seed(); TC_Discord::status(); $cache = get_user_meta( $uid, '_tc_discord_status', true ); $cache['expires_at'] = time() - 1; update_user_meta( $uid, '_tc_discord_status', $cache ); delete_user_meta( $uid, '_tc_discord_attempt' ); $mode = 'error';
     $assert( 'unavailable' === TC_Discord::status()['state'], 'Expired cache with API failure denies VIP.' );
-    $assert( ! get_user_meta( $uid, '_tc_discord_status', true ), 'Failure clears stale status.' );
+    $assert( ! get_user_meta( $uid, '_tc_discord_status', true ), 'Failure clears expired cached status.' );
+    // A provider outage can leave an unexpired read cache for display, but
+    // write verification and retry policies remain independent and strict.
+    $mode = 'ok'; $roles = array( $settings['lifetime_role'] ); $seed();
+    $assert( 'lifetime' === TC_Discord::status()['state'], 'Warm cache is valid after fresh response.' );
+    delete_user_meta( $uid, '_tc_discord_attempt' );
+    $mode = 'rate-limit';
+    $blocked = TC_Discord::status( 0, true );
+    $assert( 'unavailable' === $blocked['state'], 'Forced refresh fails closed when Discord returns HTTP 429.' );
+    $assert( TC_Discord::retry_after() >= 1 && TC_Discord::retry_after() <= 12, 'Discord Retry-After respected.' );
+    $calls_before = count( $requests );
+    $assert( 'unavailable' === TC_Discord::status( 0, true )['state'] && $calls_before === count( $requests ), 'Rate backoff blocks immediate additional provider calls.' );
+    $assert( 'lifetime' === TC_Discord::status()['state'], 'A valid 60-second read-only cached view can survive transient provider downtime.' );
+    $mode = 'ok'; $seed();
     $mode = 'ok'; $seed(); TC_Discord::revoke( $uid );
     $assert( ! get_user_meta( $uid, '_tc_discord_token', true ) && 'unverified' === TC_Discord::status()['state'], 'Revoke removes local credentials.' );
     parse_str( wp_parse_url( TC_Discord::logout_url(), PHP_URL_QUERY ), $logout ); $assert( (bool) wp_verify_nonce( $logout['_wpnonce'], 'tc_discord_logout' ), 'Logout nonce is session-bound.' );
