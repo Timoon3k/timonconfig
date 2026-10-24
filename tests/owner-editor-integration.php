@@ -59,6 +59,24 @@ try {
     $expect( is_wp_error( TC_Owner_Editor::perform( $bad ) ) && $before === $http_calls, 'CSRF fails before Discord calls or mutations.' );
     $bad['_wpnonce'] = array( 'malformed' );
     $expect( is_wp_error( TC_Owner_Editor::perform( $bad ) ), 'Array-shaped nonce is safely rejected.' );
+    // Hostinger private storage not configured: preserve a draft and expose its ID.
+    $missing_storage = static fn(): string => '';
+    add_filter( 'timonconfigs_private_storage_directory', $missing_storage );
+    $seed(); $new_with_files = $data(); $new_with_files['status'] = 'publish';
+    $attempt = TC_Owner_Editor::perform( $new_with_files, array( 'tc_private_files' => array(
+        'name' => array( 'fixture.txt' ),
+        'error' => array( UPLOAD_ERR_OK ),
+        'tmp_name' => array( '/not-an-upload' ),
+        'size' => array( 15 ),
+    ) ) );
+    remove_filter( 'timonconfigs_private_storage_directory', $missing_storage );
+    $draft_data = is_wp_error( $attempt ) ? $attempt->get_error_data() : null;
+    $saved_draft_id = is_array( $draft_data ) ? absint( $draft_data['config_id'] ?? 0 ) : 0;
+    $expect( is_wp_error( $attempt ) && 'tc_owner_draft_saved' === $attempt->get_error_code() && $saved_draft_id > 0, 'Missing storage preserves newly created draft and returns recoverable ID.' );
+    $posts[] = $saved_draft_id;
+    $expect( 'draft' === get_post_status( $saved_draft_id ) && 'Disposable owner configuration' === get_the_title( $saved_draft_id ), 'Failed private upload never publishes config but preserves title and metadata.' );
+    $expect( ! get_post_meta( $saved_draft_id, '_tc_private_files', true ), 'No private file reference is fabricated for rejected uploads.' );
+    $seed();
     $created = TC_Owner_Editor::perform( $data() );
     $expect( is_int( $created ) && $created > 0, 'Approved Owner subscriber can create a draft.' ); $posts[] = $created;
     $expect( 'draft' === get_post_status( $created ) && (int) get_post_field( 'post_author', $created ) === $uid, 'Draft belongs to the authenticated Owner.' );
