@@ -109,8 +109,8 @@ try {
 	$assert( $guest['action'] === 'login' && $guest['label'] === 'Log in', 'anonymous readers must log in before a protected download' );
 	$assert( ! isset( $guest['files'][0]['stored_name'], $guest['files'][0]['path'] ), 'presentation metadata strips private storage fields defensively' );
 	$html = $render_card( $ids[1] );
-	$assert( str_contains( $html, 'Fixture Studio' ) && str_contains( $html, 'Fixture Creator' ) && str_contains( $html, 'https://example.test/public-cover.webp' ) && str_contains( $html, 'Released' ) && str_contains( $html, '2026-02-01' ), 'cards render public credits, inherited artwork, release and update dates' );
-	$assert( str_contains( $html, '>Log in<' ) && ! str_contains( $html, 'secret-script' ) && ! str_contains( $html, 'secret-storage-name' ) && ! str_contains( $html, 'download count' ), 'guest cards show login without private paths or fabricated counts' );
+	$assert( str_contains( $html, 'https://example.test/public-cover.webp' ) && str_contains( $html, 'LOCAL SCRIPT' ) && ! str_contains( $html, 'Fixture Studio' ) && ! str_contains( $html, 'Fixture Creator' ) && ! str_contains( $html, '2026-02-01' ), 'compact cards use shared artwork without credits, release dates or long metadata' );
+	$assert( str_contains( $html, 'tc-config-card__overlay-link' ) && str_contains( $html, 'Log in' ) && ! str_contains( $html, 'secret-script' ) && ! str_contains( $html, 'secret-storage-name' ) && ! str_contains( $html, 'recorded downloads' ), 'guest cards click through to Discord login without private paths or counts' );
 	wp_set_current_user( $user_id );
 	TC_Discord::$state = 'unverified';
 	$assert( TC_Catalog::download_cta( $ids[1] )['label'] === 'Verify with Discord', 'unverified members receive verification guidance' );
@@ -124,7 +124,7 @@ try {
 	$assert( TC_Catalog::download_cta( $ids[1] )['action'] === 'pending', 'published Coming soon preview remains non-downloadable even for entitled VIP members' );
 	update_post_meta( $ids[1], 'tc_release_status', 'available' );
 	$html = $render_card( $ids[1] );
-	$assert( str_contains( $html, '<form method="post"' ) && str_contains( $html, '>Download<' ) && ! str_contains( $html, '/outside/private' ), 'entitled cards render the protected POST button without a direct file URL' );
+	$assert( str_contains( $html, '<form method="post"' ) && str_contains( $html, 'Download LOCAL SCRIPT' ) && ! str_contains( $html, '/outside/private' ), 'entitled full-card actions render protected POST form without a direct file URL' );
 	TC_Discord::$state = 'lifetime';
 	$assert( TC_Catalog::download_cta( $ids[1] )['action'] === 'download', 'Lifetime access can use the same protected button pipeline' );
 	TC_Discord::$allowed = false;
