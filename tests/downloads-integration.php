@@ -37,6 +37,30 @@ try {
     $mint = static function () use ( $config, $file_id, $track ) { $token = TC_Downloads::mint( $config, $file_id ); if ( ! is_string( $token ) ) { throw new RuntimeException( 'Expected mint: ' . $token->get_error_code() ); } return $track( $token ); };
     // Re-sign server-side malformed fixtures to exercise payload checks independently of signature checks.
     $alter = static function ( string $token, array $changes ) use ( $track ) { $data = json_decode( base64_decode( strtr( explode( '.', $token )[0], '-_', '+/' ) ), true ); $data = array_merge( $data, $changes, array( 'n' => bin2hex( random_bytes( 24 ) ) ) ); $payload = rtrim( strtr( base64_encode( wp_json_encode( $data ) ), '+/', '-_' ), '=' ); return $track( $payload . '.' . hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) ) ); };
+    // Matrix Values export uses the same signed, one-use Discord-bound pipeline.
+    TC_Catalog::seed_core_terms();
+    $matrix = get_term_by( 'slug', 'xim-matrix', 'tc_device' );
+    $assert( $matrix instanceof WP_Term, 'XIM Matrix term exists.' );
+    wp_set_object_terms( $config, array( $matrix->term_id ), 'tc_device' );
+    update_post_meta( $config, '_tc_values_content', ">>> XIM_MATRIX_TEST_CODE\nSensitivity=43\n" );
+    update_post_meta( $config, '_tc_values_visibility', 'free' );
+    $matrix_token = TC_Downloads::mint( $config, TC_Downloads::MATRIX_TEXT_ID );
+    $assert( is_string( $matrix_token ), 'Entitled Matrix member can mint signed TXT export.' );
+    $matrix_token = $track( $matrix_token );
+    $matrix_prepared = TC_Downloads::prepare( $matrix_token );
+    $assert( is_array( $matrix_prepared ) && str_contains( $matrix_prepared['file']['name'], 'xim-matrix.txt' ) && str_contains( $matrix_prepared['text'], 'XIM_MATRIX_TEST_CODE' ) && ! isset( $matrix_prepared['path'] ), 'Matrix export prepares text not a public or private file path.' );
+    $assert( is_wp_error( TC_Downloads::prepare( $matrix_token ) ), 'Matrix export cannot replay a one-use URL.' );
+    $matrix_token = $track( TC_Downloads::mint( $config, TC_Downloads::MATRIX_TEXT_ID ) );
+    update_post_meta( $config, '_tc_values_content', "Updated Matrix code\n" );
+    $assert( is_wp_error( TC_Downloads::prepare( $matrix_token ) ), 'Changed Matrix values invalidate a previously signed TXT token.' );
+    $matrix_token = $track( TC_Downloads::mint( $config, TC_Downloads::MATRIX_TEXT_ID ) );
+    update_post_meta( $config, 'tc_release_status', 'coming-soon' );
+    $assert( is_wp_error( TC_Downloads::prepare( $matrix_token ) ), 'Coming soon Matrix config is never downloadable.' );
+    update_post_meta( $config, 'tc_release_status', 'available' );
+    $matrix_token = $track( TC_Downloads::mint( $config, TC_Downloads::MATRIX_TEXT_ID ) );
+    wp_set_object_terms( $config, array(), 'tc_device' );
+    $assert( is_wp_error( TC_Downloads::prepare( $matrix_token ) ), 'Removing Matrix device revokes TXT export eligibility.' );
+
     $token = $mint(); $prepared = TC_Downloads::prepare( $token );
     $assert( is_array( $prepared ) && $prepared['path'] === $path && $prepared['user_id'] === $uid, 'Mint through real APIs resolves authorized private file.' );
     $assert( is_array( TC_Downloads::prepare( $mint() ) ), 'Immediate second file request succeeds with bounded role cache.' );
