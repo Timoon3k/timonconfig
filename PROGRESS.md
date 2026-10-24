@@ -1,5 +1,11 @@
 # TimonConfigs project progress
 
+## Owner-authorized publication of 0.8.5 to GitHub main
+
+- Na polecenie właściciela „wypchnij na produkcje” scalono fast-forward `fix/upload-text-and-shared-vip` do `main` i potwierdzono GitHub main na `19ae648`. Kod: Core 0.8.5 / motyw 0.10.4. Nie było nowych zmian kodu od testów i kontroli paczek.
+- Hostinger nadal nie udostępnia callable narzędzi. Nie wykonano bezpośredniej instalacji ZIP na hostingu ani nie potwierdzono zdalnego automatycznego deploymentu. Push GitHub nie jest dowodem aktualizacji działającego WordPressa.
+
+
 ## ZNBK/TXT uploads, shared VIP and simple Owner form — Core 0.8.5 / theme 0.10.4
 
 - Sprawdzono najnowszy GitHub main `b10f360` i zachowano PR #2–#6, bez przepisywania ich implementacji. Niedokończone wcześniejsze zmiany zabezpieczono checkpointem `f376b8e`; aktualna praca: `fix/upload-text-and-shared-vip`.
