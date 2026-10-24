@@ -327,6 +327,13 @@ final class TC_Catalog {
 		$allowed = TC_Discord::can_access( $post_id );
 		$status = TC_Discord::status();
 		$state = is_array( $status ) && isset( $status['state'] ) && is_string( $status['state'] ) ? $status['state'] : 'unavailable';
+		if ( true === $allowed && defined( 'TC_Downloads::MATRIX_TEXT_ID' ) && $files[0]['id'] === TC_Downloads::MATRIX_TEXT_ID ) {
+			$values = class_exists( 'TC_Config_Content' ) ? TC_Config_Content::read( $post_id, 'values' ) : new WP_Error( 'tc_values_unavailable', 'Missing values' );
+			if ( is_wp_error( $values ) ) {
+				$details['message'] = 'This Matrix code is unavailable for your current membership. Ask the publisher to review Values access.';
+				return $details;
+			}
+		}
 		if ( true === $allowed && is_callable( array( 'TC_Downloads', 'render_button' ) ) ) {
 			$details['action'] = 'download';
 			$details['label'] = 'Download';
