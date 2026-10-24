@@ -38,20 +38,23 @@ try {
     };
     $expect( ! current_user_can( 'manage_options' ) && ! current_user_can( 'edit_posts' ) && ! current_user_can( 'edit_tc_configs' ), 'Subscriber starts without generic or config administration.' );
     $operations = array( 'save', 'trash', 'upload', 'replace', 'delete', 'update', 'image' );
-    foreach ( array( 'anonymous', 'free', 'monthly', 'lifetime', 'staff', 'unverified', 'wrong-guild', 'not-approved' ) as $actor ) {
+    foreach ( array( 'anonymous', 'not-approved', 'not-in-pilot', 'unbound' ) as $actor ) {
         wp_set_current_user( 'anonymous' === $actor ? 0 : $uid );
-        $roles = isset( $settings[ $actor . '_role' ] ) ? array( $settings[ $actor . '_role' ] ) : array();
-        $mode = 'wrong-guild' === $actor ? 'wrong-guild' : 'ok';
-        if ( in_array( $actor, array( 'wrong-guild', 'not-approved' ), true ) ) { $roles = array( $settings['owner_role'] ); }
-        $current_settings = $settings; if ( 'not-approved' === $actor ) { $current_settings['owner_ids'] = ''; }
+        $current_settings = $settings;
+        if ( 'not-approved' === $actor ) { $current_settings['owner_ids'] = ''; }
+        if ( 'not-in-pilot' === $actor ) { $current_settings['pilot_ids'] = '899999999999999989'; }
         update_option( 'timonconfigs_discord', $current_settings, false );
+        if ( 'unbound' === $actor ) { update_option( $binding_key, 0, false ); }
         foreach ( $operations as $operation ) {
-            $seed(); $result = TC_Owner_Editor::perform( $data( $operation ) );
+            $seed(); $before = $http_calls;
+            $result = TC_Owner_Editor::perform( $data( $operation ) );
             $expect( is_wp_error( $result ), "$actor cannot perform $operation." );
-            $expected_error = 'anonymous' === $actor ? 'Your management session expired. Reload and try again.' : ( 'wrong-guild' === $actor ? 'Discord verification is unavailable. Please reconnect or try again shortly.' : 'Verified Owner access is required.' );
-            $expect( $expected_error === $result->get_error_message(), "$actor/$operation is rejected by identity policy before operation-specific validation." );
+            $expected_error = 'anonymous' === $actor ? 'Your management session expired. Reload and try again.' : 'Approved Owner account access is required.';
+            $expect( $expected_error === $result->get_error_message(), "$actor/$operation cannot bypass configured Owner ID/binding." );
+            $expect( $before === $http_calls, "$actor/$operation does not request Discord API." );
             $expect( ! TC_Owner_Editor::in_authorized_context() && ! current_user_can( 'edit_tc_configs' ), "Rejected $actor/$operation leaves no scoped capabilities." );
         }
+        if ( 'unbound' === $actor ) { update_option( $binding_key, $uid, false ); }
     }
     update_option( 'timonconfigs_discord', $settings, false ); wp_set_current_user( $uid ); $mode = 'ok'; $roles = array( $settings['owner_role'] ); $seed();
     $before = $http_calls;
@@ -81,7 +84,9 @@ try {
     $expect( is_int( $created ) && $created > 0, 'Approved Owner subscriber can create a draft.' ); $posts[] = $created;
     $expect( 'draft' === get_post_status( $created ) && (int) get_post_field( 'post_author', $created ) === $uid, 'Draft belongs to the authenticated Owner.' );
     $expect( ! TC_Owner_Editor::in_authorized_context() && ! current_user_can( 'edit_tc_configs' ) && ! current_user_can( 'manage_options' ) && ! current_user_can( 'upload_files' ), 'Successful write grants no lasting or generic WP capabilities.' );
-    $expect( is_wp_error( TC_Owner_Editor::perform( $data( 'save', $created ) ) ), 'Rapid repeated write is rate-limited.' );
+    $before_http = $http_calls;
+    $expect( $created === TC_Owner_Editor::perform( $data( 'save', $created ) ), 'Immediate repeated Owner save succeeds without Discord rate limiting.' );
+    $expect( $before_http === $http_calls, 'Immediate repeated Owner save makes no Discord request.' );
     $seed(); $edit = $data( 'save', $created ); $edit['title'] = 'Owner-edited release'; $edit['status'] = 'publish';
     $edit['description'] = '<p>Preserved safe text</p><script>alert(1)</script>'; $edit['tc_tier'] = 'lifetime';
     $result = TC_Owner_Editor::perform( $edit );
@@ -131,11 +136,12 @@ try {
         $expect( 'Owner-edited release' === get_the_title( $created ) && ! TC_Owner_Editor::in_authorized_context(), 'Rejected mutation preserves content and clears authorization context (' . implode( ',', array_keys( $changes ) ) . '); actual title: ' . get_the_title( $created ) );
     }
     $seed(); $mode = 'error';
-    $expect( is_wp_error( TC_Owner_Editor::perform( $data( 'save', $created ) ) ), 'Discord outage denies write.' );
-    $mode = 'ok'; $roles = array( $settings['owner_role'] ); $seed(); TC_Discord::status();
-    delete_user_meta( $uid, '_tc_discord_attempt' ); $roles = array( $settings['free_role'] );
-    $expect( is_wp_error( TC_Owner_Editor::perform( $data( 'save', $created ) ) ), 'Fresh verification rejects revoked Owner despite cached Owner badge.' );
-    $roles = array( $settings['owner_role'] ); $seed();
+    $before_http = $http_calls;
+    $expect( true === TC_Discord::can_manage_configs_local(), 'Locally approved Owner remains authorized during Discord outage.' );
+    $expect( $before_http === $http_calls, 'Owner local authorization needs no Discord transport.' );
+    $roles = array( $settings['free_role'] );
+    $expect( true === TC_Discord::can_manage_configs_local(), 'Owner management does not rely on Discord guild role; only approved user ID and OAuth binding.' );
+    $mode = 'ok'; $roles = array( $settings['owner_role'] ); $seed();
     $temporary = wp_tempnam( 'owner-fixture.gpc' ); file_put_contents( $temporary, "// test-only\nmain {}\n" );
     $fake_upload = array( 'name' => array( 'fixture.gpc' ), 'tmp_name' => array( $temporary ), 'error' => array( UPLOAD_ERR_OK ), 'size' => array( filesize( $temporary ) ) );
     $expect( is_wp_error( TC_Owner_Editor::perform( $data( 'upload', $created ), array( 'tc_private_files' => $fake_upload ) ) ), 'Local file path cannot impersonate an HTTP private upload.' );
@@ -146,7 +152,7 @@ try {
     $seed(); $trash = $data( 'trash', $created ); $trash['confirm'] = '1';
     $expect( 0 === TC_Owner_Editor::perform( $trash ) && 'trash' === get_post_status( $created ), 'Approved Owner can move a config to Trash.' );
     $audit = get_post_meta( $created, '_tc_owner_audit', false );
-    $expect( array( 'created', 'edited', 'edited', 'edited', 'trashed' ) === wp_list_pluck( $audit, 'action' ) && array( $uid ) === array_values( array_unique( wp_list_pluck( $audit, 'actor' ) ) ), 'Successful writes alone record actor/time/action audit.' );
+    $expect( array( 'created', 'edited', 'edited', 'edited', 'edited', 'trashed' ) === wp_list_pluck( $audit, 'action' ) && array( $uid ) === array_values( array_unique( wp_list_pluck( $audit, 'actor' ) ) ), 'Successful writes alone record actor/time/action audit.' );
     $expect( ! TC_Owner_Editor::in_authorized_context() && ! current_user_can( 'manage_options' ) && ! current_user_can( 'edit_tc_configs' ) && array( 'subscriber' ) === get_userdata( $uid )->roles, 'Owner remains a subscriber after all success/failure paths.' );
     WP_CLI::success( "Owner editor integration: $checks assertions; disposable fixtures, mocked Discord only." );
 } finally {
