@@ -115,7 +115,7 @@ try {
     ) as $changes ) {
         $seed(); $bad = array_merge( $data( 'save', $created ), $changes );
         $expect( is_wp_error( TC_Owner_Editor::perform( $bad ) ), 'Malformed metadata/taxonomy/ID cannot mutate a config.' );
-        $expect( 'Owner-edited release' === get_the_title( $created ) && ! TC_Owner_Editor::in_authorized_context(), 'Rejected mutation preserves content and clears authorization context.' );
+        $expect( 'Owner-edited release' === get_the_title( $created ) && ! TC_Owner_Editor::in_authorized_context(), 'Rejected mutation preserves content and clears authorization context (' . implode( ',', array_keys( $changes ) ) . '); actual title: ' . get_the_title( $created ) );
     }
     $seed(); $mode = 'error';
     $expect( is_wp_error( TC_Owner_Editor::perform( $data( 'save', $created ) ) ), 'Discord outage denies write.' );
