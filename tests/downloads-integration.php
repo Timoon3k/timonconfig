@@ -44,6 +44,14 @@ try {
     wp_set_object_terms( $config, array( $matrix->term_id ), 'tc_device' );
     update_post_meta( $config, '_tc_values_content', ">>> XIM_MATRIX_TEST_CODE\nSensitivity=43\n" );
     update_post_meta( $config, '_tc_values_visibility', 'free' );
+    $seed( 'unverified' );
+    $assert( is_wp_error( TC_Downloads::mint( $config, TC_Downloads::MATRIX_TEXT_ID ) ), 'Unverified user cannot mint Matrix TXT.' );
+    $seed( 'free' ); update_post_meta( $config, 'tc_tier', 'lifetime' );
+    $assert( is_wp_error( TC_Downloads::mint( $config, TC_Downloads::MATRIX_TEXT_ID ) ), 'Free user cannot mint VIP Lifetime Matrix TXT.' );
+    $seed( 'lifetime' ); update_post_meta( $config, 'tc_tier', 'free' );
+    update_post_meta( $config, '_tc_values_visibility', 'lifetime' );
+    $assert( is_string( TC_Downloads::mint( $config, TC_Downloads::MATRIX_TEXT_ID ) ), 'Lifetime user can export lifetime-protected Values.' );
+    update_post_meta( $config, '_tc_values_visibility', 'free' );
     $matrix_token = TC_Downloads::mint( $config, TC_Downloads::MATRIX_TEXT_ID );
     $assert( is_string( $matrix_token ), 'Entitled Matrix member can mint signed TXT export.' );
     $matrix_token = $track( $matrix_token );
