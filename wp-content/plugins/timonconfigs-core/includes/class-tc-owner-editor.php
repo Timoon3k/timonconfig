@@ -282,7 +282,9 @@ final class TC_Owner_Editor {
         $allowed = is_user_logged_in() ? TC_Discord::can_manage_configs( 0, false ) : false;
         if ( is_wp_error( $allowed ) ) {
             $retry_id = isset( $_GET['config_id'] ) && is_string( $_GET['config_id'] ) && ctype_digit( $_GET['config_id'] ) ? (int) $_GET['config_id'] : 0;
-            return '<div class="tc-owner-editor"><h2>Manage Configs</h2>' . $feedback . '<p class="tc-owner-feedback tc-owner-feedback--error" role="alert">Discord verification is temporarily unavailable. Wait at least 10 seconds and retry, or reconnect Discord. Editing stays locked until access is verified.</p><p><a class="tc-button" href="' . esc_url( self::url( $retry_id ) ) . '">Retry verification</a> <a href="' . esc_url( TC_Discord::login_url() ) . '">Reconnect Discord</a> · <a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a></p></div>';
+            $retry = max( 0, (int) TC_Discord::retry_after() );
+            $wait = $retry ? 'Please wait ' . $retry . ' seconds before retrying.' : 'Please try again shortly.';
+            return '<div class="tc-owner-editor"><h2>Manage Configs</h2>' . $feedback . '<p class="tc-owner-feedback tc-owner-feedback--error" role="alert">Discord Owner verification is temporarily unavailable. ' . esc_html( $wait ) . ' Your existing configuration has not been deleted and editing remains locked until access is verified.</p><p><a class="tc-button" href="' . esc_url( self::url( $retry_id ) ) . '">Retry verification</a> <a href="' . esc_url( TC_Discord::login_url() ) . '">Reconnect Discord</a> · <a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a></p></div>';
         }
         if ( true !== $allowed ) { return '<div class="tc-owner-editor"><h2>Manage Configs</h2>' . $feedback . '<p>Verified, administrator-approved Owner access is required. Staff and membership roles do not grant editing access.</p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a></div>'; }
         $raw = $_GET['config_id'] ?? '0'; $id = is_string( $raw ) && ctype_digit( $raw ) ? (int) $raw : 0;
