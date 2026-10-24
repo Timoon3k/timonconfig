@@ -29,7 +29,7 @@ final class TC_Owner_Editor {
         nocache_headers();
         if ( ! headers_sent() ) { header( 'Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0', true ); header( 'X-Robots-Tag: noindex, nofollow', true ); }
     }
-    private static function forbidden( string $message = 'Verified Owner access is required.' ): WP_Error { return new WP_Error( 'tc_owner_forbidden', $message ); }
+    private static function forbidden( string $message = 'Approved Owner account access is required.' ): WP_Error { return new WP_Error( 'tc_owner_forbidden', $message ); }
     /** Return a recoverable error that redirects back to the saved draft, not a blank form. */
     private static function draft_error( int $id, string $message ): WP_Error {
         return new WP_Error( 'tc_owner_draft_saved', 'Configuration #' . $id . ' was saved as a draft. ' . $message, array( 'config_id' => $id ) );
@@ -38,7 +38,7 @@ final class TC_Owner_Editor {
     /** Single policy check per mutation; scoped capability grant is removed even on failure. */
     public static function perform( array $data, array $files = array() ): int|WP_Error {
         if ( ! is_user_logged_in() || ! wp_verify_nonce( self::scalar( $data, '_wpnonce' ), self::ACTION ) ) { return self::forbidden( 'Your management session expired. Reload and try again.' ); }
-        $policy = TC_Discord::can_manage_configs();
+        $policy = TC_Discord::can_manage_configs_local();
         if ( true !== $policy ) { return is_wp_error( $policy ) ? $policy : self::forbidden(); }
         $operation = self::scalar( $data, 'operation' );
         if ( ! in_array( $operation, array( 'save', 'trash', 'upload', 'replace', 'delete', 'update', 'image' ), true ) ) { return self::forbidden( 'Unknown configuration action.' ); }
@@ -204,7 +204,7 @@ final class TC_Owner_Editor {
             if ( $json ) {
                 $code = $result->get_error_code(); $message = $result->get_error_message();
                 $unavailable = 'tc_discord_unavailable' === $code;
-                $permission = in_array( $message, array( 'Verified Owner access is required.', 'Your management session expired. Reload and try again.' ), true );
+                $permission = in_array( $message, array( 'Approved Owner account access is required.', 'Your management session expired. Reload and try again.' ), true );
                 $response = array( 'message' => $message, 'code' => $code );
                 $cooldown = max( $unavailable ? 1 : 0, min( 10, 10 + (int) get_user_meta( $uid, '_tc_discord_attempt', true ) - time() ) );
                 if ( $cooldown ) { $response['retry_after'] = $cooldown; }
@@ -279,14 +279,8 @@ final class TC_Owner_Editor {
         if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) { return '<p>Config management is private.</p>'; }
         self::headers();
         $feedback = self::feedback();
-        $allowed = is_user_logged_in() ? TC_Discord::can_manage_configs( 0, false ) : false;
-        if ( is_wp_error( $allowed ) ) {
-            $retry_id = isset( $_GET['config_id'] ) && is_string( $_GET['config_id'] ) && ctype_digit( $_GET['config_id'] ) ? (int) $_GET['config_id'] : 0;
-            $retry = max( 0, (int) TC_Discord::retry_after() );
-            $wait = $retry ? 'Please wait ' . $retry . ' seconds before retrying.' : 'Please try again shortly.';
-            return '<div class="tc-owner-editor"><h2>Manage Configs</h2>' . $feedback . '<p class="tc-owner-feedback tc-owner-feedback--error" role="alert">Discord Owner verification is temporarily unavailable. ' . esc_html( $wait ) . ' Your existing configuration has not been deleted and editing remains locked until access is verified.</p><p><a class="tc-button" href="' . esc_url( self::url( $retry_id ) ) . '">Retry verification</a> <a href="' . esc_url( TC_Discord::login_url() ) . '">Reconnect Discord</a> · <a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a></p></div>';
-        }
-        if ( true !== $allowed ) { return '<div class="tc-owner-editor"><h2>Manage Configs</h2>' . $feedback . '<p>Verified, administrator-approved Owner access is required. Staff and membership roles do not grant editing access.</p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a></div>'; }
+        $allowed = is_user_logged_in() ? TC_Discord::can_manage_configs_local() : false;
+        if ( true !== $allowed ) { return '<div class="tc-owner-editor"><h2>Manage Configs</h2>' . $feedback . '<p>Only your approved Discord-linked Owner account can manage configurations. If you recently logged out, sign in with your original Discord account. Staff and VIP roles do not grant editing access.</p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a></div>'; }
         $raw = $_GET['config_id'] ?? '0'; $id = is_string( $raw ) && ctype_digit( $raw ) ? (int) $raw : 0;
         if ( $id && ( 'tc_config' !== get_post_type( $id ) || ! in_array( get_post_status( $id ), array( 'draft', 'publish', 'pending', 'private' ), true ) ) ) { return '<p>This configuration cannot be managed.</p>'; }
         $post = $id ? get_post( $id ) : null;
