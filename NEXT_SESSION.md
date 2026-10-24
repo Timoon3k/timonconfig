@@ -27,3 +27,8 @@ Wersje: theme 0.10.1 / Core 0.8.1. Testy WordPress Actions run 40043541966 przes
 ## 2026-10-24 — Owner panel: skrypty zamiast zdjęcia (PR #5)
 
 Na zrzucie dla config_id=116 Owner widział tylko 'Public preview image', bo sekcja skryptów była zablokowana przez brak TIMONCONFIGS_PRIVATE_STORAGE_DIR. UI przeniesiono: teraz prywatne pliki są pierwszą akcją, a obrazek opcjonalnie w zwijanym panelu. Jeśli magazyn jest nieskonfigurowany, wyświetla się wyraźna instrukcja Hostinger; żadna płatna konfiguracja nie trafia do Media Library. Theme 0.10.3 i Core 0.8.3. Test WordPress integration run 40048011266 oraz PHP lint run 40048011263 przeszły. Szczegóły: docs/SCRIPT_FIRST_OWNER_UPLOAD_0.8.3.md. Faktyczny katalog na Hostingerze musi skonfigurować właściciel lub uprawniony administrator, nadal brak dowodu produkcyjnego uploadu.
+
+
+## 2026-10-24 — ZNBK spakowany jako ZIP, stan bezpieczny (PR #6)
+
+Core 0.8.4 dopuszcza **wyłącznie etap wstępnej kontroli** strukturalnej ZIP dla rozszerzenia `.znbk`, nie rozpakowuje pliku, zachowuje limit rozpakowania i blokuje ścieżki/wykonywalne payloady. Zwykłe archiwa nadal blokowane. Wymagany jest **realny zaufany** inspektor `timonconfigs_private_file_scan` zatwierdzający format przed dodaniem i każdym pobraniem. Nie stosować `return true` w produkcji! GitHub Actions `40050567738` (private-files 73 asercje, downloads 69, catalog 45, Owner 223), PHP lint `40050567733` przeszły; to sztuczne próbki, nie rzeczywisty ZNBK użytkownika. Sprawdzić konfigurację PHP ZipArchive na Hostinger i legalnie posiadany plik wzorcowy przed wdrożeniem. Dokument `docs/ZNBK_ZIP_CONTAINER_INSPECTOR_0.8.4.md`.
