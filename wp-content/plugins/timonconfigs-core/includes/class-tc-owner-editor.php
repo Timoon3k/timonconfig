@@ -248,10 +248,10 @@ final class TC_Owner_Editor {
         if ( ! class_exists( 'ZipArchive' ) && in_array( 'znbk', TC_Private_Files::extensions(), true ) ) {
             echo '<p class="tc-owner-upload-hint">ZIP-backed ZNBK also requires the PHP ZIP extension on your host.</p>';
         }
-        echo '<p class="tc-owner-upload-hint">Uploader version: ' . esc_html( TIMONCONFIGS_CORE_VERSION ) . '. GPC accepts source text with legacy Windows/control bytes; TXT uses stricter text validation. Original file bytes are always preserved.</p>';
+        echo '<p class="tc-owner-upload-hint">Uploader version: ' . esc_html( TIMONCONFIGS_CORE_VERSION ) . '. Private configuration files are stored byte-for-byte, without UTF, MIME or source-code parsing. Reviewed extensions and storage safeguards still apply.</p>';
         self::form_start( $id, 'upload' );
         echo '<label class="tc-owner-script-picker"><strong>Choose private script files</strong><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple required></label>';
-        echo '<p class="tc-owner-upload-hint">Up to 10 files per upload, 20 MB each. Formats depend on your safe-format settings. ZNBK is checked automatically; no external approval is required. XIMMR requires its format inspector. For XIM Matrix, upload actual .txt code; never rename a binary XIMMR to .txt.</p>';
+        echo '<p class="tc-owner-upload-hint">Choose up to 10 private files, max 20 MB each. GPC, ZNBK, XIMMR, TXT and other enabled configuration formats keep their exact bytes. Only the file extension, storage limits and authenticated access are enforced; optional trusted scanners can veto uploads. For XIM Matrix text-code downloads, provide actual TXT content or Values; binary backups are downloaded in their original formats.</p>';
         self::input( 'version', 'File version (optional)', '' );
         self::input( 'notes', 'Notes (optional)', '', true );
         echo '<button class="tc-button" type="submit">Upload script files</button></form>';
