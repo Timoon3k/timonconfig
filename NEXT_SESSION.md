@@ -59,3 +59,8 @@ Core 0.8.5 / motyw 0.10.4 są na GitHub `main` (kod `19ae648`, fast-forward bez 
 ## 2026-10-24 — Real GPC upload and Owner button sizing (PR #7)
 
 Latest Core 0.8.7 relaxes **only** text/plain `.gpc` encoding/control character checks while preserving original bytes and blocking dangerous file signatures. Theme 0.10.6 fixes upload button stretched alongside AJAX error. GitHub Actions 40131505392 PHP lint and 40131505429 WordPress integration passed, including `tests/text-upload-integration.php` 85 assertions. Need verify actual user `PREDATOR SCRIPT S29_PIN_350305.gpc` on Hostinger after approved release; fixture tests cannot prove this particular file matches. Do not disable file scanning / MIME checks wholesale. See docs/GPC_LEGACY_UPLOAD_FIX_0.8.7.md. No Hostinger deployment.
+
+
+## 2026-10-24 — trusted Owner raw config vault 0.8.8 (PR #8)
+
+Final solution replaces content UTF/MIME/ZIP/JSON validation with opaque bytes on enabled config extensions; original bytes and SHA256 retained. Do **not** allow arbitrary executable extensions/public upload paths. Authenticated Owner/administrator, nonce, quotas, safe filename, private directory outside document roots, optional scanner veto and role-gated signed download remain enforced. Optional malware/content inspection is no longer automatic; inspect trustworthiness of files before distributing. Source-only GitHub change, Hostinger still must be updated to Core 0.8.8. Tests first run 40132642307 and PHP lint 40132642942 passed; later rerun after stale helper removal must be checked. Docs: docs/RAW_OWNER_PRIVATE_CONFIG_FILES_0.8.8.md. No real proprietary GPC available to validate exact file.
