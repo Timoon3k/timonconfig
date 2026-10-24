@@ -316,3 +316,10 @@ The three catalogue entries currently visible in the Docker database are local-o
 - Theme 0.10.6 corrects the stretched upload CTA by moving asynchronous status messages to their own grid row. Owner UI wording updated.
 - GitHub Actions **40131505392 PHP lint** and **40131505429 WordPress integration** completed successfully. Integration: text uploads 85 assertions, private files 73, downloads 69, catalog 45, Owner 223, further suites passed. Mocked Discord used; Hostinger production not tested.
 - Deployment guide: docs/GPC_LEGACY_UPLOAD_FIX_0.8.7.md. Update theme/Core together after backup; check real `.gpc` via logged-in Owner and restricted access. No actual production deployment or account/billing change.
+
+## 2026-10-24 — Core 0.8.8 raw private configuration uploads (PR #8)
+
+- User wanted to stop `text/plain (binary or unsupported encoding)` GPC rejection and upload original files without UTF/MIME parsing. `TC_Private_Files::inspect` now validates approved filename/extension, size and SHA-256, with optional scanner veto only; it stores GPC/ZNBK/XIMMR/TXT/CFG/INI/JSON bytes byte-for-byte, including binary. Removed unused UTF and ZIP parser helpers; Owner UI updated. **Do not advertise as unrestricted public uploads**: extension allowlist, private root, Owner auth/nonce/capability, storage quotas, signed attachment downloads and Discord tier authorization remain.
+- Trusted private vault no longer inspects file content for malware; only trusted authorized Owner should publish vetted files. Risk accepted only within this restricted workflow. Source change not a Hostinger update.
+- Disposable WP integration run 40132642307 passed: 170 assertions raw config, 79 private-file storage, 69 private downloads, 45 catalog, 223 Owner; PHP lint 40132642942 passed. Follow-up lint/integration rerun after dead helper removal pending; see PR #8. Real uploaded user GPC not provided.
+- Documentation: docs/RAW_OWNER_PRIVATE_CONFIG_FILES_0.8.8.md. Upgrade plugin version and validate real Owner upload after backup; production and provider Discord/Stripe untouched.

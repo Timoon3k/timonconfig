@@ -53,73 +53,54 @@ try {
 	foreach ( array( '../private.gpc', 'folder\\private.gpc', 'payload.php.gpc', 'payload.zip', "bad\0.gpc", array( 'bad.gpc' ) ) as $bad_name ) {
 		$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $good, $bad_name ) ), 'Traversal, executable/archives, NUL and malformed filenames are rejected.' );
 	}
+	// Original file bytes are treated as opaque private data, not decoded as source.
+	// Only permitted extensions, filenames, size, Owner role and vault privacy limit uploads.
 	foreach ( array(
 		array( 'php.gpc', "<?php system('x');" ),
-		array( 'short.gpc', "<?= 'x';" ),
 		array( 'html.txt', '<html><script>alert(1)</script></html>' ),
-		array( 'fake.gpc', "\x7fELF\x00malicious" ),
+		array( 'binary.gpc', "\x7fELF\x00binary" ),
 		array( 'archive.znbk', "PK\x03\x04archive" ),
 		array( 'embedded.ximmr', "safe prefix PK\x03\x04archive" ),
-		array( 'archive.gpc', "\x1f\x8bcompressed" ),
 		array( 'shell.txt', "#!/bin/sh\nexit 0" ),
 		array( 'bad.json', '{invalid}' ),
-		array( 'mismatch.txt', "\0\x01\x02binary" ),
+		array( 'nul.txt', "\0\x01\x02binary" ),
+		array( 'invalid-utf.gpc', "\xff\x00\x8d\r\n" ),
 	) as $case ) {
 		$path = $tc_private_fixture( $case[0], $case[1] );
-		$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $path, $case[0] ) ), 'Content/MIME and archive inspection reject ' . $case[0] );
+		$result = $tc_private_call( 'inspect', $path, $case[0] );
+		$tc_private_expect( is_array( $result ) && 'owner-private-raw' === $result['inspection'], 'Private byte vault accepts opaque content for allowed format: ' . $case[0] );
+		$tc_private_expect( $result['checksum'] === hash_file( 'sha256', $path ) && $result['size'] === strlen( $case[1] ), 'Opaque source bytes and checksum are preserved: ' . $case[0] );
 	}
 	$json = $tc_private_fixture( 'valid.json', '{"controller":"test"}' );
-	$tc_private_expect( is_array( $tc_private_call( 'inspect', $json, 'valid.json' ) ), 'A real JSON object is accepted.' );
+	$tc_private_expect( is_array( $tc_private_call( 'inspect', $json, 'valid.json' ) ), 'Valid JSON is stored without parsing.' );
 	$empty = $tc_private_fixture( 'empty.gpc', '' );
-	$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $empty, 'empty.gpc' ) ), 'Zero-byte files are rejected.' );
+	$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $empty, 'empty.gpc' ) ), 'Zero-byte files remain rejected.' );
 	$oversize = $tc_private_fixture( 'large.gpc', 'x' );
 	$stream = fopen( $oversize, 'r+' ); ftruncate( $stream, 20971521 ); fclose( $stream );
-	$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $oversize, 'large.gpc' ) ), 'An actual oversized file is rejected independent of request size.' );
+	$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $oversize, 'large.gpc' ) ), 'Host/storage maximum still protects the server.' );
 	$opaque = $tc_private_fixture( 'binary.znbk', "TCBIN\0\x01\x02\xff" );
-	$tc_private_expect( is_array( $tc_private_call( 'inspect', $opaque, 'binary.znbk' ) ), 'ZNBK binary data passes automatic checks without an external approval.' );
+	$tc_private_expect( is_array( $tc_private_call( 'inspect', $opaque, 'binary.znbk' ) ), 'ZNBK stored as raw private bytes with no decoding or ZIP extraction.' );
 	foreach ( array( 'znbk', 'ximmr' ) as $extension ) {
-		$tc_private_expect( ( 'znbk' === $extension ? is_array( $tc_private_call( 'inspect', $good, 'text-backup.' . $extension ) ) : is_wp_error( $tc_private_call( 'inspect', $good, 'text-backup.' . $extension ) ) ), 'Only XIMMR retains mandatory external approval: ' . $extension );
+		$tc_private_expect( is_array( $tc_private_call( 'inspect', $good, 'text-backup.' . $extension ) ), 'Proprietary config backups use raw byte storage: ' . $extension );
 	}
-	// ZIP-backed ZNBK is accepted after automatic structural validation; optional scanners may veto.
-	$zen_zip_path = '';
-	$zen_zip_bad = array();
 	if ( class_exists( 'ZipArchive' ) ) {
 		$zen_zip_path = $tc_private_directory . '/' . wp_generate_uuid4() . '.znbk';
 		$zip = new ZipArchive();
-		$tc_private_expect( true === $zip->open( $zen_zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE ), 'Test ZIP-backed ZNBK fixture can be created.' );
+		$tc_private_expect( true === $zip->open( $zen_zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE ), 'Raw ZIP-backed ZNBK test fixture exists.' );
 		$zip->addFromString( 'slots/config.json', '{"test":true}' );
 		$zip->close();
-		$rejected = $tc_private_call( 'inspect', $zen_zip_path, 'fixture-backup.znbk' );
-		$tc_private_expect( is_array( $rejected ) && 'znbk-container-checked' === $rejected['inspection'], 'Bounded ZIP-backed ZNBK works without external approval and records its actual check.' );
-		foreach ( array(
-			array( '../escape.txt', 'safe' ),
-			array( 'scripts/bootstrap.php', '<?php echo "x";' ),
-			array( 'slots/hidden.dat', 'MZexecutable' ),
-			array( 'backup/subdir.zip', "PK\x03\x04nested" ),
-		) as $index => $case ) {
-			$path = $tc_private_directory . '/' . wp_generate_uuid4() . '.znbk';
-			$archive = new ZipArchive();
-			$archive->open( $path, ZipArchive::CREATE | ZipArchive::OVERWRITE );
-			$archive->addFromString( $case[0], $case[1] );
-			$archive->close();
-			$zen_zip_bad[] = $path;
-		}
+		$raw_zip = $tc_private_call( 'inspect', $zen_zip_path, 'fixture-backup.znbk' );
+		$tc_private_expect( is_array( $raw_zip ) && $raw_zip['checksum'] === hash_file( 'sha256', $zen_zip_path ), 'ZIP-backed ZNBK stored with original SHA-256, not extracted.' );
 	}
+	$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $good, 'malware.exe' ) ), 'Executable file extensions remain rejected even in the private vault.' );
+	$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $good, 'malware.php.gpc' ) ), 'Double executable extensions remain rejected.' );
 	$tc_private_scanner = static fn() => true;
 	add_filter( 'timonconfigs_private_file_scan', $tc_private_scanner );
 	$tc_private_expect( is_array( $tc_private_call( 'inspect', $opaque, 'binary.znbk' ) ), 'An approved inspector can accept a non-executable proprietary binary.' );
-	if ( $zen_zip_path ) {
-		$accepted = $tc_private_call( 'inspect', $zen_zip_path, 'fixture-backup.znbk' );
-		$tc_private_expect( is_array( $accepted ) && 'scanner-approved' === $accepted['inspection'], 'Well-formed ZIP-backed Zen backup is accepted only after explicit scanner approval.' );
-		$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $zen_zip_path, 'forbidden.gpc' ) ), 'ZIP-backed ZNBK content is never accepted with a GPC extension.' );
-		foreach ( $zen_zip_bad as $path ) {
-			$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $path, 'unsafe.znbk' ) ), 'Approved scanner cannot override unsafe ZIP entries, nested archives or embedded executables.' );
-		}
-	}
 
-	foreach ( array( 'znbk', 'ximmr' ) as $extension ) {
-		$approved = $tc_private_call( 'inspect', $good, 'text-backup.' . $extension );
-		$tc_private_expect( is_array( $approved ) && 'scanner-approved' === $approved['inspection'], 'Explicit inspector approval accepts text-form proprietary data: ' . $extension );
+	foreach ( array( 'znbk', 'ximmr', 'gpc', 'txt' ) as $extension ) {
+		$approved = $tc_private_call( 'inspect', $good, 'private-config.' . $extension );
+		$tc_private_expect( is_array( $approved ) && 'scanner-approved' === $approved['inspection'], 'Optional scanner approval remains recorded for raw private data: ' . $extension );
 	}
 	remove_filter( 'timonconfigs_private_file_scan', $tc_private_scanner );
 	$tc_private_scanner = static fn() => new WP_Error( 'fixture_scan', 'Do not leak scanner internals.' );

@@ -1,78 +1,61 @@
 <?php
-/** Disposable local validation: encodings are inspected without rewriting private downloads. */
+/** Disposable localhost WordPress regression: reviewed config files preserve opaque bytes. */
 defined( 'ABSPATH' ) || exit;
-if ( ! defined( 'WP_CLI' ) || ! WP_CLI || ! in_array( wp_parse_url( home_url(), PHP_URL_HOST ), array( 'localhost', '127.0.0.1' ), true ) ) { throw new RuntimeException( 'Disposable localhost WordPress required.' ); }
-$checks = 0; $paths = array();
-$assert = static function ( bool $ok, string $message ) use ( &$checks ) { if ( ! $ok ) { throw new RuntimeException( $message ); } ++$checks; };
+if ( ! defined( 'WP_CLI' ) || ! WP_CLI || ! in_array( wp_parse_url( home_url(), PHP_URL_HOST ), array( 'localhost', '127.0.0.1' ), true ) ) {
+	throw new RuntimeException( 'Disposable localhost WordPress required.' );
+}
+$checks = 0;
+$paths = array();
+$assert = static function ( bool $ok, string $message ) use ( &$checks ): void {
+	if ( ! $ok ) { throw new RuntimeException( $message ); }
+	++$checks;
+};
 $inspect = new ReflectionMethod( TC_Private_Files::class, 'inspect' );
-$fixture = static function ( string $bytes ) use ( &$paths ): string { $path = wp_tempnam( 'tc-text-fixture' ); if ( ! is_string( $path ) ) { throw new RuntimeException( 'No fixture temp storage.' ); } file_put_contents( $path, $bytes ); $paths[] = $path; return $path; };
+$fixture = static function ( string $bytes ) use ( &$paths ): string {
+	$path = wp_tempnam( 'tc-raw-private-fixture' );
+	if ( ! is_string( $path ) ) { throw new RuntimeException( 'No temporary test storage.' ); }
+	file_put_contents( $path, $bytes );
+	$paths[] = $path;
+	return $path;
+};
 try {
-    $plain = "Sensitivity = 10\nProfile = Test\n";
-    $utf16le = "\xff\xfe" . iconv( 'UTF-8', 'UTF-16LE', $plain );
-    $utf16be = "\xfe\xff" . iconv( 'UTF-8', 'UTF-16BE', $plain );
-    foreach ( array( 'utf8' => $plain, 'utf8-bom' => "\xef\xbb\xbf" . $plain, 'utf16le' => $utf16le, 'utf16be' => $utf16be, 'mz-text' => "MZ sensitivity = 10\n" ) as $kind => $bytes ) {
-        $path = $fixture( $bytes ); $result = $inspect->invoke( null, $path, 'config.txt' );
-        $assert( is_array( $result ), 'Valid TXT accepted: ' . $kind );
-        $assert( $bytes === file_get_contents( $path ) && $result['size'] === strlen( $bytes ) && $result['checksum'] === hash( 'sha256', $bytes ), 'Original bytes/size/checksum preserved: ' . $kind );
-    }
-    foreach ( array(
-        "PK\x03\x04archive", "MZ\0\x01binary", "\x7fELF\0payload", "\xff\xfe\x00\xd8", "\xef\xbb\xbf", "\xff\xfe",
-        "\xff\xfe" . iconv( 'UTF-8', 'UTF-16LE', '<?php echo 1;' ),
-        "\xfe\xff" . iconv( 'UTF-8', 'UTF-16BE', '<script>alert(1)</script>' ),
-        "\xff\xfe" . iconv( 'UTF-8', 'UTF-16LE', "#!/bin/sh\nexit 0" ),
-        "\xef\xbb\xbf#!/bin/sh\nexit 0", "\xff\xfe" . iconv( 'UTF-8', 'UTF-16LE', "A\0B" ), "\x00\x00\xfe\xffUTF32",
-    ) as $index => $bytes ) {
-        $assert( is_wp_error( $inspect->invoke( null, $fixture( $bytes ), 'renamed.txt' ) ), 'Encoded executable/binary/malformed TXT rejected: ' . $index );
-    }
-    $gpc = "// Copyright \xa9 TimonConfigs \x96 local fixture\r\ndefine TEST_BUTTON = PS4_CROSS;\r\nmain { if(get_val(TEST_BUTTON)) { set_val(TEST_BUTTON, 100); } }\r\n";
-    $source = "// Local GPC fixture\r\nmain { set_val(PS4_CROSS, 0); }\r\n";
-    foreach ( array( 'ansi-gpc' => $gpc, 'utf8-bom-gpc' => "\xef\xbb\xbf" . $source, 'utf16le-gpc' => "\xff\xfe" . iconv( 'UTF-8', 'UTF-16LE', $source ), 'utf16be-gpc' => "\xfe\xff" . iconv( 'UTF-8', 'UTF-16BE', $source ) ) as $kind => $bytes ) {
-        $path = $fixture( $bytes ); $result = $inspect->invoke( null, $path, 'source.gpc' );
-        $assert( is_array( $result ), 'Windows GPC source accepted: ' . $kind );
-        $assert( $bytes === file_get_contents( $path ) && $result['checksum'] === hash( 'sha256', $bytes ), 'GPC original bytes preserved: ' . $kind );
-    }
-    foreach ( array( 'txt', 'gpc', 'cfg', 'ini' ) as $extension ) {
-        $result = $inspect->invoke( null, $fixture( "Profile = Timon\x92s test\r\n" ), 'config.' . $extension );
-        $assert( is_array( $result ), 'Windows ANSI text accepted: ' . $extension );
-        foreach ( array( '<?php echo 1;', '<script>alert(1)</script>', "#!/bin/sh\nexit 0", '<svg onload="alert(1)"></svg>', '<!doctype html><html>active</html>' ) as $payload ) {
-            $encoded = "\xff\xfe" . iconv( 'UTF-8', 'UTF-16LE', $payload );
-            $assert( is_wp_error( $inspect->invoke( null, $fixture( $encoded ), 'bad.' . $extension ) ), 'Encoded active payload rejected: ' . $extension );
-        }
-    }
-    // Real Cronus GPC source can have legacy control bytes or undefined
-    // Windows codepage bytes while PHP/libmagic still identifies text/plain.
-    // They must survive storage byte-for-byte rather than requiring iconv.
-    foreach ( array( 'vertical-tab' => "\x0b", 'form-feed' => "\x0c", 'escape' => "\x1b", 'undefined-cp1252' => "\x81", 'undefined-cp1252-2' => "\x8d" ) as $kind => $suffix ) {
-        $bytes = "// Test GPC script\r\nmain { set_val(PS4_RX, 0); }" . $suffix . "\r\n";
-        $path = $fixture( $bytes );
-        $mime = ( new finfo( FILEINFO_MIME_TYPE ) )->file( $path );
-        $assert( 'text/plain' === $mime, 'Legacy GPC fixture remains text/plain: ' . $kind );
-        $result = $inspect->invoke( null, $path, 'PREDATOR SCRIPT S29_PIN_350305.gpc' );
-        $assert( is_array( $result ), 'Legacy text/plain GPC accepted without unnecessary encoding or control-byte rejection: ' . $kind );
-        $assert( $bytes === file_get_contents( $path ) && $result['checksum'] === hash( 'sha256', $bytes ), 'GPC bytes and SHA-256 stay unchanged: ' . $kind );
-        $assert( is_wp_error( $inspect->invoke( null, $path, 'invalid.txt' ) ), 'Strict TXT handling remains unchanged for GPC-only legacy controls: ' . $kind );
-    }
-    foreach ( array(
-        'php' => "<?php echo 123;\x0b",
-        'html' => "<script>alert(1)</script>\x0c",
-        'shell' => "#!/bin/sh\nexit 0\x1b",
-        'nul' => "// sample\nmain { set_val(PS4_RX, 0); }\x00",
-        'zip' => "PK\x03\x04malicious",
-        'elf' => "\x7fELF\x00binary"
-    ) as $kind => $payload ) {
-        $assert( is_wp_error( $inspect->invoke( null, $fixture( $payload ), 'PREDATOR SCRIPT S29_PIN_350305.gpc' ) ), 'Active/binary content is still rejected for GPC: ' . $kind );
-    }
-    // libmagic language guesses must not veto plain GPC source with harmless syntax.
-    $pascal = "program LocalFixture;\nvar x: integer;\nbegin x := 1; end.\n";
-    $assert( is_array( $inspect->invoke( null, $fixture( $pascal ), 'source.gpc' ) ), 'Benign text language heuristic is accepted as source text.' );
-    $unsupported = $inspect->invoke( null, $fixture( "\x00\xff\x01\x02binary" ), 'source.gpc' );
-    $assert( is_wp_error( $unsupported ) && str_contains( $unsupported->get_error_message(), 'application/octet-stream' ) && ! str_contains( $unsupported->get_error_message(), 'binary' . chr( 0 ) ), 'Safe MIME diagnostic identifies rejected binary without raw content.' );
-    $assert( is_array( $inspect->invoke( null, $fixture( $plain ), 'backup.znbk' ) ), 'ZNBK does not require external approval; automatic checks still apply.' );
-    $veto = static fn() => false;
-    add_filter( 'timonconfigs_private_file_scan', $veto, PHP_INT_MAX );
-    try {
-        $assert( is_wp_error( $inspect->invoke( null, $fixture( $plain ), 'backup.znbk' ) ), 'An explicitly rejecting optional scanner still vetoes ZNBK.' );
-        $assert( is_wp_error( $inspect->invoke( null, $fixture( $plain ), 'config.txt' ) ), 'An explicitly rejecting optional scanner still vetoes TXT.' );
-    } finally { remove_filter( 'timonconfigs_private_file_scan', $veto, PHP_INT_MAX ); }
-    WP_CLI::success( "Text uploads: $checks assertions; original bytes preserved, optional scanner veto respected." );
-} finally { foreach ( $paths as $path ) { if ( is_file( $path ) ) { unlink( $path ); } } }
+	$plain = "Sensitivity = 10\nProfile = Test\n";
+	$utf16le = "\xff\xfe" . iconv( 'UTF-8', 'UTF-16LE', $plain );
+	$utf16be = "\xfe\xff" . iconv( 'UTF-8', 'UTF-16BE', $plain );
+	$cases = array(
+		'utf8' => $plain,
+		'utf8-bom' => "\xef\xbb\xbf" . $plain,
+		'utf16le' => $utf16le,
+		'utf16be' => $utf16be,
+		'windows-ansi' => "Copyright \x96 \xa9\n",
+		'control' => "// Real source\nmain { set_val(PS4_RX, 0); }\x00\x0b\x1b\n",
+		'raw-binary' => "\x00\x01\x02\xff\xfe\x8d\x81",
+		'zip-envelope' => "PK\x03\x04raw archive bytes",
+		'php-contents' => "<?php echo 'stored but never executed'; ?>",
+		'invalid-json' => '{not a real json document}',
+		'shell-contents' => "#!/bin/sh\nexit 0",
+	);
+	foreach ( array( 'gpc', 'znbk', 'ximmr', 'txt', 'cfg', 'ini', 'json' ) as $extension ) {
+		$assert( in_array( $extension, TC_Private_Files::extensions(), true ), 'Test format enabled: ' . $extension );
+		foreach ( $cases as $name => $bytes ) {
+			$path = $fixture( $bytes );
+			$result = $inspect->invoke( null, $path, 'PREDATOR SCRIPT S29_PIN_350305.' . $extension );
+			$assert( is_array( $result ) && 'owner-private-raw' === $result['inspection'], 'Raw config accepts ' . $name . ' in ' . $extension );
+			$assert( $bytes === file_get_contents( $path ) && $result['checksum'] === hash( 'sha256', $bytes ) && $result['size'] === strlen( $bytes ), 'File bytes and checksum preserved ' . $name . ' / ' . $extension );
+		}
+	}
+	foreach ( array( 'script.php', 'script.exe', 'shell.sh', 'archive.zip', 'hidden.php.gpc', '../config.gpc', 'unsafe\\config.gpc' ) as $name ) {
+		$assert( is_wp_error( $inspect->invoke( null, $fixture( $plain ), $name ) ), 'Unapproved extension/path cannot be uploaded: ' . $name );
+	}
+	$assert( is_wp_error( $inspect->invoke( null, $fixture( '' ), 'empty.gpc' ) ), 'Zero-byte uploads are denied.' );
+	$veto = static fn() => false;
+	add_filter( 'timonconfigs_private_file_scan', $veto, PHP_INT_MAX );
+	try {
+		$assert( is_wp_error( $inspect->invoke( null, $fixture( $plain ), 'blocked.gpc' ) ), 'External trusted scanner veto remains supported.' );
+	} finally {
+		remove_filter( 'timonconfigs_private_file_scan', $veto, PHP_INT_MAX );
+	}
+	WP_CLI::success( "Private raw uploads: $checks assertions; all bytes unchanged, scanner veto and file boundary controls preserved." );
+} finally {
+	foreach ( $paths as $path ) { if ( is_file( $path ) ) { unlink( $path ); } }
+}
