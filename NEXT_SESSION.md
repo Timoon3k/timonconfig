@@ -54,3 +54,8 @@ Wynik bieżącego etapu 0.8.5: 671 PHP + 76 instalacji ZIP, 29 rzeczywistych kon
 ## Publikacja zatwierdzona przez właściciela
 
 Core 0.8.5 / motyw 0.10.4 są na GitHub `main` (kod `19ae648`, fast-forward bez konfliktów). Nie trzeba ponownie scalać gałęzi fix. Nie potwierdzono instalacji na Hostingerze, ponieważ brak callable narzędzi; przed deklarowaniem działania produkcyjnego sprawdzić rzeczywistą wersję witryny i upload. Paczki pozostają zgodne ze źródłami.
+
+
+## 2026-10-24 — Real GPC upload and Owner button sizing (PR #7)
+
+Latest Core 0.8.7 relaxes **only** text/plain `.gpc` encoding/control character checks while preserving original bytes and blocking dangerous file signatures. Theme 0.10.6 fixes upload button stretched alongside AJAX error. GitHub Actions 40131505392 PHP lint and 40131505429 WordPress integration passed, including `tests/text-upload-integration.php` 85 assertions. Need verify actual user `PREDATOR SCRIPT S29_PIN_350305.gpc` on Hostinger after approved release; fixture tests cannot prove this particular file matches. Do not disable file scanning / MIME checks wholesale. See docs/GPC_LEGACY_UPLOAD_FIX_0.8.7.md. No Hostinger deployment.
