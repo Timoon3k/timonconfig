@@ -139,3 +139,7 @@
 .tc-config-card--compact>.tc-config-card__overlay-link{display:block}
 .tc-config-card--compact .tc-config-card__status{z-index:1}
 @media(prefers-reduced-motion:reduce){.tc-config-card--compact{transition:none}.tc-config-card--compact:hover{transform:none}}
+
+.tc-config-card--compact.tc-config-card--pending{cursor:default}
+.tc-config-card--compact.tc-config-card--pending:hover{transform:none;border-color:#26343e}
+.tc-config-card--compact.tc-config-card--pending .tc-config-card__primary{background:#17242c;border:1px solid #3b4a53;color:#bbcad3}
