@@ -1,3 +1,9 @@
+## Najnowszy etap: Owner upload recovery — Core 0.8.6 / theme 0.10.5
+
+Przeczytaj `docs/OWNER_UPLOAD_RECOVERY_0.8.6.md` i najnowszy wpis PROGRESS.md. Gałąź `fix/owner-upload-recovery`, checkpoint kodowania `1deb95a`; baza main `6d1e20e`. Nie przywracaj wymogu zewnętrznej zgody dla ZNBK. Windows GPC/TXT obsługuje UTF-8, BOM UTF-16 i ANSI z zachowaniem bajtów. Formularz zachowuje dane i wybrany plik po tymczasowym błędzie Discorda, nadal wymaga świeżego Owner + approved ID i nonce. Błąd usługi nie jest przedstawiany jako odebranie roli.
+
+726 PHP / 39 Owner browser / 24 member layout zaliczone lokalnie; testy nie potwierdzają rzeczywistej usługi Discord ani oryginalnego niezałączonego skryptu. Paczki 0.8.6/0.10.5 są przygotowane; sprawdź finalny wynik świeżej instalacji w PROGRESS.md. Następny krok to zatwierdzona aktualizacja obu paczek na staging/hostingu, purge cache i próba oryginalnego pliku. Nie zmieniaj istniejących płatności, ról ani baz produkcyjnych bez zgody. Nie deklaruj wdrożenia Hostinger na podstawie samego commita lub push.
+
 # Następna sesja — TimonConfigs (2026-10-24)
 
 1. Sprawdź git status i gałąź `main`. Na wyraźne polecenie właściciela wydanie scalono fast-forward i wypchnięto do GitHub main (kod `17441cb`); gałąź feature zachowano. Wersje bieżącej poprawki: motyw 0.10.4 / Core 0.8.5. Kontynuacja dokumentów `CODEX_NEXT_FEATURES_AND_SEO_2026-10-23.md` i `CODEX_VISUAL_REFERENCES_2026-10-24.md`; nie twórz projektu ponownie. Przeczytaj `PROGRESS.md`, `docs/FEATURE_RELEASE_0.10.md` i aktualny koniec `docs/CMS_GUIDE.md`.

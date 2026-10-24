@@ -55,7 +55,7 @@ find wp-content -name '*.php' -print0 | xargs -0 -n1 php -l
 The second command requires PHP CLI. A full WordPress staging smoke test remains required before deployment.
 
 
-## Visual reference and inline media (theme 0.10.4 / Core 0.8.5)
+## Visual reference and inline media (theme 0.10.5 / Core 0.8.6)
 
 The storefront follows the supplied mockup composition while retaining the real offer and omitting unverified statistics and invented reviews. The recreated wordmark and seven game covers are replaceable; use **Appearance → Customize** to provide final licensed production assets. Set the official logo under Site Identity when available.
 
@@ -86,3 +86,5 @@ Read [member dashboard update](docs/MEMBER_DASHBOARD_0.9.md), [member-library ha
 New focused suites are `discord`, `private-files`, and `downloads` integration files. `tests/member-catalog-integration.php` uses service doubles and requires `--skip-plugins=timonconfigs-core`; flush rewrites with the real plugin after isolated presentation tests if needed. Browser tests are `tests/private-files-browser.cjs` and `tests/member-area-browser.cjs`; `node tests/download-stream.cjs` verifies delivery bytes and descriptor integrity. These mutate only disposable localhost data. No actual provider consent or purchase is automated.
 
 `node tools/capture-theme-screenshot.cjs` creates the real 1200x900 WordPress screenshot and separately retains untouched full-page captures; its compact-preview mode is documented in the tool/report.
+
+Current upload recovery: [Core 0.8.6 / theme 0.10.5](docs/OWNER_UPLOAD_RECOVERY_0.8.6.md). Install both packages for Windows GPC/TXT support and a form that preserves selected files after temporary Discord verification failures.

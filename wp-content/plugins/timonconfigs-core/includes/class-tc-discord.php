@@ -72,7 +72,7 @@ final class TC_Discord {
         $s = self::settings();
         $failure = get_transient( 'tc_discord_last_failure' );
         if ( is_array( $failure ) ) {
-            echo '<div class="notice notice-warning"><p><strong>Last Discord sign-in failure (UTC)</strong>: ' . esc_html( (string) ( $failure['time'] ?? '' ) ) . ' — Stage: ' . esc_html( (string) ( $failure['stage'] ?? '' ) ) . '; Reason: ' . esc_html( (string) ( $failure['reason'] ?? '' ) ) . '; HTTP: ' . esc_html( (string) ( $failure['http'] ?? 0 ) ) . '</p><p>Only the most recent failed sign-in is shown, for up to 24 hours. HTTP 0 means no HTTP status was recorded. No credentials or provider response bodies are stored.</p></div>';
+            echo '<div class="notice notice-warning"><p><strong>Last Discord verification failure (UTC)</strong>: ' . esc_html( (string) ( $failure['time'] ?? '' ) ) . ' — Stage: ' . esc_html( (string) ( $failure['stage'] ?? '' ) ) . '; Reason: ' . esc_html( (string) ( $failure['reason'] ?? '' ) ) . '; HTTP: ' . esc_html( (string) ( $failure['http'] ?? 0 ) ) . '</p><p>Only the most recent failed sign-in or membership verification is shown, for up to 24 hours. HTTP 0 means no HTTP status was recorded. No credentials or provider response bodies are stored.</p></div>';
         }
         echo '<div class="wrap"><h1>Discord membership</h1><p>Disabled until configured. Public production access requires confirmed real staging account tests. Alternatively, enable the restricted pilot for up to 10 specified Discord user IDs; this does not confirm staging tests or grant VIP roles. Set WP_ENVIRONMENT_TYPE to staging on an isolated HTTPS staging site to run those tests before production confirmation. Scope: identify guilds.members.read. No role writes. Free accepts all verified plans; Monthly accepts Monthly or Lifetime; Lifetime accepts Lifetime only. Role cache expires after 60 seconds; API errors deny access.</p><p>Register this exact callback: <code>' . esc_html( home_url( '/?tc_discord_callback=1' ) ) . '</code></p><form method="post" action="options.php">';
         settings_fields( 'tc_discord' );
@@ -250,7 +250,7 @@ final class TC_Discord {
             update_user_meta( $uid, '_tc_discord_attempt', time() ); delete_user_meta( $uid, self::CACHE );
             if ( $tokens['expires'] <= time() + 30 ) {
                 $fresh = self::token_request( array( 'grant_type' => 'refresh_token', 'refresh_token' => $tokens['refresh_token'] ) );
-                if ( is_wp_error( $fresh ) ) { return self::unavailable( $base ); }
+                if ( is_wp_error( $fresh ) ) { self::record_failure( $fresh ); return self::unavailable( $base ); }
                 $new_blob = self::encrypt( wp_json_encode( $fresh ) );
                 // Compare-and-swap cannot resurrect credentials deleted by a concurrent logout.
                 global $wpdb;
@@ -261,8 +261,10 @@ final class TC_Discord {
                 $fingerprint = hash( 'sha256', $blob . wp_json_encode( array_intersect_key( $s, array_flip( array( 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'staff_role', 'owner_role', 'owner_ids', 'client_id' ) ) ) ) );
             }
             $member = self::request( '/users/@me/guilds/' . $s['guild_id'] . '/member', null, $tokens['access_token'] );
-            if ( is_wp_error( $member ) || ! is_array( $member['roles'] ?? null ) || ( $member['user']['id'] ?? '' ) !== $id || ( isset( $member['guild_id'] ) && $member['guild_id'] !== $s['guild_id'] ) || $blob !== get_user_meta( $uid, self::TOKEN, true ) ) { return self::unavailable( $base ); }
-            foreach ( $member['roles'] as $role ) { if ( ! self::snowflake( $role ) ) { return self::unavailable( $base ); } }
+            if ( is_wp_error( $member ) ) { self::record_failure( $member ); return self::unavailable( $base ); }
+            if ( ! is_array( $member['roles'] ?? null ) || ( $member['user']['id'] ?? '' ) !== $id || ( isset( $member['guild_id'] ) && $member['guild_id'] !== $s['guild_id'] ) ) { self::record_failure( self::error( 'membership', 'malformed_response', 200 ) ); return self::unavailable( $base ); }
+            if ( $blob !== get_user_meta( $uid, self::TOKEN, true ) ) { return self::unavailable( $base ); }
+            foreach ( $member['roles'] as $role ) { if ( ! self::snowflake( $role ) ) { self::record_failure( self::error( 'membership', 'malformed_response', 200 ) ); return self::unavailable( $base ); } }
             foreach ( array( 'lifetime', 'monthly', 'free' ) as $tier ) { if ( in_array( $s[ $tier . '_role' ], $member['roles'], true ) ) { $base['state'] = $tier; break; } }
             // These are product labels for configured, verified immutable role IDs, not arbitrary guild role names.
             foreach ( array( 'free' => 'Free Member', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime', 'staff' => 'Staff', 'owner' => 'Owner' ) as $key => $label ) {

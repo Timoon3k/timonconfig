@@ -1,4 +1,4 @@
-# Installation and update — theme 0.10.4 / Core 0.8.5
+# Installation and update — theme 0.10.5 / Core 0.8.6
 
 ## Environment requirements
 
@@ -19,18 +19,20 @@
 6. Enter actual Upgrade.chat URLs under **Settings → TimonConfigs**. Keep existing Stripe/PayPal products and Discord role automation unchanged. Test the redirect destination without completing a transaction.
 7. Review all 25 routes in `URL_STATUS.md`, configured Discord buttons, filters, editor previews, media playback, indexing, sitemap, and supported SEO-plugin behavior. Replace demo reviews and unpublished release drafts only with verified content.
 8. Review the policy drafts with the owner before production use; confirm entity, contact information, Lifetime scope, cancellation, refunds, privacy, and storage disclosures. Setup preserves WordPress's existing draft Privacy Policy: publish approved legal pages deliberately before expecting their public URLs to respond.
-9. Purge the target site's page/CDN cache after a staging update so CSS/JS version 0.10.4 and the artwork are served together. Compare screenshots with the approved reference. If Home showed the default welcome post, follow the targeted steps in `HOME_FIX_0.7.1.md`. An update of an already active Core still needs the explicit setup to create missing member pages; no existing content is overwritten.
+9. Purge the target site's page/CDN cache after a staging update so CSS/JS version 0.10.5 and the artwork are served together. Compare screenshots with the approved reference. If Home showed the default welcome post, follow the targeted steps in `HOME_FIX_0.7.1.md`. An update of an already active Core still needs the explicit setup to create missing member pages; no existing content is overwritten.
 10. Production deployment requires the owner's explicit approval after staging validation. This session did not modify Hostinger production or any live payment/membership state.
 
 ## Current external limitations
 
-The current ZIPs have passed an isolated fresh local installation and activation with 62 assertions. Reproduce that check with `bash tests/release-installation.sh`; it uses only cached images and its own temporary internal Docker network, WordPress filesystem, and database, then cleans them up. This does not replace target-host staging checks with the actual plugin stack and owner-approved content.
+The current ZIPs have passed an isolated fresh local installation and activation with 76 assertions. Reproduce that check with `bash tests/release-installation.sh`; it uses only cached images and its own temporary internal Docker network, WordPress filesystem, and database, then cleans them up. This does not replace target-host staging checks with the actual plugin stack and owner-approved content.
 
 The environment proxy blocked read-only requests to timonconfigs.com and the Discord invitation API. This is not an observed 404 from the website. Required domains were added to the cloud environment draft; review/save/publication is needed before retrying access. No callable Hostinger hosting/WordPress tools were exposed in this session, so account state and remote backups could not be inspected.
 
-Original logo/Hero sources and confirmed clip-to-device metadata remain owner inputs. OAuth2, live guild-role authorization, and protected premium file delivery remain unimplemented and must be tested separately before they are described as operational.
+Original logo/Hero sources and confirmed clip-to-device metadata remain owner inputs. OAuth2, live guild-role authorization and protected delivery have local integration coverage; actual provider consent, target-host role changes and delivery still require real-account validation.
 
-## Core 0.7.1 — private format policy
+## Historical Core 0.7.1 — private format policy
+
+Superseded for ZNBK by the explicit owner-approved automatic checks in Core 0.8.5+. XIMMR still requires its inspector.
 
 ZNBK and XIMMR require explicit approval from the existing file inspector even when their bytes are text-encoded. This applies to new uploads and existing-file resolution before download. Existing files are preserved, but these formats cannot be delivered without the inspector. GPC, JSON and TXT retain their structural checks. Configure and verify the actual inspector on isolated staging; never install an unconditional approval callback as a production scanner.
 
@@ -43,3 +45,5 @@ Core 0.7.3 adds administrator-only, redacted callback failure diagnostics. Exist
 For Owner/Staff settings, the frontend editor, protected Guides/Values, permitted formats and preview-domain indexing protection, follow `FEATURE_RELEASE_0.10.md` and the current section of `CMS_GUIDE.md`. These packages do not configure real roles, scanners, storage or production URLs automatically. Keep Restricted pilot enabled during target-host validation.
 
 Current upload/access policy: `UPLOAD_AND_SHARED_VIP_0.8.5.md`. Mandatory external approval was removed for ZNBK at the explicit owner request; older inspector instructions apply only to historical versions or XIMMR. Install both current packages to receive the compact form and automatic cooldown handling.
+
+Current recovery update: [Core 0.8.6 / theme 0.10.5](OWNER_UPLOAD_RECOVERY_0.8.6.md). Install both packages; preserve the existing private storage and Discord/Upgrade.chat configuration.

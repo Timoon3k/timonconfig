@@ -176,19 +176,47 @@ final class TC_Owner_Editor {
         return true;
     }
     private static function audit( int $id, string $action ): void { add_post_meta( $id, '_tc_owner_audit', array( 'at' => gmdate( 'c' ), 'actor' => get_current_user_id(), 'action' => $action ) ); }
+    /** Show the result of the previous POST even when the next Discord check fails. */
+    private static function feedback(): string {
+        if ( ! is_user_logged_in() ) { return ''; }
+        $key = 'tc_owner_feedback_' . get_current_user_id();
+        $feedback = get_transient( $key );
+        $message = is_array( $feedback ) ? (string) ( $feedback['message'] ?? '' ) : ( is_string( $feedback ) ? $feedback : '' );
+        if ( '' === $message ) { return ''; }
+        delete_transient( $key );
+        $error = is_array( $feedback ) && ! empty( $feedback['error'] );
+        return '<p class="tc-owner-feedback ' . ( $error ? 'tc-owner-feedback--error' : 'tc-owner-feedback--success' ) . '" role="' . ( $error ? 'alert' : 'status' ) . '">' . esc_html( $message ) . '</p>';
+    }
     public static function handle(): void {
         self::headers();
         if ( 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) { wp_die( 'POST required.', '', array( 'response' => 405 ) ); }
+        $json = is_string( $_SERVER['HTTP_ACCEPT'] ?? null ) && false !== stripos( $_SERVER['HTTP_ACCEPT'], 'application/json' );
         $result = self::perform( wp_unslash( $_POST ), $_FILES );
         $uid = get_current_user_id();
         if ( is_wp_error( $result ) ) {
-            if ( ! $uid ) { wp_die( 'Please sign in.', '', array( 'response' => 403 ) ); }
+            if ( ! $uid ) {
+                if ( $json ) { wp_send_json_error( array( 'message' => 'Please sign in.', 'code' => 'tc_owner_forbidden' ), 403 ); }
+                wp_die( 'Please sign in.', '', array( 'response' => 403 ) );
+            }
             set_transient( 'tc_owner_feedback_' . $uid, array( 'message' => $result->get_error_message(), 'error' => true ), 120 );
             $error_data = $result->get_error_data();
             $draft_id = is_array( $error_data ) ? absint( $error_data['config_id'] ?? 0 ) : 0;
+            if ( $json ) {
+                $code = $result->get_error_code(); $message = $result->get_error_message();
+                $unavailable = 'tc_discord_unavailable' === $code;
+                $permission = in_array( $message, array( 'Verified Owner access is required.', 'Your management session expired. Reload and try again.' ), true );
+                $response = array( 'message' => $message, 'code' => $code );
+                $cooldown = max( $unavailable ? 1 : 0, min( 10, 10 + (int) get_user_meta( $uid, '_tc_discord_attempt', true ) - time() ) );
+                if ( $cooldown ) { $response['retry_after'] = $cooldown; }
+                // A recoverable private upload error has already saved this specific draft.
+                // All other failures keep the browser form and its selected files intact.
+                if ( 'tc_owner_draft_saved' === $code && $draft_id ) { $response['redirect'] = self::url( $draft_id ); }
+                wp_send_json_error( $response, $unavailable ? 503 : ( $permission ? 403 : 422 ) );
+            }
             wp_safe_redirect( self::url( $draft_id ?: absint( self::scalar( $_POST, 'config_id' ) ) ), 303 ); exit;
         }
         set_transient( 'tc_owner_feedback_' . $uid, array( 'message' => 'Configuration saved. You can now attach files or edit its details.', 'error' => false ), 120 );
+        if ( $json ) { wp_send_json_success( array( 'redirect' => self::url( $result ) ) ); }
         wp_safe_redirect( self::url( $result ), 303 ); exit;
     }
     private static function form_start( int $id, string $operation ): void {
@@ -220,7 +248,7 @@ final class TC_Owner_Editor {
         if ( ! class_exists( 'ZipArchive' ) && in_array( 'znbk', TC_Private_Files::extensions(), true ) ) {
             echo '<p class="tc-owner-upload-hint">ZIP-backed ZNBK also requires the PHP ZIP extension on your host.</p>';
         }
-        echo '<p class="tc-owner-upload-hint">Uploader version: ' . esc_html( TIMONCONFIGS_CORE_VERSION ) . '. TXT supports UTF-8 and BOM-marked Windows UTF-16; uploaded bytes are preserved.</p>';
+        echo '<p class="tc-owner-upload-hint">Uploader version: ' . esc_html( TIMONCONFIGS_CORE_VERSION ) . '. GPC/TXT supports UTF-8, BOM-marked Windows UTF-16 and Windows ANSI text; uploaded bytes are preserved.</p>';
         self::form_start( $id, 'upload' );
         echo '<label class="tc-owner-script-picker"><strong>Choose private script files</strong><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple required></label>';
         echo '<p class="tc-owner-upload-hint">Up to 10 files per upload, 20 MB each. Formats depend on your safe-format settings. ZNBK is checked automatically; no external approval is required. XIMMR requires its format inspector. For XIM Matrix, upload actual .txt code; never rename a binary XIMMR to .txt.</p>';
@@ -253,20 +281,19 @@ final class TC_Owner_Editor {
     public static function render(): string {
         if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) { return '<p>Config management is private.</p>'; }
         self::headers();
+        $feedback = self::feedback();
         $allowed = is_user_logged_in() ? TC_Discord::can_manage_configs( 0, false ) : false;
-        if ( true !== $allowed ) { return '<div class="tc-owner-editor"><h2>Manage Configs</h2><p>Verified, administrator-approved Owner access is required. Staff and membership roles do not grant editing access.</p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a></div>'; }
+        if ( is_wp_error( $allowed ) ) {
+            $retry_id = isset( $_GET['config_id'] ) && is_string( $_GET['config_id'] ) && ctype_digit( $_GET['config_id'] ) ? (int) $_GET['config_id'] : 0;
+            return '<div class="tc-owner-editor"><h2>Manage Configs</h2>' . $feedback . '<p class="tc-owner-feedback tc-owner-feedback--error" role="alert">Discord verification is temporarily unavailable. Wait at least 10 seconds and retry, or reconnect Discord. Editing stays locked until access is verified.</p><p><a class="tc-button" href="' . esc_url( self::url( $retry_id ) ) . '">Retry verification</a> <a href="' . esc_url( TC_Discord::login_url() ) . '">Reconnect Discord</a> · <a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a></p></div>';
+        }
+        if ( true !== $allowed ) { return '<div class="tc-owner-editor"><h2>Manage Configs</h2>' . $feedback . '<p>Verified, administrator-approved Owner access is required. Staff and membership roles do not grant editing access.</p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a></div>'; }
         $raw = $_GET['config_id'] ?? '0'; $id = is_string( $raw ) && ctype_digit( $raw ) ? (int) $raw : 0;
         if ( $id && ( 'tc_config' !== get_post_type( $id ) || ! in_array( get_post_status( $id ), array( 'draft', 'publish', 'pending', 'private' ), true ) ) ) { return '<p>This configuration cannot be managed.</p>'; }
         $post = $id ? get_post( $id ) : null;
         ob_start();
         echo '<section class="tc-owner-editor"><h2>Manage Configs</h2><p>Add a script file, choose its game and access, then publish its card. Game artwork is added automatically.</p><p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a> · <a href="' . esc_url( self::url() ) . '">New configuration</a></p>';
-        $feedback = get_transient( 'tc_owner_feedback_' . get_current_user_id() );
-        $feedback_text = is_array( $feedback ) ? (string) ( $feedback['message'] ?? '' ) : ( is_string( $feedback ) ? $feedback : '' );
-        if ( $feedback_text ) {
-            $error = is_array( $feedback ) && ! empty( $feedback['error'] );
-            echo '<p class="tc-owner-feedback ' . ( $error ? 'tc-owner-feedback--error' : 'tc-owner-feedback--success' ) . '" role="' . ( $error ? 'alert' : 'status' ) . '">' . esc_html( $feedback_text ) . '</p>';
-            delete_transient( 'tc_owner_feedback_' . get_current_user_id() );
-        }
+        echo $feedback; // Escaped by feedback(), including during authorization failures.
         $page_raw = $_GET['manage_page'] ?? '1'; $page = is_string( $page_raw ) && ctype_digit( $page_raw ) ? max( 1, min( 100000, (int) $page_raw ) ) : 1;
         $configs = new WP_Query( array( 'post_type' => 'tc_config', 'post_status' => array( 'draft', 'publish', 'private', 'pending' ), 'posts_per_page' => 20, 'paged' => $page, 'orderby' => array( 'modified' => 'DESC', 'ID' => 'DESC' ) ) );
         echo '<details open><summary>Existing configurations — click to edit</summary><ul>';

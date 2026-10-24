@@ -67,6 +67,7 @@ add_filter('pre_http_request',static function($pre,$args,$url){
  if(!str_starts_with($url,'https://discord.com/api/')){return new WP_Error('fixture_outbound','External requests disabled for browser fixture.');}
  $uid=get_current_user_id();if(get_user_meta($uid,'_tc_owner_browser_fixture',true)!=='${tag}'){return new WP_Error('fixture_actor','Unknown fixture actor.');}
  $is_owner=$uid===${fixture.users.owner};
+ if(str_ends_with($url,'/member')&&get_user_meta($uid,'_tc_owner_browser_fail_member',true)==='once'){delete_user_meta($uid,'_tc_owner_browser_fail_member');return array('response'=>array('code'=>503),'body'=>'{}','headers'=>array());}
  if(str_ends_with($url,'/member')){$body=array('user'=>array('id'=>get_user_meta($uid,'_tc_discord_id',true)),'roles'=>array($is_owner?'899999999999999996':'899999999999999997','899999999999999993'));}
  else{return new WP_Error('fixture_endpoint','Unexpected Discord endpoint.');}
  return array('response'=>array('code'=>200),'body'=>wp_json_encode($body),'headers'=>array());
@@ -100,7 +101,16 @@ add_action('template_redirect',static function(){
       await form.locator('[name="tc_tier"]').selectOption('free');
       await form.locator('input[name="tc_private_files[]"]').setInputFiles({ name, mimeType: 'text/plain', buffer });
     }
-    async function submit(form, button) { await Promise.all([page.waitForNavigation({waitUntil:'networkidle'}), form.getByRole('button', { name: button, exact: true }).click()]); }
+    let lastResponse;
+    page.on('response', async response => {
+      if (!response.url().includes('/wp-admin/admin-post.php') || response.request().method() !== 'POST') return;
+      const data = await response.json().catch(() => ({}));
+      lastResponse = {status:response.status(),success:data.success,code:data.data?.code,message:data.data?.message?.slice(0,240),redirect:data.data?.redirect ? new URL(data.data.redirect,origin).pathname + new URL(data.data.redirect,origin).search : undefined};
+    });
+    async function submit(form, button) {
+      try { await Promise.all([page.waitForNavigation({waitUntil:'networkidle'}), form.getByRole('button', { name: button, exact: true }).click()]); }
+      catch (error) { throw new Error(`${error.message} Owner fixture response: ${JSON.stringify(lastResponse)}; feedback: ${JSON.stringify(await page.locator('[data-owner-result]').allTextContents())}`); }
+    }
     async function reveal(form) { await form.evaluate(el => { for (let node = el.parentElement; node; node = node.parentElement) { if (node.tagName === 'DETAILS') node.open = true; } }); }
     // An actual rejected upload must not publish an empty card.
     await fillBasic(`${title} rejected`, 'unsafe.php', Buffer.from('<?php echo 1;'));
@@ -109,6 +119,19 @@ add_action('template_redirect',static function(){
     expect(rejected.published === 0, 'Rejected HTTP upload never publishes an empty config card.');
     await page.goto(`${origin}/account/?tc_manage_configs=1`, { waitUntil: 'networkidle' });
     await fillBasic(title);
+    // A provider outage must not navigate away, drop the file, or pretend the role was removed.
+    wp(`update_user_meta(${fixture.users.owner},'_tc_owner_browser_fail_member','once');echo 'TC_OWNER_BROWSER:'.wp_json_encode(true);`);
+    const failedResponse = await Promise.all([
+      page.waitForResponse(response => response.url().includes('/wp-admin/admin-post.php') && response.request().method() === 'POST'),
+      quickForm().getByRole('button', {name:'Publish config',exact:true}).click()
+    ]).then(results => results[0]);
+    expect(failedResponse.status() === 503, 'Fresh Owner verification fails closed with a temporary JSON response.');
+    await quickForm().locator('[data-owner-result][role="alert"]').waitFor();
+    expect(await quickForm().locator('[name="title"]').inputValue() === title, 'Temporary provider failure keeps the typed title.');
+    expect(await quickForm().locator('input[name="tc_private_files[]"]').evaluate(input => input.files.length === 1 && input.files[0].name === 'owner-test.txt'), 'Temporary provider failure keeps the selected file in the browser.');
+    let outage = wp(`$posts=get_posts(array('post_type'=>'tc_config','post_status'=>array('publish','draft'),'title'=>'${title}','numberposts'=>-1));echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('posts'=>count($posts),'roles'=>get_userdata(${fixture.users.owner})->roles,'discord'=>get_user_meta(${fixture.users.owner},'_tc_discord_id',true)));`);
+    expect(outage.posts === 0 && outage.roles.length === 1 && outage.roles[0] === 'subscriber' && outage.discord === ownerDiscord, 'Failed verification performs no draft, role, or identity mutation.');
+    // User clicks again: the existing cooldown is respected without changing _tc_discord_attempt.
     await submit(quickForm(), 'Publish config');
     id = Number(new URL(page.url()).searchParams.get('config_id'));
     expect(id > 0, 'One real submit creates the published config. ' + JSON.stringify({feedback:await page.locator('[role="status"],.tc-owner-feedback').allTextContents(),scripts:await page.locator('script[src*="owner-editor.js"]').count(),wait:await quickForm().getAttribute('data-wait-seconds')}));
@@ -159,6 +182,25 @@ add_action('template_redirect',static function(){
     const backupPath = path.join(directory,'delivered-backup.znbk'); await backupDownload.saveAs(backupPath);
     expect((await fs.readFile(backupPath)).equals(backupBytes), 'ZNBK downloads original ZIP bytes through the protected delivery route.');
     await backupCatalog.close();
+    // Every supported common format can be attached during its first publish, not only later.
+    const gpcBytes = Buffer.concat([Buffer.from('// Owner fixture '), Buffer.from([0xa9]), Buffer.from(' 2026\r\nmain { combo_run(Test); }\r\ncombo Test { wait(10); }\r\n')]);
+    for (const [extension, bytes] of [['gpc', gpcBytes], ['znbk', backupBytes]]) {
+      await page.goto(`${origin}/account/?tc_manage_configs=1`, {waitUntil:'networkidle'});
+      await fillBasic(`${title} ${extension.toUpperCase()}`, `initial.${extension}`, bytes);
+      await submit(quickForm(), 'Publish config');
+      const initialID = Number(new URL(page.url()).searchParams.get('config_id'));
+      const initial = wp(`echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('status'=>get_post_status(${initialID}),'release'=>get_post_meta(${initialID},'tc_release_status',true),'files'=>TC_Private_Files::files(${initialID})));`);
+      expect(initialID > 0 && initial.status === 'publish' && initial.release === 'available' && initial.files.length === 1 && initial.files[0].name === `initial.${extension}`, `${extension.toUpperCase()} publishes with its private file in one actual HTTP submit.`);
+      const initialCatalog = await context.newPage();
+      await initialCatalog.goto(`${origin}/configs/?config_search=${encodeURIComponent(`${title} ${extension.toUpperCase()}`)}`, {waitUntil:'networkidle'});
+      const initialCard = initialCatalog.locator(`.tc-config-card.post-${initialID}`);
+      expect(await initialCard.count() === 1, `${extension.toUpperCase()} first publish immediately has a catalog card.`);
+      const [initialDownload] = await Promise.all([initialCatalog.waitForEvent('download'),initialCard.getByRole('button',{name:/^Download /}).click()]);
+      const initialPath = path.join(directory, `delivered-initial.${extension}`); await initialDownload.saveAs(initialPath);
+      expect((await fs.readFile(initialPath)).equals(bytes), `${extension.toUpperCase()} protected download preserves the original first-upload bytes.`);
+      await initialCatalog.close();
+    }
+    await page.goto(`${origin}/account/?tc_manage_configs=1&config_id=${id}`, {waitUntil:'networkidle'});
     // Generate an ordinary PNG using Chromium, then submit the real image form.
     const png = await page.screenshot({ clip: { x: 0, y: 0, width: 64, height: 64 } });
     const image = page.locator('form:has(input[name="operation"][value="image"])');

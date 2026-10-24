@@ -114,7 +114,7 @@ try {
     $admins = get_users( array( 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ) );
     wp_set_current_user( (int) $admins[0] );
     ob_start(); TC_Discord::settings_page(); $admin_html = ob_get_clean();
-    $assert( str_contains( $admin_html, 'Last Discord sign-in failure' ) && ! str_contains( $admin_html, 'SECRET' ), 'Administrator sees redacted diagnostic panel.' );
+    $assert( str_contains( $admin_html, 'Last Discord verification failure' ) && ! str_contains( $admin_html, 'SECRET' ), 'Administrator sees redacted diagnostic panel.' );
     $saved = TC_Discord::sanitize_settings( array_merge( $settings, array( 'pilot_enabled' => 1, 'pilot_ids' => $id . ', ' . $id ) ) );
     $assert( 1 === $saved['pilot_enabled'] && $id === $saved['pilot_ids'], 'Admin can save a normalized pilot list.' );
     $assert( $settings['secret_encrypted'] === $saved['secret_encrypted'], 'Pilot configuration preserves the existing encrypted secret.' );

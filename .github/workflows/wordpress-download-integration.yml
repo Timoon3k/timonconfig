@@ -9,6 +9,7 @@ on:
       - 'tests/owner-editor-integration.php'
       - 'tests/private-files-integration.php'
       - 'tests/text-upload-integration.php'
+      - 'tests/owner-verification-integration.php'
       - 'tests/shared-vip-integration.php'
       - 'tests/catalog-routes-integration.php'
       - '.github/workflows/wordpress-download-integration.yml'
@@ -38,7 +39,9 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/private-files-integration.php
       - name: Owner draft persistence when private storage is missing
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/owner-editor-integration.php
-      - name: Windows TXT encoding and byte preservation
+      - name: Owner verification failure and recovery
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/owner-verification-integration.php
+      - name: Windows GPC and TXT encodings and byte preservation
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/text-upload-integration.php
       - name: Shared Monthly and Lifetime config access
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/shared-vip-integration.php

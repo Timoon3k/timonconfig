@@ -89,3 +89,7 @@ Home SEO/hero defaults and topical links now focus on XIM Matrix/Cronus Zen for 
 ## Simplified uploads — Core 0.8.5 / theme 0.10.4
 
 New configs need a title, game, device, access choice and private file. Click **Publish config**, or **Save draft** to finish later. Everything else is in **Advanced options**. **VIP — Monthly & Lifetime** gives both paid roles the same config (existing stored tier `monthly`); **VIP Lifetime only** remains exclusive. The site handles the short role-check cooldown automatically before submission. ZNBK no longer requires external approval; TXT supports UTF-8 and BOM-marked Windows UTF-16 without rewriting the original download. See `UPLOAD_AND_SHARED_VIP_0.8.5.md`.
+
+## Owner upload recovery — Core 0.8.6 / theme 0.10.5
+
+GPC/TXT now supports Windows ANSI and BOM-marked UTF-16 as well as UTF-8, preserving original download bytes. A harmless source-language MIME guess does not reject plain GPC. Temporary Discord errors retain the selected file and typed fields in the current form; wait and click the same action again. Genuine Owner permission denial remains enforced server-side. Install both packages and purge cached JavaScript. See [recovery notes](OWNER_UPLOAD_RECOVERY_0.8.6.md).
