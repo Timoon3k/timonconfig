@@ -30,6 +30,10 @@ final class TC_Owner_Editor {
         if ( ! headers_sent() ) { header( 'Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0', true ); header( 'X-Robots-Tag: noindex, nofollow', true ); }
     }
     private static function forbidden( string $message = 'Verified Owner access is required.' ): WP_Error { return new WP_Error( 'tc_owner_forbidden', $message ); }
+    /** Return a recoverable error that redirects back to the saved draft, not a blank form. */
+    private static function draft_error( int $id, string $message ): WP_Error {
+        return new WP_Error( 'tc_owner_draft_saved', 'Configuration #' . $id . ' was saved as a draft. ' . $message, array( 'config_id' => $id ) );
+    }
     private static function scalar( array $data, string $key ): string { return is_string( $data[ $key ] ?? null ) ? $data[ $key ] : ''; }
     /** Single policy check per mutation; scoped capability grant is removed even on failure. */
     public static function perform( array $data, array $files = array() ): int|WP_Error {
@@ -55,8 +59,6 @@ final class TC_Owner_Editor {
                 $has_files = count( array_filter( $names, static fn( mixed $name ): bool => is_string( $name ) && '' !== trim( $name ) ) ) > 0
                     || count( array_filter( $errors, static fn( mixed $err ): bool => UPLOAD_ERR_NO_FILE !== (int) $err ) ) > 0;
                 if ( ! $id && $has_files ) {
-                    $root = TC_Private_Files::root();
-                    if ( is_wp_error( $root ) ) { return self::forbidden( $root->get_error_message() ); }
                     $requested_status = self::scalar( $data, 'status' );
                     if ( ! in_array( $requested_status, array( 'draft', 'publish' ), true ) ) {
                         return self::forbidden( 'Choose Draft or Published.' );
@@ -68,17 +70,21 @@ final class TC_Owner_Editor {
                     $draft_data['status'] = 'draft';
                     $created = self::save( 0, $draft_data );
                     if ( is_wp_error( $created ) ) { return $created; }
+                    $root = TC_Private_Files::root();
+                    if ( is_wp_error( $root ) ) {
+                        return self::draft_error( $created, 'The attached file was NOT saved: ' . $root->get_error_message() . ' Configure private storage and retry the upload from this draft.' );
+                    }
                     $stored = TC_Private_Files::manage( $created, 'upload', array(
                         'version' => self::scalar( $data, 'file_version' ),
                         'notes' => self::scalar( $data, 'file_notes' ),
                     ), $incoming );
                     if ( is_wp_error( $stored ) ) {
-                        return self::forbidden( 'Config #' . $created . ' remains a draft because the file upload failed: ' . $stored->get_error_message() . ' Open it from Existing configurations to retry.' );
+                        return self::draft_error( $created, 'The attached file was NOT saved: ' . $stored->get_error_message() . ' Retry the upload from this draft.' );
                     }
                     if ( 'publish' === $requested_status ) {
                         $published = wp_update_post( array( 'ID' => $created, 'post_status' => 'publish' ), true );
                         if ( is_wp_error( $published ) ) {
-                            return self::forbidden( 'Config #' . $created . ' and its files were saved as draft, but publication failed. Open the draft to retry.' );
+                            return self::draft_error( $created, 'The private file was saved, but publication failed. Review the draft before publishing.' );
                         }
                     }
                     return $created;
@@ -171,10 +177,12 @@ final class TC_Owner_Editor {
         $uid = get_current_user_id();
         if ( is_wp_error( $result ) ) {
             if ( ! $uid ) { wp_die( 'Please sign in.', '', array( 'response' => 403 ) ); }
-            set_transient( 'tc_owner_feedback_' . $uid, $result->get_error_message(), 120 );
-            wp_safe_redirect( self::url( absint( self::scalar( $_POST, 'config_id' ) ) ), 303 ); exit;
+            set_transient( 'tc_owner_feedback_' . $uid, array( 'message' => $result->get_error_message(), 'error' => true ), 120 );
+            $error_data = $result->get_error_data();
+            $draft_id = is_array( $error_data ) ? absint( $error_data['config_id'] ?? 0 ) : 0;
+            wp_safe_redirect( self::url( $draft_id ?: absint( self::scalar( $_POST, 'config_id' ) ) ), 303 ); exit;
         }
-        set_transient( 'tc_owner_feedback_' . $uid, 'Configuration saved.', 120 );
+        set_transient( 'tc_owner_feedback_' . $uid, array( 'message' => 'Configuration saved. You can now attach files or edit its details.', 'error' => false ), 120 );
         wp_safe_redirect( self::url( $result ), 303 ); exit;
     }
     private static function form_start( int $id, string $operation ): void {
@@ -201,7 +209,13 @@ final class TC_Owner_Editor {
         $post = $id ? get_post( $id ) : null;
         ob_start();
         echo '<section class="tc-owner-editor"><h2>Manage Configs</h2><p>Owner tools · public preview images are separate from protected script files. Role verification is refreshed for every write; allow at least 10 seconds between actions.</p><p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a> · <a href="' . esc_url( self::url() ) . '">New configuration</a></p>';
-        $feedback = get_transient( 'tc_owner_feedback_' . get_current_user_id() ); if ( is_string( $feedback ) && $feedback ) { echo '<p role="status">' . esc_html( $feedback ) . '</p>'; delete_transient( 'tc_owner_feedback_' . get_current_user_id() ); }
+        $feedback = get_transient( 'tc_owner_feedback_' . get_current_user_id() );
+        $feedback_text = is_array( $feedback ) ? (string) ( $feedback['message'] ?? '' ) : ( is_string( $feedback ) ? $feedback : '' );
+        if ( $feedback_text ) {
+            $error = is_array( $feedback ) && ! empty( $feedback['error'] );
+            echo '<p class="tc-owner-feedback ' . ( $error ? 'tc-owner-feedback--error' : 'tc-owner-feedback--success' ) . '" role="' . ( $error ? 'alert' : 'status' ) . '">' . esc_html( $feedback_text ) . '</p>';
+            delete_transient( 'tc_owner_feedback_' . get_current_user_id() );
+        }
         $page_raw = $_GET['manage_page'] ?? '1'; $page = is_string( $page_raw ) && ctype_digit( $page_raw ) ? max( 1, min( 100000, (int) $page_raw ) ) : 1;
         $configs = new WP_Query( array( 'post_type' => 'tc_config', 'post_status' => array( 'draft', 'publish', 'private', 'pending' ), 'posts_per_page' => 20, 'paged' => $page, 'orderby' => array( 'modified' => 'DESC', 'ID' => 'DESC' ) ) );
         echo '<details open><summary>Existing configurations — click to edit</summary><ul>';
@@ -249,8 +263,13 @@ final class TC_Owner_Editor {
         foreach ( array( 'tc_compatibility' => 'Verified compatibility', 'tc_changelog' => 'Changelog' ) as $key => $label ) { self::input( $key, $label, (string) get_post_meta( $id, $key, true ), true ); }
         if ( class_exists( 'TC_Config_Content' ) ) { echo TC_Config_Content::editor_fields( $id ); }
         if ( ! $id ) {
-            echo '<div class="tc-owner-first-upload"><h3>Optional: attach your first script files</h3><p>Choose up to 10 private config files now, or add them after saving. The script must pass format and malware/inspector checks and is never uploaded to Media Library. If a file fails, the new configuration stays unpublished.</p>';
-            echo '<label>Config files <input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple></label>';
+            $storage_status = TC_Private_Files::root();
+            $storage_ready = ! is_wp_error( $storage_status );
+            echo '<div class="tc-owner-first-upload"><h3>Optional: attach your first script files</h3><p>Choose up to 10 private config files now, or add them after saving. Files are checked and stored outside public WordPress media. If the upload fails, the new configuration stays a draft.</p>';
+            if ( ! $storage_ready ) {
+                echo '<p class="tc-owner-feedback tc-owner-feedback--error" role="alert"><strong>Protected upload unavailable:</strong> ' . esc_html( $storage_status->get_error_message() ) . ' You can still create a configuration WITHOUT a file, then upload after private storage has been configured on Hostinger.</p>';
+            }
+            echo '<label>Config files <input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple ' . ( $storage_ready ? '' : 'disabled aria-disabled="true"' ) . '></label>';
             self::input( 'file_version', 'File version (optional)', '' );
             self::input( 'file_notes', 'File notes (optional)', '', true );
             echo '</div>';
