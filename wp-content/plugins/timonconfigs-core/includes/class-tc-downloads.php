@@ -4,6 +4,8 @@ defined( 'ABSPATH' ) || exit;
 
 final class TC_Downloads {
 	private const TTL = 60;
+	/** Synthetic file ID; only an authorized XIM Matrix Values export may use it. */
+	public const MATRIX_TEXT_ID = '00000000-0000-4000-8000-000000000001';
 	private const CLAIM_PREFIX = '_tc_download_claim_';
 	private const RECENT_META = '_tc_recent_downloads';
 	private const COUNT_PREFIX = '_tc_delivery_count_';
@@ -48,18 +50,39 @@ final class TC_Downloads {
 		return rtrim( strtr( base64_encode( $data ), '+/', '-_' ), '=' );
 	}
 
+
+	/** XIM Matrix values can be exported as a private, plain UTF-8 TXT code. */
+	private static function matrix_text( int $config_id ): string|WP_Error {
+		if ( 'tc_config' !== get_post_type( $config_id ) || 'publish' !== get_post_status( $config_id ) || 'available' !== get_post_meta( $config_id, 'tc_release_status', true ) || ! has_term( 'xim-matrix', 'tc_device', $config_id ) || ! class_exists( 'TC_Config_Content' ) ) {
+			return self::error( 'tc_download_matrix', 'This XIM Matrix text code is not available.' );
+		}
+		$code = TC_Config_Content::read( $config_id, 'values' );
+		if ( is_wp_error( $code ) || ! is_string( $code['text'] ?? null ) || '' === trim( $code['text'] ) || strlen( $code['text'] ) > 100000 ) {
+			return self::error( 'tc_download_matrix', 'A verified XIM Matrix Values text code is required.' );
+		}
+		return $code['text'];
+	}
+
 	/** The URL has no storage path and works only with the issuing login session. */
 	public static function mint( int $config_id, string $file_id ): string|WP_Error {
 		$binding = self::binding();
 		if ( is_wp_error( $binding ) ) { return $binding; }
 		$allowed = TC_Discord::can_access( $config_id );
 		if ( true !== $allowed ) { return self::error( 'tc_download_access', 'Your verified membership does not currently include this release.' ); }
-		$path = TC_Private_Files::resolve( $config_id, $file_id );
-		if ( is_wp_error( $path ) ) { return self::error( 'tc_download_file', 'This file is not currently available.' ); }
-		$verified = false;
-		foreach ( TC_Private_Files::files( $config_id ) as $file ) { if ( $file['id'] === $file_id && preg_match( '/^[a-f0-9]{64}$/D', $file['checksum'] ?? '' ) ) { $verified = true; break; } }
-		if ( ! $verified ) { return self::error( 'tc_download_integrity', 'The publisher must revalidate this legacy file before downloading.' ); }
-		$payload = self::encode( (string) wp_json_encode( array( 'v' => 1, 'u' => get_current_user_id(), 'b' => get_current_blog_id(), 'c' => $config_id, 'f' => $file_id, 'e' => time() + self::TTL, 'n' => bin2hex( random_bytes( 24 ) ), 's' => $binding ) ) );
+
+		$extra = array();
+		if ( self::MATRIX_TEXT_ID === $file_id ) {
+			$text = self::matrix_text( $config_id );
+			if ( is_wp_error( $text ) ) { return $text; }
+			$extra['h'] = hash( 'sha256', $text );
+		} else {
+			$path = TC_Private_Files::resolve( $config_id, $file_id );
+			if ( is_wp_error( $path ) ) { return self::error( 'tc_download_file', 'This file is not currently available.' ); }
+			$verified = false;
+			foreach ( TC_Private_Files::files( $config_id ) as $file ) { if ( $file['id'] === $file_id && preg_match( '/^[a-f0-9]{64}$/D', $file['checksum'] ?? '' ) ) { $verified = true; break; } }
+			if ( ! $verified ) { return self::error( 'tc_download_integrity', 'The publisher must revalidate this legacy file before downloading.' ); }
+		}
+		$payload = self::encode( (string) wp_json_encode( array_merge( array( 'v' => 1, 'u' => get_current_user_id(), 'b' => get_current_blog_id(), 'c' => $config_id, 'f' => $file_id, 'e' => time() + self::TTL, 'n' => bin2hex( random_bytes( 24 ) ), 's' => $binding ), $extra ) ) );
 		return $payload . '.' . hash_hmac( 'sha256', $payload, wp_salt( 'auth' ) );
 	}
 
@@ -83,6 +106,15 @@ final class TC_Downloads {
 		// Manual Refresh Roles has its own throttle and must not block multi-file use.
 		$allowed = TC_Discord::can_access( $data['c'], get_current_user_id() );
 		if ( true !== $allowed ) { return self::error( 'tc_download_access', 'Your verified membership does not currently include this release. Refresh your account and try again.' ); }
+
+		if ( self::MATRIX_TEXT_ID === $data['f'] ) {
+			$text = self::matrix_text( $data['c'] );
+			if ( is_wp_error( $text ) || ! is_string( $data['h'] ?? null ) || ! hash_equals( hash( 'sha256', $text ), $data['h'] ) ) {
+				return self::error( 'tc_download_matrix', 'The XIM Matrix code has changed or is no longer accessible. Request a new download.' );
+			}
+			$name = sanitize_file_name( sanitize_title( get_the_title( $data['c'] ) ) . '-xim-matrix.txt' );
+			return array( 'text' => $text, 'config_id' => $data['c'], 'file' => array( 'name' => $name ), 'user_id' => get_current_user_id() );
+		}
 		$path = TC_Private_Files::resolve( $data['c'], $data['f'] );
 		if ( is_wp_error( $path ) ) { return self::error( 'tc_download_file', 'This file is not currently available.' ); }
 		$metadata = null;
@@ -114,6 +146,18 @@ final class TC_Downloads {
 		if ( 'GET' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) { self::fail( 'Use a new download link from the release page.', 405 ); }
 		$prepared = self::prepare( is_string( $_GET['tc_download'] ) ? wp_unslash( $_GET['tc_download'] ) : null );
 		if ( is_wp_error( $prepared ) ) { self::fail( $prepared->get_error_message(), 403 ); }
+
+		if ( isset( $prepared['text'] ) ) {
+			// No private path or content is included in the public catalogue or signed URL.
+			while ( ob_get_level() ) { ob_end_clean(); }
+			$name = $prepared['file']['name'];
+			header( 'Content-Type: text/plain; charset=UTF-8' );
+			header( 'Content-Length: ' . strlen( $prepared['text'] ) );
+			header( 'Content-Disposition: attachment; filename="' . $name . '"; filename*=UTF-8\'\'' . rawurlencode( $name ) );
+			echo $prepared['text']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- deliberately served as a plain-text attachment.
+			if ( ! connection_aborted() ) { self::record( $prepared['user_id'], $prepared['config_id'], $name ); }
+			exit;
+		}
 		$handle = @fopen( $prepared['path'], 'rb' );
 		if ( false === $handle ) { self::fail( 'This file is not currently available.', 404 ); }
 		$stat = fstat( $handle );
