@@ -34,3 +34,30 @@
 @media(max-width:650px){.tc-owner-upload-panel{padding:15px}.tc-owner-upload-panel .tc-owner-form>button{width:100%}}
 
 .tc-owner-advanced,.tc-owner-first-upload,.tc-owner-submit{grid-column:1/-1}.tc-owner-advanced{border:1px solid #344450;border-radius:8px;padding:12px 16px}.tc-owner-advanced__fields{display:grid;gap:16px;padding-top:18px}.tc-owner-submit{display:flex;gap:12px;flex-wrap:wrap}.tc-owner-advanced__fields label{display:grid;gap:7px}.tc-owner-first-upload input[type=file]{margin-top:8px}.tc-owner-first-upload p{color:#aabac6;font-size:.85rem}
+
+/* Fix stretched Owner upload CTA: async errors are appended inside a two-column grid. */
+.tc-owner-upload-panel .tc-owner-form > button[type="submit"] {
+  grid-column: 1 / -1;
+  justify-self: start;
+  align-self: start;
+  width: auto;
+  min-width: 170px;
+  max-width: 100%;
+  height: auto;
+  min-height: 46px;
+  padding: 12px 22px;
+  white-space: normal;
+}
+.tc-owner-upload-panel .tc-owner-form > [data-owner-result] {
+  grid-column: 1 / -1;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  margin: 2px 0 0;
+  align-self: start;
+}
+@media(max-width:650px) {
+  .tc-owner-upload-panel .tc-owner-form > button[type="submit"] {
+    width: 100%;
+  }
+}
