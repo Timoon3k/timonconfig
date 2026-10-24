@@ -17,3 +17,18 @@
 .tc-owner-feedback--success{border:1px solid #29795d;background:#11372d;color:#c7ffdf}
 .tc-owner-first-upload input[type=file]:disabled{opacity:.4;cursor:not-allowed}
 .tc-owner-first-upload .tc-owner-feedback{margin:0}
+
+/* Script-first Owner UI: real protected upload comes before optional cover artwork. */
+.tc-owner-upload-panel{margin:23px 0;padding:clamp(15px,2vw,23px);border:1px solid #b56d19;border-radius:13px;background:linear-gradient(145deg,#12202b,#0b141d)}
+.tc-owner-upload-panel h3{margin:0 0 8px;color:#fff;font-size:clamp(20px,2vw,26px)}
+.tc-owner-upload-panel>p{color:#c1cdd7;line-height:1.65}
+.tc-owner-upload-panel .tc-owner-form{border-bottom:0;margin:10px 0;gap:13px;padding:12px 0}
+.tc-owner-script-picker{grid-column:1/-1}
+.tc-owner-upload-hint{grid-column:1/-1;margin:0;color:#b2bec9;font-size:13px;line-height:1.6}
+.tc-owner-upload-panel .tc-owner-feedback{margin-top:16px}
+.tc-owner-upload-panel .tc-owner-feedback p{margin:10px 0 0}
+.tc-owner-public-image{margin:20px 0;border:1px solid #35444f;border-radius:10px;padding:14px 17px}
+.tc-owner-public-image summary{font-weight:700}
+.tc-owner-public-image p{color:#b9c6d0;line-height:1.6}
+.tc-owner-uploaded-file{border-top:1px solid #32434f;padding:12px 0}
+@media(max-width:650px){.tc-owner-upload-panel{padding:15px}.tc-owner-upload-panel .tc-owner-form>button{width:100%}}
