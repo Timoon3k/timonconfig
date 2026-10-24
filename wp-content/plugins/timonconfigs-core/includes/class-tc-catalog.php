@@ -297,6 +297,19 @@ final class TC_Catalog {
 		$files = is_callable( array( 'TC_Private_Files', 'files' ) ) ? TC_Private_Files::files( $post_id ) : array();
 		$files = is_array( $files ) ? array_values( array_filter( $files, static fn( mixed $file ): bool => is_array( $file ) && isset( $file['id'], $file['name'] ) && is_string( $file['id'] ) && is_string( $file['name'] ) ) ) : array();
 		$files = array_map( static fn( array $file ): array => array_intersect_key( $file, array_flip( array( 'id', 'name', 'size', 'version', 'notes', 'checksum', 'uploaded_at' ) ) ), $files );
+		if ( has_term( 'xim-matrix', 'tc_device', $post_id ) ) {
+			// Matrix cards must return importable TXT code, never silently rename a binary XIMMR backup.
+			$txt = array_values( array_filter( $files, static fn( array $file ): bool => 'txt' === strtolower( pathinfo( $file['name'], PATHINFO_EXTENSION ) ) ) );
+			if ( $txt ) {
+				$files = $txt;
+			} elseif ( defined( 'TC_Downloads::MATRIX_TEXT_ID' ) && trim( (string) get_post_meta( $post_id, '_tc_values_content', true ) ) !== '' ) {
+				// The actual Values content stays server-side and is checked again for role, session and visibility.
+				$files = array( array( 'id' => TC_Downloads::MATRIX_TEXT_ID, 'name' => 'XIM Matrix code.txt' ) );
+			} else {
+				$details['message'] = 'XIM Matrix text code has not been uploaded. Add a private TXT file or enter Config Values.';
+				return $details;
+			}
+		}
 		if ( ! $files ) { return $details; }
 		$details['files'] = $files;
 		$details['url'] = home_url( '/account/' );
