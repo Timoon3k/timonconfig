@@ -26,6 +26,7 @@ if ( ! class_exists( 'TC_Private_Files' ) ) {
 }
 if ( ! class_exists( 'TC_Downloads' ) ) {
 	final class TC_Downloads {
+		public const MATRIX_TEXT_ID = '00000000-0000-4000-8000-000000000001';
 		public static function render_button( int $id, string $file_id, string $label = 'Download' ): void {
 			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="file" value="' . esc_attr( $file_id ) . '"><button class="tc-button" type="submit">' . esc_html( $label ) . '</button></form>';
 		}
@@ -103,14 +104,27 @@ try {
 	$meta = get_registered_meta_keys( 'post', 'tc_config' );
 	$assert( isset( $meta['tc_publisher'], $meta['tc_creator'], $meta['tc_release_date'] ) && false !== $meta['tc_publisher']['show_in_rest'], 'public release metadata is available through Gutenberg REST' );
 
+	// A XIM Matrix binary backup must never be falsely advertised as a TXT code.
+	$matrix_term = get_term_by( 'slug', 'xim-matrix', 'tc_device' );
+	$assert( $matrix_term instanceof WP_Term, 'XIM Matrix device exists for text-code selection.' );
+	wp_set_object_terms( $ids[1], array( $matrix_term->term_id ), 'tc_device' );
+	TC_Private_Files::$entries = array( array( 'id' => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'name' => 'binary-backup.ximmr' ) );
+	$assert( TC_Catalog::download_cta( $ids[1] )['action'] === 'pending', 'Matrix binary backup alone does not pretend to be a TXT code.' );
+	update_post_meta( $ids[1], '_tc_values_content', "XIM_CODE_SAMPLE\\n" );
+	wp_set_current_user( 0 );
+	$matrix_cta = TC_Catalog::download_cta( $ids[1] );
+	$assert( $matrix_cta['action'] === 'login' && $matrix_cta['files'][0]['id'] === TC_Downloads::MATRIX_TEXT_ID, 'Matrix Values allow a signed TXT export selection without exposing code to guests.' );
+	delete_post_meta( $ids[1], '_tc_values_content' );
+	wp_set_object_terms( $ids[1], array(), 'tc_device' );
+
 	TC_Private_Files::$entries = array( array( 'id' => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'name' => 'fixture.gpc', 'size' => 80, 'version' => '1.0', 'notes' => 'Verified release notes.', 'checksum' => str_repeat( 'a', 64 ), 'uploaded_at' => '2026-02-01', 'stored_name' => 'secret-storage-name.gpc', 'path' => '/outside/private/secret-script.gpc' ) );
 	wp_set_current_user( 0 );
 	$guest = TC_Catalog::download_cta( $ids[1] );
 	$assert( $guest['action'] === 'login' && $guest['label'] === 'Log in', 'anonymous readers must log in before a protected download' );
 	$assert( ! isset( $guest['files'][0]['stored_name'], $guest['files'][0]['path'] ), 'presentation metadata strips private storage fields defensively' );
 	$html = $render_card( $ids[1] );
-	$assert( str_contains( $html, 'Fixture Studio' ) && str_contains( $html, 'Fixture Creator' ) && str_contains( $html, 'https://example.test/public-cover.webp' ) && str_contains( $html, 'Released' ) && str_contains( $html, '2026-02-01' ), 'cards render public credits, inherited artwork, release and update dates' );
-	$assert( str_contains( $html, '>Log in<' ) && ! str_contains( $html, 'secret-script' ) && ! str_contains( $html, 'secret-storage-name' ) && ! str_contains( $html, 'download count' ), 'guest cards show login without private paths or fabricated counts' );
+	$assert( str_contains( $html, 'https://example.test/public-cover.webp' ) && str_contains( $html, 'LOCAL SCRIPT' ) && ! str_contains( $html, 'Fixture Studio' ) && ! str_contains( $html, 'Fixture Creator' ) && ! str_contains( $html, '2026-02-01' ), 'compact cards use shared artwork without credits, release dates or long metadata' );
+	$assert( str_contains( $html, 'tc-config-card__overlay-link' ) && str_contains( $html, 'Log in' ) && ! str_contains( $html, 'secret-script' ) && ! str_contains( $html, 'secret-storage-name' ) && ! str_contains( $html, 'recorded downloads' ), 'guest cards click through to Discord login without private paths or counts' );
 	wp_set_current_user( $user_id );
 	TC_Discord::$state = 'unverified';
 	$assert( TC_Catalog::download_cta( $ids[1] )['label'] === 'Verify with Discord', 'unverified members receive verification guidance' );
@@ -124,7 +138,7 @@ try {
 	$assert( TC_Catalog::download_cta( $ids[1] )['action'] === 'pending', 'published Coming soon preview remains non-downloadable even for entitled VIP members' );
 	update_post_meta( $ids[1], 'tc_release_status', 'available' );
 	$html = $render_card( $ids[1] );
-	$assert( str_contains( $html, '<form method="post"' ) && str_contains( $html, '>Download<' ) && ! str_contains( $html, '/outside/private' ), 'entitled cards render the protected POST button without a direct file URL' );
+	$assert( str_contains( $html, '<form method="post"' ) && str_contains( $html, 'Download LOCAL SCRIPT' ) && ! str_contains( $html, '/outside/private' ), 'entitled full-card actions render protected POST form without a direct file URL' );
 	TC_Discord::$state = 'lifetime';
 	$assert( TC_Catalog::download_cta( $ids[1] )['action'] === 'download', 'Lifetime access can use the same protected button pipeline' );
 	TC_Discord::$allowed = false;

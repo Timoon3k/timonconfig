@@ -118,3 +118,28 @@
 .tc-config-upsell p { font-size:13px; line-height:1.6; }
 .tc-config-upsell .tc-button { width:100%; margin-bottom:14px; }
 @media(prefers-reduced-motion:reduce) { .tc-config-card__visual img { transition:none; } }
+
+/* Compact click-to-download cards: no dates, excerpts, publisher or recorded-download clutter. */
+.tc-config-card--compact{position:relative;isolation:isolate;min-height:310px;cursor:pointer;transition:transform .16s ease,border-color .16s ease}
+.tc-config-card--compact:hover{transform:translateY(-2px);border-color:#ff9a30}
+.tc-config-card--compact:focus-within{outline:2px solid #ff9a30;outline-offset:3px}
+.tc-config-card--compact .tc-config-card__visual{display:block;position:relative;flex:none;pointer-events:none}
+.tc-config-card--compact .tc-config-card__visual img{width:100%;height:100%;object-fit:cover}
+.tc-config-card--compact .tc-config-card__body{display:flex;flex:1;flex-direction:column;gap:10px;padding:17px 20px 18px;pointer-events:none}
+.tc-config-card--compact .tc-config-card__body h2{font-size:clamp(18px,1.5vw,23px);line-height:1.17;margin:0;overflow-wrap:anywhere}
+.tc-config-card--compact .tc-config-card__meta{color:#ff9a30;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;margin:0}
+.tc-config-card--compact .tc-config-card__tier{z-index:1;right:12px;top:12px}
+.tc-config-card--compact .tc-config-card__primary{display:flex;align-items:center;justify-content:space-between;margin-top:auto;border-radius:8px;background:linear-gradient(180deg,#ff9f22,#df7307);min-height:46px;padding:10px 14px;color:#fff;font-weight:800;font-size:13px}
+.tc-config-card--compact.tc-config-card--vip .tc-config-card__primary{background:linear-gradient(180deg,#ffdc84,#d6a235);color:#231704}
+.tc-config-card--compact .tc-content-actions{position:relative;z-index:6;pointer-events:auto;display:flex;gap:9px;flex-wrap:wrap;margin:0}
+.tc-config-card--compact .tc-content-trigger{position:relative;z-index:6;pointer-events:auto}
+.tc-config-card--compact>.tc-download-form,.tc-config-card--compact>.tc-config-card__overlay-link{position:absolute;inset:0;z-index:3;width:100%;height:100%;margin:0}
+.tc-config-card--compact>.tc-download-form button{display:block;width:100%;height:100%;padding:0;border:0;border-radius:0;cursor:pointer;opacity:0}
+.tc-config-card--compact>.tc-download-form button:focus-visible,.tc-config-card--compact>.tc-config-card__overlay-link:focus-visible{outline:3px solid #75c6ff;outline-offset:-3px}
+.tc-config-card--compact>.tc-config-card__overlay-link{display:block}
+.tc-config-card--compact .tc-config-card__status{z-index:1}
+@media(prefers-reduced-motion:reduce){.tc-config-card--compact{transition:none}.tc-config-card--compact:hover{transform:none}}
+
+.tc-config-card--compact.tc-config-card--pending{cursor:default}
+.tc-config-card--compact.tc-config-card--pending:hover{transform:none;border-color:#26343e}
+.tc-config-card--compact.tc-config-card--pending .tc-config-card__primary{background:#17242c;border:1px solid #3b4a53;color:#bbcad3}

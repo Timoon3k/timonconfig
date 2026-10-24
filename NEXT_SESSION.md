@@ -15,3 +15,10 @@
 ## 2026-10-24 — poprawka niewidocznych publikacji i prostszego edytora Owner (PR #2, Draft)
 
 Przejrzyj `docs/CONFIG_CATALOG_VISIBILITY_AND_OWNER_WORKFLOW.md` i Pull Request #2: `fix/config-visibility-and-owner-ux`. Źródłowa przyczyna: `filter_archive()` ukrywał `publish` + `coming-soon`. Poprawka wyświetla takie karty jako niedostępne do pobrania zapowiedzi, nadal wyklucza Archived i nie narusza `TC_Downloads`. Nowy formularz Owner ma pojedynczą grę/urządzenie, wymaga obu przy publikacji, domyślną wspólną grafikę gry, opcję prywatnych plików już przy tworzeniu (najpierw draft i walidacja, potem ewentualna publikacja). Lista Owner i administratora pokazuje stan oraz przyczynę niedostępności. Dodano źródłowe testy regresji i GitHub Actions php-lint, ale nie twierdź, że testy rzeczywiście przeszły: środowisko tego czatu nie ma uruchomionego WordPressa ani dostępu do hostingu. Następne zadanie: sprawdź PR i CI, wykonaj `php -l` + testy integracyjne na jednorazowym WP, testy browser Owner/Downloads, scenariusze negatywne bezpieczeństwa, wykonaj backup, porównaj wersje hosta i zatwierdź wdrożenie osobno. Nie scalaj PR na ślepo ani nie ruszaj płatności/ról.
+
+
+## 2026-10-24 — prosty katalog z natychmiastowym pobraniem, XIM TXT (PR #3)
+
+Klik całej karty = POST do istniejącego signed/one-use downloadera; Matrix pobiera TXT (preferuje prywatny .txt, alternatywnie eksportuje wartości Values z autoryzacją, podpisanym tokenem i hash). Nie konwertowano binarnych XIMMR do TXT; bez Values/TXT pobieranie pozostaje niedostępne. Nie usuwano danych użytkownika.
+
+Wersje: theme 0.10.1 / Core 0.8.1. Testy WordPress Actions run 40043541966 przeszły (catalogue, downloads/Matrix, member-catalog), a PHP lint run 40043541971 zakończył się sukcesem. Discord był symulowany, bez dostępu do Hostinger. Przed produkcją sprawdzić backup bazy/motywu/wtyczki/private files, wersje hosta, role, cache, realny test TXT/XIM Values. Dokument: docs/CLICK_TO_DOWNLOAD_CARDS_AND_XIM_TXT.md. Nie deklaruj produkcyjnego wdrożenia bez obserwacji.

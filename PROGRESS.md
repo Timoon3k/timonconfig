@@ -1,5 +1,14 @@
 # TimonConfigs project progress
 
+## Compact click-to-download catalog + Matrix TXT (2026-10-24; PR #3)
+
+- Simplified catalogue cards: removed long preview copy, publisher, dates and download counters; full-card click issues the existing signed, session-bound, one-use download POST when access is verified. Login/VIP redirects remain explicit; Coming Soon and missing-file cards are non-interactive previews. Guide/Values modal buttons remain separately actionable.
+- XIM Matrix automatically selects a private TXT attachment or generates a bounded `.txt` from authorized Owner Values. No unsafe binary XIMMR relabelling. Signed TXT tokens include a content digest and revoke when Values, release state or device changes; Free and Unverified authorization rules still apply.
+- Release versions: theme 0.10.1 and Core 0.8.1 for WordPress asset cache busting. No automatic hosting deployment or Discord/Upgrade.chat role/payment modifications.
+- GitHub Actions WordPress download integration run `40043541966`: **success** — disposable WordPress bootstrap, catalog filters (45 assertions), private downloads + Matrix TXT (69 assertions, mocked Discord) and member catalog/card presentation all passed. PHP syntax workflow run `40043541971`: success. These do **not** verify production Hostinger cache, real Discord tier changes or a real browser download.
+- Handoff: `docs/CLICK_TO_DOWNLOAD_CARDS_AND_XIM_TXT.md`. Before updating Hostinger, review backups and test the new version with real Free/VIP account and a harmless Matrix Values example/TXT. Avoid editing real customer memberships.
+
+
 ## Config catalog visibility + Owner workflow (2026-10-24; PR #2 Draft)
 
 - Identified source-level issue: Public catalogue excluded posts with WordPress `publish` and `tc_release_status=coming-soon`. New `catalog_visible_meta_query()` includes these as non-downloadable public preview cards but continues to hide Archived; released-only/SEO and `TC_Downloads` authorization remain protected.
