@@ -26,6 +26,7 @@ if ( ! class_exists( 'TC_Private_Files' ) ) {
 }
 if ( ! class_exists( 'TC_Downloads' ) ) {
 	final class TC_Downloads {
+		public const MATRIX_TEXT_ID = '00000000-0000-4000-8000-000000000001';
 		public static function render_button( int $id, string $file_id, string $label = 'Download' ): void {
 			echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="file" value="' . esc_attr( $file_id ) . '"><button class="tc-button" type="submit">' . esc_html( $label ) . '</button></form>';
 		}
@@ -102,6 +103,18 @@ try {
 	$assert( get_post_meta( $ids[0], 'tc_publisher', true ) === 'Approved publisher', 'non-editors cannot overwrite public release credits' );
 	$meta = get_registered_meta_keys( 'post', 'tc_config' );
 	$assert( isset( $meta['tc_publisher'], $meta['tc_creator'], $meta['tc_release_date'] ) && false !== $meta['tc_publisher']['show_in_rest'], 'public release metadata is available through Gutenberg REST' );
+
+	// A XIM Matrix binary backup must never be falsely advertised as a TXT code.
+	$matrix_term = get_term_by( 'slug', 'xim-matrix', 'tc_device' );
+	$assert( $matrix_term instanceof WP_Term, 'XIM Matrix device exists for text-code selection.' );
+	wp_set_object_terms( $ids[1], array( $matrix_term->term_id ), 'tc_device' );
+	TC_Private_Files::$entries = array( array( 'id' => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'name' => 'binary-backup.ximmr' ) );
+	$assert( TC_Catalog::download_cta( $ids[1] )['action'] === 'pending', 'Matrix binary backup alone does not pretend to be a TXT code.' );
+	update_post_meta( $ids[1], '_tc_values_content', "XIM_CODE_SAMPLE\\n" );
+	$matrix_cta = TC_Catalog::download_cta( $ids[1] );
+	$assert( $matrix_cta['action'] === 'login' && $matrix_cta['files'][0]['id'] === TC_Downloads::MATRIX_TEXT_ID, 'Matrix Values allow a signed TXT export selection without exposing code to guests.' );
+	delete_post_meta( $ids[1], '_tc_values_content' );
+	wp_set_object_terms( $ids[1], array(), 'tc_device' );
 
 	TC_Private_Files::$entries = array( array( 'id' => 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', 'name' => 'fixture.gpc', 'size' => 80, 'version' => '1.0', 'notes' => 'Verified release notes.', 'checksum' => str_repeat( 'a', 64 ), 'uploaded_at' => '2026-02-01', 'stored_name' => 'secret-storage-name.gpc', 'path' => '/outside/private/secret-script.gpc' ) );
 	wp_set_current_user( 0 );
