@@ -18,6 +18,8 @@ Przeczytaj `docs/OWNER_UPLOAD_RECOVERY_0.8.6.md` i najnowszy wpis PROGRESS.md. G
 10. Pozostałe materiały właściciela: A–E, realne wydania i kompatybilność, prawidłowe przypisanie trzech Apex filmów, zatwierdzone treści prawne oraz działające istniejące Checkout/support URLs. Search Console/field CWV i zdalne canonicale nie zostały zmierzone; nie gwarantuj pozycji Google.
 
 
+Gałąź poprawki jest na GitHub. PR nie został utworzony: oba endpointy API zwróciły `Forbidden`. Main/Hostinger bez aktualizacji. Nie przedstawiaj publikacji gałęzi jako wdrożenia produkcyjnego.
+
 ## 2026-10-24 — poprawka niewidocznych publikacji i prostszego edytora Owner (PR #2, Draft)
 
 Przejrzyj `docs/CONFIG_CATALOG_VISIBILITY_AND_OWNER_WORKFLOW.md` i Pull Request #2: `fix/config-visibility-and-owner-ux`. Źródłowa przyczyna: `filter_archive()` ukrywał `publish` + `coming-soon`. Poprawka wyświetla takie karty jako niedostępne do pobrania zapowiedzi, nadal wyklucza Archived i nie narusza `TC_Downloads`. Nowy formularz Owner ma pojedynczą grę/urządzenie, wymaga obu przy publikacji, domyślną wspólną grafikę gry, opcję prywatnych plików już przy tworzeniu (najpierw draft i walidacja, potem ewentualna publikacja). Lista Owner i administratora pokazuje stan oraz przyczynę niedostępności. Dodano źródłowe testy regresji i GitHub Actions php-lint, ale nie twierdź, że testy rzeczywiście przeszły: środowisko tego czatu nie ma uruchomionego WordPressa ani dostępu do hostingu. Następne zadanie: sprawdź PR i CI, wykonaj `php -l` + testy integracyjne na jednorazowym WP, testy browser Owner/Downloads, scenariusze negatywne bezpieczeństwa, wykonaj backup, porównaj wersje hosta i zatwierdź wdrożenie osobno. Nie scalaj PR na ślepo ani nie ruszaj płatności/ról.
