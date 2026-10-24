@@ -7,6 +7,7 @@ on:
       - 'tests/member-catalog-integration.php'
       - 'tests/catalog-integration.php'
       - 'tests/owner-editor-integration.php'
+      - 'tests/discord-integration.php'
       - 'tests/private-files-integration.php'
       - 'tests/text-upload-integration.php'
       - 'tests/owner-verification-integration.php'
@@ -37,6 +38,8 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp --skip-plugins=timonconfigs-core eval-file /tests/member-catalog-integration.php
       - name: Private-file format and ZNBK ZIP envelope validation
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/private-files-integration.php
+      - name: Discord OAuth pilot and verification recovery
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/discord-integration.php
       - name: Owner draft persistence when private storage is missing
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/owner-editor-integration.php
       - name: Owner verification failure and recovery
