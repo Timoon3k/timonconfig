@@ -18,10 +18,10 @@ $ready = 'available' === $status;
 $can_download = 'download' === ( $access['action'] ?? '' ) && ! empty( $access['files'][0]['id'] );
 $format = $is_matrix ? 'TXT' : strtoupper( pathinfo( (string) ( $access['files'][0]['name'] ?? '' ), PATHINFO_EXTENSION ) );
 $format_label = $format ? $format . ' FILE' : 'CONFIG';
-$label = $can_download ? ( 'Download ' . $format_label ) : ( 'coming-soon' === $status ? 'Coming soon' : ( 'archived' === $status ? 'Unavailable' : ( $access['label'] ?? 'View config details' ) ) );
+$label = $can_download ? ( 'Download ' . $format_label ) : ( 'coming-soon' === $status ? 'Coming soon' : ( 'pending' === ( $access['action'] ?? '' ) ? 'No file available yet' : ( $access['label'] ?? 'Unavailable' ) ) );
 $target = 'pending' === ( $access['action'] ?? '' ) ? get_permalink( $config_id ) : (string) ( $access['url'] ?? get_permalink( $config_id ) );
 ?>
-<article <?php post_class( 'tc-config-card tc-config-card--compact tc-config-card--' . ( 'free' === $tier ? 'free' : 'vip' ) ); ?>>
+<article <?php post_class( 'tc-config-card tc-config-card--compact tc-config-card--' . ( 'free' === $tier ? 'free' : 'vip' ) . ( 'pending' === ( $access['action'] ?? '' ) ? ' tc-config-card--pending' : '' ) ); ?>>
     <div class="tc-config-card__visual">
         <?php if ( $show_thumbnail ) : ?>
             <?php the_post_thumbnail( 'large', array( 'loading' => 'lazy' ) ); ?>
@@ -41,7 +41,7 @@ $target = 'pending' === ( $access['action'] ?? '' ) ? get_permalink( $config_id 
     </div>
     <?php if ( $can_download ) : ?>
         <?php TC_Downloads::render_button( $config_id, $access['files'][0]['id'], 'Download ' . get_the_title() . ( $is_matrix ? ' as TXT' : '' ) ); ?>
-    <?php else : ?>
+    <?php elseif ( 'pending' !== ( $access['action'] ?? '' ) ) : ?>
         <a class="tc-config-card__overlay-link" href="<?php echo esc_url( $target ); ?>" aria-label="<?php echo esc_attr( $label . ': ' . get_the_title() ); ?>"><span class="screen-reader-text"><?php echo esc_html( $label ); ?></span></a>
     <?php endif; ?>
 </article>
