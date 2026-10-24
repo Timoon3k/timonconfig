@@ -1,51 +1,47 @@
 <?php
-/** Catalogue config card. @package TimonConfigs */
+/** Compact, one-click config card. Downloads still use server-verified Discord access. */
 defined( 'ABSPATH' ) || exit;
 
 $config_id = get_the_ID();
-$tier = get_post_meta( $config_id, 'tc_tier', true ) ?: 'free';
-$downloads = is_callable( array( 'TC_Downloads', 'count' ) ) ? TC_Downloads::count( $config_id ) : 0;
-$input = get_post_meta( $config_id, 'tc_input_method', true );
-$version = get_post_meta( $config_id, 'tc_config_version', true );
-$status = get_post_meta( $config_id, 'tc_release_status', true );
-$publisher = (string) get_post_meta( $config_id, 'tc_publisher', true );
-$creator = (string) get_post_meta( $config_id, 'tc_creator', true );
-$release_date = TC_Catalog::sanitize_date( get_post_meta( $config_id, 'tc_release_date', true ) );
-$published_date = $release_date ?: get_the_date( 'Y-m-d', $config_id );
-$updated_date = TC_Catalog::sanitize_date( get_post_meta( $config_id, 'tc_last_updated', true ) ) ?: get_the_modified_date( 'Y-m-d', $config_id );
-$access = is_callable( array( 'TC_Catalog', 'download_cta' ) ) ? TC_Catalog::download_cta( $config_id ) : array( 'action' => 'pending', 'url' => get_permalink( $config_id ), 'label' => 'View config details', 'message' => 'Member release files are not available yet.', 'files' => array() );
-$status_labels = array( 'coming-soon' => 'Coming soon', 'archived' => 'Archived' );
-$release_ready = ( '' === $status || 'available' === $status ) && 'publish' === get_post_status( $config_id );
+$tier = (string) get_post_meta( $config_id, 'tc_tier', true ) ?: 'free';
+$status = (string) get_post_meta( $config_id, 'tc_release_status', true );
+$access = TC_Catalog::download_cta( $config_id );
 $games = get_the_terms( $config_id, 'tc_game' );
 $devices = get_the_terms( $config_id, 'tc_device' );
-$platform_terms = get_the_terms( $config_id, 'tc_platform' );
-$platform = $platform_terms && ! is_wp_error( $platform_terms ) ? implode( ', ', wp_list_pluck( $platform_terms, 'name' ) ) : (string) get_post_meta( $config_id, 'tc_platform', true );
-$labels = array( 'free' => 'Free', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' );
 $game = $games && ! is_wp_error( $games ) ? $games[0] : null;
-// Keep every config in a game visually consistent unless Owner explicitly opts in to a custom card image.
-$custom_card_art = 'custom' === get_post_meta( $config_id, '_tc_card_art', true );
-$cover = $game && method_exists( 'TC_Catalog', 'collection_image' ) ? TC_Catalog::collection_image( $game ) : '';
-$show_featured_image = has_post_thumbnail() && ( $custom_card_art || ! $cover );
+$device = $devices && ! is_wp_error( $devices ) ? $devices[0] : null;
+$is_matrix = $device && 'xim-matrix' === $device->slug;
+$cover = $game ? TC_Catalog::collection_image( $game ) : '';
+$custom_cover = 'custom' === get_post_meta( $config_id, '_tc_card_art', true );
+$show_thumbnail = has_post_thumbnail() && ( $custom_cover || ! $cover );
+$ready = 'available' === $status;
+$can_download = 'download' === ( $access['action'] ?? '' ) && ! empty( $access['files'][0]['id'] );
+$format = $is_matrix ? 'TXT' : strtoupper( pathinfo( (string) ( $access['files'][0]['name'] ?? '' ), PATHINFO_EXTENSION ) );
+$format_label = $format ? $format . ' FILE' : 'CONFIG';
+$label = $can_download ? ( 'Download ' . $format_label ) : ( 'coming-soon' === $status ? 'Coming soon' : ( 'archived' === $status ? 'Unavailable' : ( $access['label'] ?? 'View config details' ) ) );
+$target = 'pending' === ( $access['action'] ?? '' ) ? get_permalink( $config_id ) : (string) ( $access['url'] ?? get_permalink( $config_id ) );
 ?>
-<article <?php post_class( 'tc-config-card tc-config-card--' . ( 'free' === $tier ? 'free' : 'vip' ) ); ?>>
-	<a class="tc-config-card__visual" href="<?php the_permalink(); ?>" aria-label="<?php echo esc_attr( get_the_title() ); ?>">
-		<?php if ( $show_featured_image ) : ?><?php the_post_thumbnail( 'large', array( 'loading' => 'lazy' ) ); ?><?php elseif ( $cover ) : ?><img src="<?php echo esc_url( $cover ); ?>" alt="" width="600" height="360" loading="lazy" decoding="async"><?php else : ?><span class="tc-config-card__device"><?php echo esc_html( $devices && ! is_wp_error( $devices ) ? $devices[0]->name : 'TimonConfigs' ); ?></span><?php endif; ?>
-		<span class="tc-config-card__tier tc-config-card__tier--<?php echo esc_attr( $tier ); ?>"><?php echo esc_html( $labels[ $tier ] ?? 'Free' ); ?></span>
-		<?php if ( ! $release_ready ) : ?><span class="tc-config-card__status"><?php echo esc_html( $status_labels[ $status ] ?? 'Release details pending' ); ?></span><?php endif; ?>
-	</a>
-	<div class="tc-config-card__body">
-		<p class="tc-config-card__meta"><?php echo esc_html( $game ? $game->name : 'Gaming config' ); ?><?php if ( $input ) : ?> · <?php echo esc_html( 'mnk' === $input ? 'Mouse & keyboard' : 'Controller' ); ?><?php endif; ?></p>
-		<h2><a href="<?php the_permalink(); ?>"><?php the_title(); ?></a></h2>
-		<p class="tc-config-card__publisher"><?php if ( $creator ) : ?>Creator: <?php echo esc_html( $creator ); ?> · <?php endif; ?>Published by <?php echo esc_html( $publisher ?: 'TimonConfigs' ); ?></p>
-		<p><?php echo esc_html( get_the_excerpt() ); ?></p>
-		<dl class="tc-config-card__dates"><div><dt><?php echo $release_date ? 'Released' : 'Published'; ?></dt><dd><time datetime="<?php echo esc_attr( $published_date ); ?>"><?php echo esc_html( $published_date ); ?></time></dd></div><div><dt>Updated</dt><dd><time datetime="<?php echo esc_attr( $updated_date ); ?>"><?php echo esc_html( $updated_date ); ?></time></dd></div></dl>
-		<div class="tc-config-card__specs"><?php if ( $devices && ! is_wp_error( $devices ) ) : ?><span><?php echo esc_html( $devices[0]->name ); ?></span><?php endif; ?><?php if ( $platform ) : ?><span><?php echo esc_html( $platform ); ?></span><?php endif; ?><?php if ( $version ) : ?><span>v<?php echo esc_html( $version ); ?></span><?php endif; ?></div>
-		<p class="tc-config-card__downloads"><span aria-hidden="true">↓</span> <?php echo esc_html( number_format_i18n( $downloads ) ); ?> recorded <?php echo 1 === $downloads ? 'download' : 'downloads'; ?></p>
-		<?php if ( is_callable( array( 'TC_Config_Content', 'buttons' ) ) ) { echo TC_Config_Content::buttons( $config_id ); /* Server-safe button labels only; content fetched with authorization. */ } ?>
-		<div class="tc-config-card__actions">
-			<?php if ( 'download' === $access['action'] ) : ?><?php TC_Downloads::render_button( $config_id, $access['files'][0]['id'], 'Download' ); ?><?php elseif ( 'pending' !== $access['action'] ) : ?><a class="tc-button tc-button--small" href="<?php echo esc_url( $access['url'] ); ?>"><?php echo esc_html( $access['label'] ); ?></a><?php endif; ?>
-			<a class="tc-text-link" href="<?php the_permalink(); ?>">View Details <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a>
-		</div>
-		<p class="tc-config-card__access-note"><?php echo esc_html( $access['message'] ); ?></p>
-	</div>
+<article <?php post_class( 'tc-config-card tc-config-card--compact tc-config-card--' . ( 'free' === $tier ? 'free' : 'vip' ) ); ?>>
+    <div class="tc-config-card__visual">
+        <?php if ( $show_thumbnail ) : ?>
+            <?php the_post_thumbnail( 'large', array( 'loading' => 'lazy' ) ); ?>
+        <?php elseif ( $cover ) : ?>
+            <img src="<?php echo esc_url( $cover ); ?>" alt="" width="600" height="360" loading="lazy" decoding="async">
+        <?php else : ?>
+            <span class="tc-config-card__device"><?php echo esc_html( $device ? $device->name : 'TimonConfigs' ); ?></span>
+        <?php endif; ?>
+        <span class="tc-config-card__tier tc-config-card__tier--<?php echo esc_attr( $tier ); ?>"><?php echo esc_html( 'free' === $tier ? 'FREE' : 'VIP' ); ?></span>
+        <?php if ( ! $ready ) : ?><span class="tc-config-card__status"><?php echo esc_html( 'coming-soon' === $status ? 'Coming soon' : 'Not available' ); ?></span><?php endif; ?>
+    </div>
+    <div class="tc-config-card__body">
+        <p class="tc-config-card__meta"><?php echo esc_html( implode( ' · ', array_filter( array( $game?->name, $device?->name ) ) ) ); ?></p>
+        <h2><?php the_title(); ?></h2>
+        <?php if ( is_callable( array( 'TC_Config_Content', 'buttons' ) ) ) { echo TC_Config_Content::buttons( $config_id ); /* Buttons open server-authorized content dialogs. */ } ?>
+        <span class="tc-config-card__primary" aria-hidden="true"><?php echo esc_html( $label ); ?> <span aria-hidden="true">↓</span></span>
+    </div>
+    <?php if ( $can_download ) : ?>
+        <?php TC_Downloads::render_button( $config_id, $access['files'][0]['id'], 'Download ' . get_the_title() . ( $is_matrix ? ' as TXT' : '' ) ); ?>
+    <?php else : ?>
+        <a class="tc-config-card__overlay-link" href="<?php echo esc_url( $target ); ?>" aria-label="<?php echo esc_attr( $label . ': ' . get_the_title() ); ?>"><span class="screen-reader-text"><?php echo esc_html( $label ); ?></span></a>
+    <?php endif; ?>
 </article>
