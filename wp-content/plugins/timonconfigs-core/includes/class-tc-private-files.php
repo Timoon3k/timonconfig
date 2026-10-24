@@ -135,7 +135,7 @@ final class TC_Private_Files {
 	 * timonconfigs_private_file_scan inspector must still explicitly approve the
 	 * proprietary format on both upload and download.
 	 */
-	private static function inspect_znbk_zip( string $path ): true|WP_Error {
+	private static function inspect_znbk_zip( string $path ): bool|WP_Error {
 		$bad = static fn( string $message ): WP_Error => new WP_Error( 'tc_upload_invalid', $message );
 		if ( ! class_exists( 'ZipArchive' ) ) {
 			return $bad( 'This ZNBK uses a ZIP container. The host must enable PHP ZipArchive, and an approved ZNBK format inspector must be configured.' );
