@@ -245,9 +245,6 @@ final class TC_Owner_Editor {
             echo '<p>Your configuration #' . esc_html( (string) $id ) . ' is still editable. You can save its title, game, device and Values without uploading a file.</p></div></section>';
             return;
         }
-        if ( ! class_exists( 'ZipArchive' ) && in_array( 'znbk', TC_Private_Files::extensions(), true ) ) {
-            echo '<p class="tc-owner-upload-hint">ZIP-backed ZNBK also requires the PHP ZIP extension on your host.</p>';
-        }
         echo '<p class="tc-owner-upload-hint">Uploader version: ' . esc_html( TIMONCONFIGS_CORE_VERSION ) . '. Private configuration files are stored byte-for-byte, without UTF, MIME or source-code parsing. Reviewed extensions and storage safeguards still apply.</p>';
         self::form_start( $id, 'upload' );
         echo '<label class="tc-owner-script-picker"><strong>Choose private script files</strong><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple required></label>';
