@@ -1,8 +1,8 @@
 ## Najnowszy etap: Owner upload recovery — Core 0.8.6 / theme 0.10.5
 
-Przeczytaj `docs/OWNER_UPLOAD_RECOVERY_0.8.6.md` i najnowszy wpis PROGRESS.md. Gałąź `fix/owner-upload-recovery`, checkpoint kodowania `1deb95a`; baza main `6d1e20e`. Nie przywracaj wymogu zewnętrznej zgody dla ZNBK. Windows GPC/TXT obsługuje UTF-8, BOM UTF-16 i ANSI z zachowaniem bajtów. Formularz zachowuje dane i wybrany plik po tymczasowym błędzie Discorda, nadal wymaga świeżego Owner + approved ID i nonce. Błąd usługi nie jest przedstawiany jako odebranie roli.
+Przeczytaj `docs/OWNER_UPLOAD_RECOVERY_0.8.6.md` i najnowszy wpis PROGRESS.md. Gałąź `fix/owner-upload-recovery`, checkpointy `1deb95a`, `abc2287`; baza main `6d1e20e`. Nie przywracaj wymogu zewnętrznej zgody dla ZNBK. Windows GPC/TXT obsługuje UTF-8, BOM UTF-16 i ANSI z zachowaniem bajtów. Formularz zachowuje dane i wybrany plik po tymczasowym błędzie Discorda, nadal wymaga świeżego Owner + approved ID i nonce. Błąd usługi nie jest przedstawiany jako odebranie roli.
 
-726 PHP / 39 Owner browser / 24 member layout zaliczone lokalnie; testy nie potwierdzają rzeczywistej usługi Discord ani oryginalnego niezałączonego skryptu. Paczki 0.8.6/0.10.5 są przygotowane; sprawdź finalny wynik świeżej instalacji w PROGRESS.md. Następny krok to zatwierdzona aktualizacja obu paczek na staging/hostingu, purge cache i próba oryginalnego pliku. Nie zmieniaj istniejących płatności, ról ani baz produkcyjnych bez zgody. Nie deklaruj wdrożenia Hostinger na podstawie samego commita lub push.
+726 PHP / 39 Owner browser / 24 member layout zaliczone lokalnie; testy nie potwierdzają rzeczywistej usługi Discord ani oryginalnego niezałączonego skryptu. Paczki 0.8.6/0.10.5 są przygotowane, zgodne ze źródłami i przeszły 76 asercji świeżej izolowanej instalacji. Następny krok to zatwierdzona aktualizacja obu paczek na staging/hostingu, purge cache i próba oryginalnego pliku. Nie zmieniaj istniejących płatności, ról ani baz produkcyjnych bez zgody. Nie deklaruj wdrożenia Hostinger na podstawie samego commita lub push.
 
 # Następna sesja — TimonConfigs (2026-10-24)
 

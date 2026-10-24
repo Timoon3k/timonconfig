@@ -16,7 +16,7 @@ Continues `main` at `6d1e20e` / code `19ae648`; no catalogue, payment or role mi
 
 ## Validation
 
-Local WordPress 6.8.3/PHP 8.2, disposable identities and synthetic format fixtures. Discord transport is mocked, not a live OAuth/role test. 726 PHP assertions passed across file validation, Owner authorization/recovery, downloads, OAuth, shared VIP, catalogue, routes and member UI. The real browser passed 39 Owner HTTP checks (initial TXT/GPC/ZNBK publication, cards, exact-byte protected downloads and 503 retry without losing the form) plus 24 member layouts. Static checks and 66 PHP source lints passed. Distribution installation checks are recorded in PROGRESS.md before release completion.
+Local WordPress 6.8.3/PHP 8.2, disposable identities and synthetic format fixtures. Discord transport is mocked, not a live OAuth/role test. 726 PHP assertions passed across file validation, Owner authorization/recovery, downloads, OAuth, shared VIP, catalogue, routes and member UI. The real browser passed 39 Owner HTTP checks (initial TXT/GPC/ZNBK publication, cards, exact-byte protected downloads and 503 retry without losing the form) plus 24 member layouts. Static checks and 66 PHP source lints passed. The actual ZIPs match all 88 theme / 14 Core source files and passed 76 assertions in a separate fresh WordPress installation. Test fixtures and temporary installation resources were removed.
 
 ## Update and target-host check
 

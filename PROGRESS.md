@@ -5,7 +5,7 @@
 - **59 asercji plików** zaliczonych na lokalnym WP. Testy obejmują kodowanie GPC/TXT, niezmienione bajty i odrzucanie zakodowanych aktywnych payloadów. Nie otrzymano oryginalnego pliku użytkownika, więc nie potwierdzono jego konkretnego formatu.
 - Weryfikacja Owner: lokalne **22 asercje** rozróżniają awarię Discorda od usunięcia roli; nie ma obejścia autoryzacji. Formularz AJAX zachowuje dane i File po błędzie 503 lub sieci. Naprawiono też odczyt action formularza przesłonięty przez ukryty input WordPressa. Zwykły POST bez JS zachowuje 303 fallback.
 - Łącznie **726 asercji PHP** zaliczonych: private-files 73, policy 28, Owner 223, downloads 69, Discord 122, shared VIP 24, catalog 45, routes 5, member UI 56, tekst 59, Owner recovery 22. Przeglądarka: **39** rzeczywistych HTTP upload/karta/download/503 retry oraz **24** layouty panelu, bez błędów, fixtures usunięte. TXT UTF-16, GPC ANSI i ZIP ZNBK publikują od pierwszego zapisu i pobierają identyczne bajty. Transport Discord jest mockowany.
-- Statyczna kontrola projektu i lint 66 plików PHP przechodzą. ZIP-y są zgodne ze źródłami (88 theme / 14 Core); test świeżej instalacji jeszcze w toku. Hosting produkcyjny, płatności i role Discord niezmienione. Szczegóły: `docs/OWNER_UPLOAD_RECOVERY_0.8.6.md`.
+- Statyczna kontrola projektu i lint 66 plików PHP przechodzą. ZIP-y są zgodne ze źródłami (88 theme / 14 Core) i zaliczyły **76 asercji świeżej instalacji** na odizolowanym WordPress 6.8.3/PHP 8.2. Manifest: `artifacts/owner-upload-086-release-manifest.json`. Checkpointy kodu: `1deb95a`, `abc2287`. Hosting produkcyjny, płatności i role Discord niezmienione. Szczegóły: `docs/OWNER_UPLOAD_RECOVERY_0.8.6.md`.
 
 # TimonConfigs project progress
 
