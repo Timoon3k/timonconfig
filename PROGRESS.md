@@ -258,3 +258,9 @@ The three catalogue entries currently visible in the Docker database are local-o
 - Deployment archives are rebuilt after each completed release and validated with `unzip -t`. Version 0.2.0 includes the catalogue and VIP landing work.
 - The Hostinger Connector skills are available, but the current session exposes no callable Hostinger hosting or WordPress tools. No account state could be read and no Hostinger resource was changed.
 
+
+## 2026-10-24 — Script-first Owner upload UI (PR #5)
+
+- Existing configurations present upload of protected scripts before general edit fields, and public custom artwork is folded into optional details. Added clear Owner-facing diagnostic when TIMONCONFIGS_PRIVATE_STORAGE_DIR is absent; no fallback to public media or disabling file checks.
+- Version bump: Core 0.8.3, theme 0.10.3. Disposable WordPress integration 40048011266 succeeded including Owner assertions, catalog and protected downloads; PHP lint 40048011263 passed. Hostinger folder/root not configured by source changes; production download still unverified.
+- Guide: docs/SCRIPT_FIRST_OWNER_UPLOAD_0.8.3.md.

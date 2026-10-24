@@ -22,3 +22,8 @@ Przejrzyj `docs/CONFIG_CATALOG_VISIBILITY_AND_OWNER_WORKFLOW.md` i Pull Request 
 Klik całej karty = POST do istniejącego signed/one-use downloadera; Matrix pobiera TXT (preferuje prywatny .txt, alternatywnie eksportuje wartości Values z autoryzacją, podpisanym tokenem i hash). Nie konwertowano binarnych XIMMR do TXT; bez Values/TXT pobieranie pozostaje niedostępne. Nie usuwano danych użytkownika.
 
 Wersje: theme 0.10.1 / Core 0.8.1. Testy WordPress Actions run 40043541966 przeszły (catalogue, downloads/Matrix, member-catalog), a PHP lint run 40043541971 zakończył się sukcesem. Discord był symulowany, bez dostępu do Hostinger. Przed produkcją sprawdzić backup bazy/motywu/wtyczki/private files, wersje hosta, role, cache, realny test TXT/XIM Values. Dokument: docs/CLICK_TO_DOWNLOAD_CARDS_AND_XIM_TXT.md. Nie deklaruj produkcyjnego wdrożenia bez obserwacji.
+
+
+## 2026-10-24 — Owner panel: skrypty zamiast zdjęcia (PR #5)
+
+Na zrzucie dla config_id=116 Owner widział tylko 'Public preview image', bo sekcja skryptów była zablokowana przez brak TIMONCONFIGS_PRIVATE_STORAGE_DIR. UI przeniesiono: teraz prywatne pliki są pierwszą akcją, a obrazek opcjonalnie w zwijanym panelu. Jeśli magazyn jest nieskonfigurowany, wyświetla się wyraźna instrukcja Hostinger; żadna płatna konfiguracja nie trafia do Media Library. Theme 0.10.3 i Core 0.8.3. Test WordPress integration run 40048011266 oraz PHP lint run 40048011263 przeszły. Szczegóły: docs/SCRIPT_FIRST_OWNER_UPLOAD_0.8.3.md. Faktyczny katalog na Hostingerze musi skonfigurować właściciel lub uprawniony administrator, nadal brak dowodu produkcyjnego uploadu.
