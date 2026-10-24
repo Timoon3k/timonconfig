@@ -198,17 +198,24 @@ final class TC_Private_Files {
 	}
 
 	/** Decode only for validation; stored/downloaded bytes and checksums remain unchanged. */
-	private static function inspection_text( string $content, string $extension ): string|WP_Error {
-		if ( 'txt' !== $extension ) { return $content; }
-		if ( str_starts_with( $content, "\xff\xfe\x00\x00" ) || str_starts_with( $content, "\x00\x00\xfe\xff" ) ) { return new WP_Error( 'tc_upload_encoding', 'Save this TXT as UTF-8 or UTF-16 instead of UTF-32.' ); }
+	private static function inspection_text( string $content, string $extension, string $mime ): string|WP_Error {
+		if ( ! in_array( $extension, array( 'txt', 'gpc', 'cfg', 'ini' ), true ) ) { return $content; }
+		if ( str_starts_with( $content, "\xff\xfe\x00\x00" ) || str_starts_with( $content, "\x00\x00\xfe\xff" ) ) { return new WP_Error( 'tc_upload_encoding', 'Save the script as UTF-8 or BOM-marked UTF-16 instead of UTF-32.' ); }
 		if ( str_starts_with( $content, "\xef\xbb\xbf" ) ) { $content = substr( $content, 3 ); }
 		elseif ( str_starts_with( $content, "\xff\xfe" ) || str_starts_with( $content, "\xfe\xff" ) ) {
-			if ( ! function_exists( 'iconv' ) ) { return new WP_Error( 'tc_upload_encoding', 'This Windows TXT uses UTF-16. Save it as UTF-8 or enable PHP iconv on the host.' ); }
+			if ( ! function_exists( 'iconv' ) ) { return new WP_Error( 'tc_upload_encoding', 'This script uses UTF-16. Save it as UTF-8 or enable PHP iconv on the host.' ); }
 			$encoding = str_starts_with( $content, "\xff\xfe" ) ? 'UTF-16LE' : 'UTF-16BE';
 			$content = @iconv( $encoding, 'UTF-8', substr( $content, 2 ) );
-			if ( ! is_string( $content ) ) { return new WP_Error( 'tc_upload_encoding', 'The TXT contains invalid UTF-16 data. Export a fresh UTF-8 text file.' ); }
+			if ( ! is_string( $content ) ) { return new WP_Error( 'tc_upload_encoding', 'The script contains invalid UTF-16 data. Export a fresh UTF-8 text file.' ); }
+		} elseif ( 1 !== preg_match( '//u', $content ) && str_starts_with( $mime, 'text/' )
+			&& ! preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $content ) ) {
+			// Zen/Windows source files often use ANSI comments. Convert only the inspection
+			// view, strictly: never drop invalid bytes or reinterpret binary MIME as text.
+			if ( ! function_exists( 'iconv' ) ) { return new WP_Error( 'tc_upload_encoding', 'Save this Windows ANSI script as UTF-8 or enable PHP iconv on the host.' ); }
+			$content = @iconv( 'Windows-1252', 'UTF-8', $content );
+			if ( ! is_string( $content ) ) { return new WP_Error( 'tc_upload_encoding', 'The script has an unsupported text encoding. Export a fresh UTF-8 text file.' ); }
 		}
-		return '' !== $content ? $content : new WP_Error( 'tc_upload_encoding', 'The TXT must contain configuration text, not only an encoding marker.' );
+		return '' !== $content ? $content : new WP_Error( 'tc_upload_encoding', 'The script must contain configuration text, not only an encoding marker.' );
 	}
 
 	/** Structural/type checks, not a malware-free certification. Optional scanner can veto. */
@@ -223,7 +230,8 @@ final class TC_Private_Files {
 		$content = file_get_contents( $path );
 		if ( false === $content || strlen( $content ) !== $size || ! class_exists( 'finfo' ) ) { return $bad( 'File inspection is unavailable; the upload was not accepted.' ); }
 		$mime = ( new finfo( FILEINFO_MIME_TYPE ) )->buffer( $content );
-		$inspection_text = self::inspection_text( $content, $extension );
+		if ( ! is_string( $mime ) ) { return $bad( 'File type inspection is unavailable. Please retry.' ); }
+		$inspection_text = self::inspection_text( $content, $extension, $mime );
 		if ( is_wp_error( $inspection_text ) ) { return $inspection_text; }
 		$text = 1 === preg_match( '//u', $inspection_text ) && ! preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $inspection_text );
 		$zip_znbk = 'znbk' === $extension && str_starts_with( $content, "PK\x03\x04" );
@@ -234,19 +242,25 @@ final class TC_Private_Files {
 			// Do not weaken the archive, executable or shell rules for other formats.
 			$signatures = array( "PK\x03\x04", "PK\x05\x06", "PK\x07\x08", "Rar!\x1a\x07", "7z\xbc\xaf\x27\x1c", "\x1f\x8b", 'BZh', "\xfd7zXZ\x00", 'MZ', "\x7fELF", "\xcf\xfa\xed\xfe", "\xfe\xed\xfa\xcf", '#!' );
 			foreach ( $signatures as $signature ) {
-				// The two printable letters MZ alone are not an executable header in genuine TXT.
-				if ( 'MZ' === $signature && 'txt' === $extension && $text ) { continue; }
+				// The two printable letters MZ alone are not an executable header in genuine source text.
+				if ( 'MZ' === $signature && in_array( $extension, array( 'txt', 'gpc', 'cfg', 'ini' ), true ) && $text ) { continue; }
 				if ( str_starts_with( $content, $signature ) ) { return $bad( 'txt' === $extension ? 'This TXT contains archive, executable or shell data. Export actual configuration text; renaming a binary backup to .txt does not convert it.' : 'Archive, executable, and shell payloads are not accepted.' ); }
 			}
-			if ( 'txt' === $extension && str_starts_with( $inspection_text, '#!' ) ) { return $bad( 'Shell scripts cannot be uploaded as TXT configuration files.' ); }
+			if ( str_starts_with( $inspection_text, '#!' ) ) { return $bad( 'Shell scripts cannot be uploaded as configuration files.' ); }
 			foreach ( array_slice( $signatures, 0, 6 ) as $archive_signature ) { if ( str_contains( $content, $archive_signature ) ) { return $bad( 'Embedded archive payloads are not accepted.' ); } }
-			if ( 'ustar' === substr( $content, 257, 5 ) || preg_match( '/<\?(?:php\b|=|\s*\$)|<script\b/i', $inspection_text ) ) { return $bad( 'Executable or archive content is not accepted inside script files.' ); }
+			if ( 'ustar' === substr( $content, 257, 5 ) || preg_match( '/<\?(?:php\b|=|\s*\$)|<script\b|<svg\b|<!doctype\s+html\b|<html\b/i', $inspection_text ) ) { return $bad( 'Executable, active web or archive content is not accepted inside script files.' ); }
 		}
 		$allowed_mime = array( 'text/plain', 'application/json', 'text/x-c', 'text/x-c++', 'text/x-csrc', 'text/x-c++src' );
+		// libmagic guesses languages from syntax/comments; a harmless GPC can look
+		// like C, Java or Pascal. Allow inspected source text, not active web/shell MIME.
+		$source_text = $text && str_starts_with( $mime, 'text/' ) && ! preg_match( '#(?:html|xml|svg|javascript|ecmascript|php|shellscript|x-sh|x-perl|x-python|x-ruby)(?:$|[;+.-])#i', $mime );
+		if ( $source_text ) { $allowed_mime[] = $mime; }
 		if ( in_array( $extension, array( 'znbk', 'ximmr' ), true ) ) { $allowed_mime[] = 'application/octet-stream'; }
 		if ( $zip_znbk ) { $allowed_mime = array_merge( $allowed_mime, array( 'application/zip', 'application/x-zip', 'application/x-zip-compressed' ) ); }
-		if ( 'txt' === $extension && ! $text ) { return $bad( 'TXT must contain UTF-8 or BOM-marked UTF-16 configuration text. Export a fresh text file; do not rename a binary backup to .txt.' ); }
-		if ( ! in_array( $mime, $allowed_mime, true ) || ( in_array( $extension, array( 'gpc', 'json', 'txt', 'cfg', 'ini' ), true ) && ! $text ) ) { return $bad( 'The actual content does not match an allowed script format.' ); }
+		if ( ! in_array( $mime, $allowed_mime, true ) || ( in_array( $extension, array( 'gpc', 'json', 'txt', 'cfg', 'ini' ), true ) && ! $text ) ) {
+			// MIME and a fixed encoding category are safe diagnostics; never include file contents.
+			return $bad( sprintf( 'This %s was detected as %s (%s). GPC/TXT must contain UTF-8, BOM-marked UTF-16 or Windows ANSI text; binary backups must keep their original ZNBK extension.', strtoupper( $extension ), $mime, $text ? 'text' : 'binary or unsupported encoding' ) );
+		}
 		if ( 'json' === $extension ) { json_decode( $content, true, 64 ); if ( JSON_ERROR_NONE !== json_last_error() ) { return $bad( 'JSON uploads must contain valid JSON.' ); } }
 		$scan = apply_filters( 'timonconfigs_private_file_scan', null, $path, $extension, $mime );
 		if ( is_wp_error( $scan ) || ( null !== $scan && true !== $scan ) ) { return $bad( 'The configured file scanner did not approve this file.' ); }

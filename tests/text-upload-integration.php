@@ -24,7 +24,26 @@ try {
     ) as $index => $bytes ) {
         $assert( is_wp_error( $inspect->invoke( null, $fixture( $bytes ), 'renamed.txt' ) ), 'Encoded executable/binary/malformed TXT rejected: ' . $index );
     }
-    $assert( is_wp_error( $inspect->invoke( null, $fixture( "\xff\xfe" . iconv( 'UTF-8', 'UTF-16LE', $plain ) ), 'renamed.gpc' ) ), 'TXT encoding support does not broaden GPC policy.' );
+    $gpc = "// Copyright \xa9 TimonConfigs \x96 local fixture\r\ndefine TEST_BUTTON = PS4_CROSS;\r\nmain { if(get_val(TEST_BUTTON)) { set_val(TEST_BUTTON, 100); } }\r\n";
+    $source = "// Local GPC fixture\r\nmain { set_val(PS4_CROSS, 0); }\r\n";
+    foreach ( array( 'ansi-gpc' => $gpc, 'utf8-bom-gpc' => "\xef\xbb\xbf" . $source, 'utf16le-gpc' => "\xff\xfe" . iconv( 'UTF-8', 'UTF-16LE', $source ), 'utf16be-gpc' => "\xfe\xff" . iconv( 'UTF-8', 'UTF-16BE', $source ) ) as $kind => $bytes ) {
+        $path = $fixture( $bytes ); $result = $inspect->invoke( null, $path, 'source.gpc' );
+        $assert( is_array( $result ), 'Windows GPC source accepted: ' . $kind );
+        $assert( $bytes === file_get_contents( $path ) && $result['checksum'] === hash( 'sha256', $bytes ), 'GPC original bytes preserved: ' . $kind );
+    }
+    foreach ( array( 'txt', 'gpc', 'cfg', 'ini' ) as $extension ) {
+        $result = $inspect->invoke( null, $fixture( "Profile = Timon\x92s test\r\n" ), 'config.' . $extension );
+        $assert( is_array( $result ), 'Windows ANSI text accepted: ' . $extension );
+        foreach ( array( '<?php echo 1;', '<script>alert(1)</script>', "#!/bin/sh\nexit 0", '<svg onload="alert(1)"></svg>', '<!doctype html><html>active</html>' ) as $payload ) {
+            $encoded = "\xff\xfe" . iconv( 'UTF-8', 'UTF-16LE', $payload );
+            $assert( is_wp_error( $inspect->invoke( null, $fixture( $encoded ), 'bad.' . $extension ) ), 'Encoded active payload rejected: ' . $extension );
+        }
+    }
+    // libmagic language guesses must not veto plain GPC source with harmless syntax.
+    $pascal = "program LocalFixture;\nvar x: integer;\nbegin x := 1; end.\n";
+    $assert( is_array( $inspect->invoke( null, $fixture( $pascal ), 'source.gpc' ) ), 'Benign text language heuristic is accepted as source text.' );
+    $unsupported = $inspect->invoke( null, $fixture( "\x00\xff\x01\x02binary" ), 'source.gpc' );
+    $assert( is_wp_error( $unsupported ) && str_contains( $unsupported->get_error_message(), 'application/octet-stream' ) && ! str_contains( $unsupported->get_error_message(), 'binary' . chr( 0 ) ), 'Safe MIME diagnostic identifies rejected binary without raw content.' );
     $assert( is_array( $inspect->invoke( null, $fixture( $plain ), 'backup.znbk' ) ), 'ZNBK does not require external approval; automatic checks still apply.' );
     $veto = static fn() => false;
     add_filter( 'timonconfigs_private_file_scan', $veto, PHP_INT_MAX );

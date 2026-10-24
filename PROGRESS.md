@@ -1,3 +1,11 @@
+## Upload recovery — checkpoint 2026-10-24
+
+- Baza: najnowszy `main` (`6d1e20e`, kod `19ae648`). Praca na `fix/owner-upload-recovery`; dotychczasowe zmiany zachowano.
+- Rozszerzono inspekcję tekstowych GPC/CFG/INI o BOM UTF-16 i Windows ANSI, zachowując bajty, rozmiar i SHA-256. Heurystyka języka MIME nie odrzuca zwykłego tekstu źródłowego. Błędy typu pliku zawierają bezpieczną informację MIME zamiast ogólnego komunikatu ze zrzutu.
+- **59 asercji plików** zaliczonych na lokalnym WP. Testy obejmują kodowanie GPC/TXT, niezmienione bajty i odrzucanie zakodowanych aktywnych payloadów. Nie otrzymano oryginalnego pliku użytkownika, więc nie potwierdzono jego konkretnego formatu.
+- Weryfikacja Owner: lokalne **22 asercje** rozróżniają awarię Discorda od usunięcia roli; nie ma obejścia autoryzacji. Formularz AJAX i rozszerzony test przeglądarki są w trakcie weryfikacji. Nie deklarować jeszcze pełnej gotowości wydania.
+- Statyczna kontrola projektu i lint 66 plików PHP przechodzą. Hosting produkcyjny, płatności i role Discord niezmienione.
+
 # TimonConfigs project progress
 
 ## Owner-authorized publication of 0.8.5 to GitHub main
