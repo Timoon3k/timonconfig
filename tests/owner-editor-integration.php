@@ -88,6 +88,19 @@ try {
     $expect( $created === $result && 'publish' === get_post_status( $created ) && 'Owner-edited release' === get_the_title( $created ), 'Owner can edit and publish the existing config.' );
     $expect( ! str_contains( get_post_field( 'post_content', $created ), '<script' ), 'Unsafe description markup is removed.' );
     $expect( 'game' === get_post_meta( $created, '_tc_card_art', true ), 'Shared game artwork is the default for new Owner cards.' );
+    // The edit screen must focus on scripts; a cover image is purely optional.
+    $seed();
+    $_GET['tc_manage_configs'] = '1'; $_GET['config_id'] = (string) $created;
+    $editor_html = TC_Owner_Editor::render();
+    $expect( str_contains( $editor_html, 'Upload configuration / script files' ) && str_contains( $editor_html, 'name="tc_private_files[]"' ), 'Owner sees real private script uploader for an existing config.' );
+    $expect( strpos( $editor_html, 'Upload configuration / script files' ) < strpos( $editor_html, 'Optional: custom card artwork' ), 'Script upload appears before optional public image.' );
+    $disable_private = static fn(): string => '';
+    add_filter( 'timonconfigs_private_storage_directory', $disable_private );
+    $disabled_html = TC_Owner_Editor::render();
+    remove_filter( 'timonconfigs_private_storage_directory', $disable_private );
+    $expect( str_contains( $disabled_html, 'Script uploads are blocked by hosting configuration' ) && ! str_contains( $disabled_html, 'name="tc_private_files[]"' ), 'Missing private storage blocks script upload but gives Hostinger recovery instructions.' );
+    $expect( str_contains( $disabled_html, 'Optional: custom card artwork' ), 'Cover remains separately optional; it is never treated as a private script.' );
+    unset( $_GET['tc_manage_configs'], $_GET['config_id'] );
     $seed(); $broken = $data( 'save', $created ); $broken['status'] = 'publish'; $broken['tc_game'] = array();
     $expect( is_wp_error( TC_Owner_Editor::perform( $broken ) ), 'Published config without a game is rejected with a clear message.' );
     $seed(); $broken = $data( 'save', $created ); $broken['status'] = 'publish'; $broken['tc_device'] = array();
