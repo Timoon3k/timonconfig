@@ -25,7 +25,7 @@ try {
     foreach ( array( 'php', 'js', 'html', 'svg', 'zip', 'exe', 'sh' ) as $extension ) {
         $assert( is_wp_error( $inspect( $text, 'payload.' . $extension ) ), 'Active/executable/archive format unavailable: ' . $extension );
     }
-    foreach ( array( 'znbk', 'ximmr' ) as $extension ) { $assert( is_wp_error( $inspect( $text, 'backup.' . $extension ) ), 'Proprietary formats retain inspector requirement: ' . $extension ); }
+    foreach ( array( 'znbk', 'ximmr' ) as $extension ) { $assert( 'znbk' === $extension ? is_array( $inspect( $text, 'backup.' . $extension ) ) : is_wp_error( $inspect( $text, 'backup.' . $extension ) ), 'Automatic ZNBK / mandatory XIMMR policy: ' . $extension ); }
     $assert( TC_Private_Files::extensions() === TC_Private_Files::sanitize_formats( array( 'txt' ) ), 'Anonymous caller cannot alter enabled formats.' );
     ob_start(); TC_Private_Files::formats_page(); $html = ob_get_clean();
     $assert( '' === $html, 'Anonymous caller sees no settings form.' );

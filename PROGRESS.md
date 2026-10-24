@@ -1,5 +1,17 @@
 # TimonConfigs project progress
 
+## ZNBK/TXT uploads, shared VIP and simple Owner form — Core 0.8.5 / theme 0.10.4
+
+- Sprawdzono najnowszy GitHub main `b10f360` i zachowano PR #2–#6, bez przepisywania ich implementacji. Niedokończone wcześniejsze zmiany zabezpieczono checkpointem `f376b8e`; aktualna praca: `fix/upload-text-and-shared-vip`.
+- Na WYRAŹNE nowe polecenie właściciela ZNBK nie wymaga już zewnętrznej zgody inspektora. Obowiązują automatyczne kontrole pliku i opakowania ZIP, limity i prywatny magazyn; opcjonalny skaner może odrzucić plik. XIMMR zachowuje dotychczasowy wymóg inspektora. Nie dodano fałszywego callbacku `return true`. Dokument 0.8.4 oznaczono jako historyczny.
+- TXT obsługuje UTF-8/BOM oraz Windows UTF-16 LE/BE. Walidacja nie przepisuje bajtów ani SHA-256. Poprawny tekst zaczynający się od MZ nie jest traktowany jak program tylko przez te dwa znaki; binarne/wykonywalne/zakodowane aktywne payloady pozostają odrzucone.
+- Wybór CONFIG access: Free Member / VIP — Monthly & Lifetime / VIP Lifetime only. Wspólny wariant wykorzystuje dotychczasowy `monthly` i uprawnia oba płatne pakiety, bez migracji danych ani zmian cen/Discord ról/Upgrade.chat.
+- Prosty formularz: tytuł, gra, urządzenie, dostęp, plik; reszta w Advanced options. Plik można dodać w tym samym zapisie co publikację. Brak pliku nie publikuje gotowej karty; zachowuje recoverable draft. Owner bez VIP widzi Owner tools enabled. Krótki cooldown weryfikacji jest obsługiwany w przeglądarce, backend nadal wymusza autoryzację.
+- Test przeglądarkowy wykrył brak cache reguły `/configs/` w lokalnym WP; jednorazowa soft migracja reguł po aktualizacji przywraca katalog i nie zmienia Home/URL/ustawień integracji. Dodatkowe testy oraz CI obejmują tę regresję.
+- **671 asercji PHP**: pliki 73, polityka 28, TXT 26, wspólny VIP 24, Owner 223, pobieranie 69, OAuth 122, katalog 45, reguły 5, panel 56 — wszystkie zaliczone. Przeglądarka: **29 asercji realnego Owner uploadu/kart/pobierania** + **24 widoki panelu**. ZNBK został wysłany i pobrany bez inspektora; TXT zachował oryginalne bajty UTF-16. Ostatni Owner browser nie resetował sztucznie cooldownu. Discord transport jest symulowany, sesje WP i HTTP/TLS/file operations są rzeczywiste lokalne; fixtures posprzątano.
+- Faktyczne ZIP-y (88 plików theme / 14 Core) zgodne ze źródłami przeszły **76 asercji świeżej instalacji** na izolowanym WordPress 6.8.3/PHP 8.2. PHP lint, JS/static oraz diff check poprawne. Manifest: `artifacts/upload-085-release-manifest.json`; raport: `docs/UPLOAD_AND_SHARED_VIP_0.8.5.md`. Nie wdrożono Hostinger ani nie zmieniono produkcyjnych ról/płatności.
+
+
 ## Compact click-to-download catalog + Matrix TXT (2026-10-24; PR #3)
 
 - Simplified catalogue cards: removed long preview copy, publisher, dates and download counters; full-card click issues the existing signed, session-bound, one-use download POST when access is verified. Login/VIP redirects remain explicit; Coming Soon and missing-file cards are non-interactive previews. Guide/Values modal buttons remain separately actionable.

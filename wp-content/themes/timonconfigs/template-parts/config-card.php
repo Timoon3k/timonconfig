@@ -4,6 +4,8 @@ defined( 'ABSPATH' ) || exit;
 
 $config_id = get_the_ID();
 $tier = (string) get_post_meta( $config_id, 'tc_tier', true ) ?: 'free';
+$access_labels = is_callable( array( 'TC_Catalog', 'tier_labels' ) ) ? TC_Catalog::tier_labels() : array( 'free' => 'Free Member', 'monthly' => 'VIP — Monthly & Lifetime', 'lifetime' => 'VIP Lifetime only' );
+$access_label = $access_labels[ $tier ] ?? 'Access unconfirmed';
 $status = (string) get_post_meta( $config_id, 'tc_release_status', true );
 $access = TC_Catalog::download_cta( $config_id );
 $games = get_the_terms( $config_id, 'tc_game' );
@@ -30,7 +32,7 @@ $target = 'pending' === ( $access['action'] ?? '' ) ? get_permalink( $config_id 
         <?php else : ?>
             <span class="tc-config-card__device"><?php echo esc_html( $device ? $device->name : 'TimonConfigs' ); ?></span>
         <?php endif; ?>
-        <span class="tc-config-card__tier tc-config-card__tier--<?php echo esc_attr( $tier ); ?>"><?php echo esc_html( 'free' === $tier ? 'FREE' : 'VIP' ); ?></span>
+        <span class="tc-config-card__tier tc-config-card__tier--<?php echo esc_attr( $tier ); ?>" title="<?php echo esc_attr( $access_label ); ?>" aria-label="<?php echo esc_attr( $access_label ); ?>"><?php echo esc_html( 'free' === $tier ? 'FREE' : ( 'lifetime' === $tier ? 'LIFETIME' : 'VIP' ) ); ?></span>
         <?php if ( ! $ready ) : ?><span class="tc-config-card__status"><?php echo esc_html( 'coming-soon' === $status ? 'Coming soon' : 'Not available' ); ?></span><?php endif; ?>
     </div>
     <div class="tc-config-card__body">

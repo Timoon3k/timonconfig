@@ -8,6 +8,9 @@ on:
       - 'tests/catalog-integration.php'
       - 'tests/owner-editor-integration.php'
       - 'tests/private-files-integration.php'
+      - 'tests/text-upload-integration.php'
+      - 'tests/shared-vip-integration.php'
+      - 'tests/catalog-routes-integration.php'
       - '.github/workflows/wordpress-download-integration.yml'
   workflow_dispatch:
 
@@ -35,6 +38,12 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/private-files-integration.php
       - name: Owner draft persistence when private storage is missing
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/owner-editor-integration.php
+      - name: Windows TXT encoding and byte preservation
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/text-upload-integration.php
+      - name: Shared Monthly and Lifetime config access
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/shared-vip-integration.php
+      - name: Archive route cache upgrade
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/catalog-routes-integration.php
       - name: Tear down disposable WordPress
         if: always()
         run: docker compose -f docker-compose.local.yml down -v --remove-orphans

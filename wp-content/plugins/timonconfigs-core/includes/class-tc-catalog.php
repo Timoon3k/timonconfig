@@ -30,6 +30,7 @@ final class TC_Catalog {
 	);
 
 	public static function init(): void {
+		add_action( 'init', array( __CLASS__, 'refresh_routes' ), 99 );
 		add_action( 'init', array( __CLASS__, 'register_content_types' ) );
 		add_action( 'init', array( __CLASS__, 'register_landing_rewrites' ) );
 		add_action( 'add_meta_boxes', array( __CLASS__, 'add_meta_box' ) );
@@ -122,6 +123,13 @@ final class TC_Catalog {
 			return home_url( '/' . $term->slug . '-configs/' );
 		}
 		return $url;
+	}
+
+	/** A plugin update does not rerun activation: refresh only the route-cache schema. */
+	public static function refresh_routes(): void {
+		if ( wp_installing() || '2026-10-24-archive-v1' === get_option( 'timonconfigs_catalog_routes_version' ) ) { return; }
+		flush_rewrite_rules( false );
+		update_option( 'timonconfigs_catalog_routes_version', '2026-10-24-archive-v1', false );
 	}
 
 	public static function register_content_types(): void {
@@ -254,6 +262,9 @@ final class TC_Catalog {
 		$url = esc_url_raw( (string) $value, array( 'https' ) );
 		return wp_parse_url( $url, PHP_URL_HOST ) && 'https' === wp_parse_url( $url, PHP_URL_SCHEME ) ? $url : '';
 	}
+	/** Configuration visibility labels; membership plan names and stored tier values stay unchanged. */
+	public static function tier_labels(): array { return array( 'free' => 'Free Member', 'monthly' => 'VIP — Monthly & Lifetime', 'lifetime' => 'VIP Lifetime only' ); }
+
 	public static function sanitize_tier( mixed $value ): string { return is_string( $value ) && in_array( $value, array( 'free', 'monthly', 'lifetime' ), true ) ? $value : ''; }
 	public static function sanitize_input( mixed $value ): string { return is_string( $value ) && in_array( $value, array( 'controller', 'mnk' ), true ) ? $value : ''; }
 	public static function sanitize_release_status( mixed $value ): string { return is_string( $value ) && in_array( $value, array( 'available', 'coming-soon', 'archived' ), true ) ? $value : ''; }
@@ -395,7 +406,7 @@ final class TC_Catalog {
 		$values = array();
 		foreach ( self::META as $key => $method ) { $values[ $key ] = (string) get_post_meta( $post->ID, $key, true ); }
 		$selects = array(
-			'tc_tier' => array( 'Access tier', array( '' => 'Select verified access requirement', 'free' => 'Free', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' ) ),
+			'tc_tier' => array( 'Access tier', array( '' => 'Select verified access requirement' ) + self::tier_labels() ),
 			'tc_input_method' => array( 'Input method', array( '' => 'Not yet verified', 'controller' => 'Controller', 'mnk' => 'Mouse & keyboard' ) ),
 			'tc_release_status' => array( 'Release status', array( 'coming-soon' => 'Coming soon / details pending', 'available' => 'Available (verified release)', 'archived' => 'Archived' ) ),
 		);

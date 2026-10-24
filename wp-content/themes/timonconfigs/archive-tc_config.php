@@ -3,6 +3,7 @@
 defined( 'ABSPATH' ) || exit;
 get_header();
 
+$access_labels = is_callable( array( 'TC_Catalog', 'tier_labels' ) ) ? TC_Catalog::tier_labels() : array( 'free' => 'Free Member', 'monthly' => 'VIP — Monthly & Lifetime', 'lifetime' => 'VIP Lifetime only' );
 $is_term = is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) );
 $term = $is_term ? get_queried_object() : null;
 $is_game = $term instanceof WP_Term && 'tc_game' === $term->taxonomy;
@@ -62,7 +63,7 @@ $selected_sort = is_callable( array( 'TC_Catalog', 'selected_sort' ) ) ? TC_Cata
 				<label><span>Input</span><select name="input"><option value="">All inputs</option><option value="controller" <?php selected( $get_filter( 'input' ), 'controller' ); ?>>Controller</option><option value="mnk" <?php selected( $get_filter( 'input' ), 'mnk' ); ?>>Mouse &amp; keyboard</option></select></label>
 				<label><span>Platform</span><select name="platform" <?php disabled( $is_platform ); ?>><option value="">All platforms</option><?php foreach ( $platforms as $platform ) : ?><option value="<?php echo esc_attr( $platform->slug ); ?>" <?php selected( $selected_platform, $platform->slug ); ?>><?php echo esc_html( $platform->name ); ?></option><?php endforeach; ?></select></label>
 				<?php if ( $is_platform ) : ?><input type="hidden" name="platform" value="<?php echo esc_attr( $term->slug ); ?>"><?php endif; ?>
-				<label><span>Access</span><select name="tier"><option value="">All tiers</option><?php foreach ( array( 'free' => 'Free', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' ) as $value => $label ) : ?><option value="<?php echo esc_attr( $value ); ?>" <?php selected( $get_filter( 'tier' ), $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select></label>
+				<label><span>Access</span><select name="tier"><option value="">All tiers</option><?php foreach ( $access_labels as $value => $label ) : ?><option value="<?php echo esc_attr( $value ); ?>" <?php selected( $get_filter( 'tier' ), $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select></label>
 				<label><span>Sort</span><select name="sort"><?php foreach ( $sort_options as $value => $label ) : ?><option value="<?php echo esc_attr( $value ); ?>" <?php selected( $selected_sort, $value ); ?>><?php echo esc_html( $label ); ?></option><?php endforeach; ?></select></label>
 				<button class="tc-button" type="submit">Apply filters</button>
 			</form>

@@ -1,3 +1,5 @@
+> Historical 0.8.4 policy. The owner explicitly removed mandatory external ZNBK approval in 0.8.5; see [current policy](UPLOAD_AND_SHARED_VIP_0.8.5.md). Automatic structural checks remain.
+
 # Core 0.8.4 — ZIP-backed Zen Backup (.znbk) inspection
 
 ## Why the Owner saw this error

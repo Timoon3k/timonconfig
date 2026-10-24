@@ -1,4 +1,4 @@
-# Installation and update — theme 0.10.0 / Core 0.8.0
+# Installation and update — theme 0.10.4 / Core 0.8.5
 
 ## Environment requirements
 
@@ -19,7 +19,7 @@
 6. Enter actual Upgrade.chat URLs under **Settings → TimonConfigs**. Keep existing Stripe/PayPal products and Discord role automation unchanged. Test the redirect destination without completing a transaction.
 7. Review all 25 routes in `URL_STATUS.md`, configured Discord buttons, filters, editor previews, media playback, indexing, sitemap, and supported SEO-plugin behavior. Replace demo reviews and unpublished release drafts only with verified content.
 8. Review the policy drafts with the owner before production use; confirm entity, contact information, Lifetime scope, cancellation, refunds, privacy, and storage disclosures. Setup preserves WordPress's existing draft Privacy Policy: publish approved legal pages deliberately before expecting their public URLs to respond.
-9. Purge the target site's page/CDN cache after a staging update so CSS/JS version 0.10.0 and the artwork are served together. Compare screenshots with the approved reference. If Home showed the default welcome post, follow the targeted steps in `HOME_FIX_0.7.1.md`. An update of an already active Core still needs the explicit setup to create missing member pages; no existing content is overwritten.
+9. Purge the target site's page/CDN cache after a staging update so CSS/JS version 0.10.4 and the artwork are served together. Compare screenshots with the approved reference. If Home showed the default welcome post, follow the targeted steps in `HOME_FIX_0.7.1.md`. An update of an already active Core still needs the explicit setup to create missing member pages; no existing content is overwritten.
 10. Production deployment requires the owner's explicit approval after staging validation. This session did not modify Hostinger production or any live payment/membership state.
 
 ## Current external limitations
@@ -41,3 +41,5 @@ Optional administrator-configured Discord identity allowlist permits controlled 
 Core 0.7.3 adds administrator-only, redacted callback failure diagnostics. Existing credentials and pilot settings are preserved. See the troubleshooting section in `DISCORD_PILOT_0.7.2.md`.
 
 For Owner/Staff settings, the frontend editor, protected Guides/Values, permitted formats and preview-domain indexing protection, follow `FEATURE_RELEASE_0.10.md` and the current section of `CMS_GUIDE.md`. These packages do not configure real roles, scanners, storage or production URLs automatically. Keep Restricted pilot enabled during target-host validation.
+
+Current upload/access policy: `UPLOAD_AND_SHARED_VIP_0.8.5.md`. Mandatory external approval was removed for ZNBK at the explicit owner request; older inspector instructions apply only to historical versions or XIMMR. Install both current packages to receive the compact form and automatic cooldown handling.

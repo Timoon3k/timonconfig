@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.10.3' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.10.4' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 require_once get_template_directory() . '/inc/seo.php';
@@ -47,6 +47,7 @@ add_action(
 				wp_enqueue_style( 'timonconfigs-' . $stylesheet, get_template_directory_uri() . '/assets/css/' . $stylesheet . '.css', array( 'timonconfigs-premium' ), TIMONCONFIGS_THEME_VERSION );
 			}
 		}
+		if ( isset( $_GET['tc_manage_configs'] ) ) { wp_enqueue_script( 'timonconfigs-owner-editor', get_template_directory_uri() . '/assets/js/owner-editor.js', array(), TIMONCONFIGS_THEME_VERSION, true ); }
 		wp_enqueue_script( 'timonconfigs-config-content', get_template_directory_uri() . '/assets/js/config-content.js', array(), TIMONCONFIGS_THEME_VERSION, true );
 		wp_enqueue_script( 'timonconfigs', get_template_directory_uri() . '/assets/js/main.js', array(), TIMONCONFIGS_THEME_VERSION, true );
 	}

@@ -58,6 +58,12 @@ final class TC_Owner_Editor {
                 $errors = is_array( $incoming ) && is_array( $incoming['error'] ?? null ) ? $incoming['error'] : array();
                 $has_files = count( array_filter( $names, static fn( mixed $name ): bool => is_string( $name ) && '' !== trim( $name ) ) ) > 0
                     || count( array_filter( $errors, static fn( mixed $err ): bool => UPLOAD_ERR_NO_FILE !== (int) $err ) ) > 0;
+                if ( '1' === self::scalar( $data, 'tc_owner_simple' ) && 'publish' === self::scalar( $data, 'status' ) && 'available' === self::scalar( $data, 'tc_release_status' ) && ! $has_files && ( ! $id || ! TC_Private_Files::files( $id ) ) ) {
+                    if ( $id ) { return self::forbidden( 'Upload a script file before publishing an available download.' ); }
+                    $draft = $data; $draft['status'] = 'draft';
+                    $created = self::save( 0, $draft );
+                    return is_wp_error( $created ) ? $created : self::draft_error( $created, 'Choose a script file, then publish. No download card was published.' );
+                }
                 if ( ! $id && $has_files ) {
                     $requested_status = self::scalar( $data, 'status' );
                     if ( ! in_array( $requested_status, array( 'draft', 'publish' ), true ) ) {
@@ -186,7 +192,7 @@ final class TC_Owner_Editor {
         wp_safe_redirect( self::url( $result ), 303 ); exit;
     }
     private static function form_start( int $id, string $operation ): void {
-        echo '<form class="tc-owner-form" method="post" enctype="multipart/form-data" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="' . esc_attr( self::ACTION ) . '"><input type="hidden" name="operation" value="' . esc_attr( $operation ) . '"><input type="hidden" name="config_id" value="' . esc_attr( (string) $id ) . '">';
+        echo '<form class="tc-owner-form" data-wait-seconds="' . esc_attr( (string) max( 0, min( 10, 10 + (int) get_user_meta( get_current_user_id(), '_tc_discord_attempt', true ) - time() ) ) ) . '" method="post" enctype="multipart/form-data" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="' . esc_attr( self::ACTION ) . '"><input type="hidden" name="operation" value="' . esc_attr( $operation ) . '"><input type="hidden" name="config_id" value="' . esc_attr( (string) $id ) . '">';
         wp_nonce_field( self::ACTION );
     }
     private static function input( string $key, string $label, string $value, bool $area = false ): void {
@@ -211,9 +217,13 @@ final class TC_Owner_Editor {
             echo '<p>Your configuration #' . esc_html( (string) $id ) . ' is still editable. You can save its title, game, device and Values without uploading a file.</p></div></section>';
             return;
         }
+        if ( ! class_exists( 'ZipArchive' ) && in_array( 'znbk', TC_Private_Files::extensions(), true ) ) {
+            echo '<p class="tc-owner-upload-hint">ZIP-backed ZNBK also requires the PHP ZIP extension on your host.</p>';
+        }
+        echo '<p class="tc-owner-upload-hint">Uploader version: ' . esc_html( TIMONCONFIGS_CORE_VERSION ) . '. TXT supports UTF-8 and BOM-marked Windows UTF-16; uploaded bytes are preserved.</p>';
         self::form_start( $id, 'upload' );
         echo '<label class="tc-owner-script-picker"><strong>Choose private script files</strong><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple required></label>';
-        echo '<p class="tc-owner-upload-hint">Up to 10 files per upload, 20 MB each. Formats depend on your safe-format settings. ZNBK and XIMMR require the configured format inspector. For XIM Matrix, upload actual .txt code; never rename a binary XIMMR to .txt.</p>';
+        echo '<p class="tc-owner-upload-hint">Up to 10 files per upload, 20 MB each. Formats depend on your safe-format settings. ZNBK is checked automatically; no external approval is required. XIMMR requires its format inspector. For XIM Matrix, upload actual .txt code; never rename a binary XIMMR to .txt.</p>';
         self::input( 'version', 'File version (optional)', '' );
         self::input( 'notes', 'Notes (optional)', '', true );
         echo '<button class="tc-button" type="submit">Upload script files</button></form>';
@@ -249,7 +259,7 @@ final class TC_Owner_Editor {
         if ( $id && ( 'tc_config' !== get_post_type( $id ) || ! in_array( get_post_status( $id ), array( 'draft', 'publish', 'pending', 'private' ), true ) ) ) { return '<p>This configuration cannot be managed.</p>'; }
         $post = $id ? get_post( $id ) : null;
         ob_start();
-        echo '<section class="tc-owner-editor"><h2>Manage Configs</h2><p>Owner tools · upload private scripts directly from this panel. Shared game card artwork is automatic and optional to replace. Discord verification is refreshed for every write; allow at least 10 seconds between actions.</p><p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a> · <a href="' . esc_url( self::url() ) . '">New configuration</a></p>';
+        echo '<section class="tc-owner-editor"><h2>Manage Configs</h2><p>Add a script file, choose its game and access, then publish its card. Game artwork is added automatically.</p><p><a href="' . esc_url( home_url( '/account/' ) ) . '">Back to profile</a> · <a href="' . esc_url( self::url() ) . '">New configuration</a></p>';
         $feedback = get_transient( 'tc_owner_feedback_' . get_current_user_id() );
         $feedback_text = is_array( $feedback ) ? (string) ( $feedback['message'] ?? '' ) : ( is_string( $feedback ) ? $feedback : '' );
         if ( $feedback_text ) {
@@ -278,45 +288,35 @@ final class TC_Owner_Editor {
         echo '</nav></details>';
         if ( $id ) { self::render_script_uploads( $id ); }
         self::form_start( $id, 'save' );
-        self::input( 'title', 'Title', $post->post_title ?? '' ); self::input( 'excerpt', 'Short description', $post->post_excerpt ?? '', true ); self::input( 'description', 'Description (safe HTML)', $post->post_content ?? '', true );
-        self::select( 'status', 'Publication', $post->post_status ?? 'draft', array( 'draft' => 'Draft', 'publish' => 'Published' ) );
-        foreach ( array( 'tc_game' => 'Game', 'tc_device' => 'Device', 'tc_platform' => 'Platforms' ) as $tax => $label ) {
+        echo '<input type="hidden" name="tc_owner_simple" value="1">';
+        self::input( 'title', 'Config title', $post->post_title ?? '' );
+        foreach ( array( 'tc_game' => 'Game', 'tc_device' => 'Device' ) as $tax => $label ) {
             $assigned = $id ? wp_get_object_terms( $id, $tax, array( 'fields' => 'ids' ) ) : array();
-            echo '<fieldset><legend>' . esc_html( $label ) . '</legend>';
-            if ( in_array( $tax, array( 'tc_game', 'tc_device' ), true ) ) {
-                echo '<select name="' . esc_attr( $tax ) . '[]" ' . ( 'publish' === ( $post->post_status ?? '' ) ? 'required' : '' ) . '><option value="">Choose ' . esc_html( $label ) . '…</option>';
-                foreach ( get_terms( array( 'taxonomy' => $tax, 'hide_empty' => false ) ) as $term ) {
-                    echo '<option value="' . esc_attr( (string) $term->term_id ) . '" ' . selected( in_array( $term->term_id, $assigned, true ), true, false ) . '>' . esc_html( $term->name ) . '</option>';
-                }
-                echo '</select>';
-            } else {
-                foreach ( get_terms( array( 'taxonomy' => $tax, 'hide_empty' => false ) ) as $term ) {
-                    echo '<label class="tc-owner-check"><input type="checkbox" name="' . esc_attr( $tax ) . '[]" value="' . esc_attr( (string) $term->term_id ) . '" ' . checked( in_array( $term->term_id, $assigned, true ), true, false ) . '>' . esc_html( $term->name ) . '</label>';
-                }
-            }
-            echo '</fieldset>';
+            echo '<label>' . esc_html( $label ) . '<select name="' . esc_attr( $tax ) . '[]" required><option value="">Choose ' . esc_html( $label ) . '…</option>';
+            foreach ( get_terms( array( 'taxonomy' => $tax, 'hide_empty' => false ) ) as $term ) { echo '<option value="' . esc_attr( (string) $term->term_id ) . '" ' . selected( in_array( $term->term_id, $assigned, true ), true, false ) . '>' . esc_html( $term->name ) . '</option>'; }
+            echo '</select></label>';
         }
-        self::select( 'tc_tier', 'Access tier', (string) get_post_meta( $id, 'tc_tier', true ), array( 'free' => 'Free Member', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' ) );
-        echo '<p class="tc-owner-help">Published + Coming soon = visible preview card with no download. Published + Available + uploaded private file = downloadable card for entitled members. Archived = hidden from the public catalogue.</p>';
-        self::select( 'card_art', 'Card cover artwork', (string) ( get_post_meta( $id, '_tc_card_art', true ) ?: 'game' ), array( 'game' => 'Use shared game cover (recommended)', 'custom' => 'Use uploaded custom thumbnail' ) );
-        self::select( 'tc_release_status', 'Release', (string) get_post_meta( $id, 'tc_release_status', true ), array( 'coming-soon' => 'Coming soon', 'available' => 'Available', 'archived' => 'Archived' ) );
-        self::select( 'tc_input_method', 'Input', (string) get_post_meta( $id, 'tc_input_method', true ), array( '' => 'Not yet verified', 'controller' => 'Controller', 'mnk' => 'Mouse & keyboard' ) );
-        foreach ( array( 'tc_config_version' => 'Version', 'tc_game_version' => 'Game version', 'tc_creator' => 'Creator', 'tc_publisher' => 'Publisher', 'tc_release_date' => 'Release date (YYYY-MM-DD)', 'tc_tutorial_url' => 'Public preview / tutorial URL (HTTPS)' ) as $key => $label ) { self::input( $key, $label, (string) get_post_meta( $id, $key, true ) ); }
-        foreach ( array( 'tc_compatibility' => 'Verified compatibility', 'tc_changelog' => 'Changelog' ) as $key => $label ) { self::input( $key, $label, (string) get_post_meta( $id, $key, true ), true ); }
-        if ( class_exists( 'TC_Config_Content' ) ) { echo TC_Config_Content::editor_fields( $id ); }
+        self::select( 'tc_tier', 'Who can download?', (string) get_post_meta( $id, 'tc_tier', true ), TC_Catalog::tier_labels() );
         if ( ! $id ) {
-            $storage_status = TC_Private_Files::root();
-            $storage_ready = ! is_wp_error( $storage_status );
-            echo '<div class="tc-owner-first-upload"><h3>Optional: attach your first script files</h3><p>Choose up to 10 private config files now, or add them after saving. Files are checked and stored outside public WordPress media. If the upload fails, the new configuration stays a draft.</p>';
-            if ( ! $storage_ready ) {
-                echo '<p class="tc-owner-feedback tc-owner-feedback--error" role="alert"><strong>Protected upload unavailable:</strong> ' . esc_html( $storage_status->get_error_message() ) . ' You can still create a configuration WITHOUT a file, then upload after private storage has been configured on Hostinger.</p>';
-            }
-            echo '<label>Config files <input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple ' . ( $storage_ready ? '' : 'disabled aria-disabled="true"' ) . '></label>';
-            self::input( 'file_version', 'File version (optional)', '' );
-            self::input( 'file_notes', 'File notes (optional)', '', true );
+            $storage_status = TC_Private_Files::root(); $storage_ready = ! is_wp_error( $storage_status );
+            echo '<div class="tc-owner-first-upload"><label><strong>Script file</strong><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple ' . ( $storage_ready ? '' : 'disabled aria-disabled="true"' ) . '></label><p>The card uses its game artwork automatically. Choose a file and publish, or save a draft.</p>';
+            if ( ! $storage_ready ) { echo '<p class="tc-owner-feedback tc-owner-feedback--error" role="alert">' . esc_html( $storage_status->get_error_message() ) . '</p>'; }
+            else { echo '<p class="tc-owner-upload-hint">ZNBK and TXT are checked automatically. Your upload stays private.</p>'; }
             echo '</div>';
         }
-        echo '<button class="tc-button" type="submit">' . ( $id ? 'Save changes' : 'Create configuration' ) . '</button></form>';
+        echo '<details class="tc-owner-advanced"><summary>Advanced options — description, versions, Guide &amp; Values</summary><div class="tc-owner-advanced__fields">';
+        self::input( 'excerpt', 'Short description', $post->post_excerpt ?? '', true ); self::input( 'description', 'Description (safe HTML)', $post->post_content ?? '', true );
+        $assigned = $id ? wp_get_object_terms( $id, 'tc_platform', array( 'fields' => 'ids' ) ) : array();
+        echo '<fieldset><legend>Platforms (optional)</legend>';
+        foreach ( get_terms( array( 'taxonomy' => 'tc_platform', 'hide_empty' => false ) ) as $term ) { echo '<label class="tc-owner-check"><input type="checkbox" name="tc_platform[]" value="' . esc_attr( (string) $term->term_id ) . '" ' . checked( in_array( $term->term_id, $assigned, true ), true, false ) . '>' . esc_html( $term->name ) . '</label>'; } echo '</fieldset>';
+        self::select( 'card_art', 'Card artwork', (string) ( get_post_meta( $id, '_tc_card_art', true ) ?: 'game' ), array( 'game' => 'Automatic game cover', 'custom' => 'Custom thumbnail' ) );
+        self::select( 'tc_release_status', 'Availability', (string) ( get_post_meta( $id, 'tc_release_status', true ) ?: 'available' ), array( 'available' => 'Ready to download', 'coming-soon' => 'Coming soon preview', 'archived' => 'Archived (hidden)' ) );
+        self::select( 'tc_input_method', 'Input', (string) get_post_meta( $id, 'tc_input_method', true ), array( '' => 'Not yet verified', 'controller' => 'Controller', 'mnk' => 'Mouse & keyboard' ) );
+        foreach ( array( 'tc_config_version' => 'Version', 'tc_game_version' => 'Game version', 'tc_creator' => 'Creator', 'tc_publisher' => 'Publisher', 'tc_release_date' => 'Release date (YYYY-MM-DD)', 'tc_tutorial_url' => 'Public tutorial URL (HTTPS)' ) as $key => $label ) { self::input( $key, $label, (string) get_post_meta( $id, $key, true ) ); }
+        foreach ( array( 'tc_compatibility' => 'Verified compatibility', 'tc_changelog' => 'Changelog' ) as $key => $label ) { self::input( $key, $label, (string) get_post_meta( $id, $key, true ), true ); }
+        if ( class_exists( 'TC_Config_Content' ) ) { echo TC_Config_Content::editor_fields( $id ); }
+        if ( ! $id ) { self::input( 'file_version', 'File version (optional)', '' ); self::input( 'file_notes', 'File notes (optional)', '', true ); }
+        echo '</div></details><div class="tc-owner-submit"><button class="tc-button" type="submit" name="status" value="publish">' . ( $id && 'publish' === $post->post_status ? 'Save changes' : 'Publish config' ) . '</button><button type="submit" name="status" value="draft" formnovalidate>Save draft</button></div></form>';
         if ( $id ) {
             echo '<details class="tc-owner-public-image"><summary>Optional: custom card artwork (not a script file)</summary><p>Your configuration card uses the shared game banner by default. You do not need to upload a picture to add a script. To use a custom cover, select custom artwork above and upload a JPG, PNG, WebP or AVIF.</p>';
             self::form_start( $id, 'image' );

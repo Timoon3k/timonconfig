@@ -76,12 +76,11 @@ try {
 	$stream = fopen( $oversize, 'r+' ); ftruncate( $stream, 20971521 ); fclose( $stream );
 	$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $oversize, 'large.gpc' ) ), 'An actual oversized file is rejected independent of request size.' );
 	$opaque = $tc_private_fixture( 'binary.znbk', "TCBIN\0\x01\x02\xff" );
-	$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $opaque, 'binary.znbk' ) ), 'Unknown binary backups need an approved scanner/format inspector.' );
+	$tc_private_expect( is_array( $tc_private_call( 'inspect', $opaque, 'binary.znbk' ) ), 'ZNBK binary data passes automatic checks without an external approval.' );
 	foreach ( array( 'znbk', 'ximmr' ) as $extension ) {
-		$tc_private_expect( is_wp_error( $tc_private_call( 'inspect', $good, 'text-backup.' . $extension ) ), 'Proprietary formats require approval even when their bytes look like text: ' . $extension );
+		$tc_private_expect( ( 'znbk' === $extension ? is_array( $tc_private_call( 'inspect', $good, 'text-backup.' . $extension ) ) : is_wp_error( $tc_private_call( 'inspect', $good, 'text-backup.' . $extension ) ) ), 'Only XIMMR retains mandatory external approval: ' . $extension );
 	}
-	// Some genuine .znbk backups use ZIP framing. Verify the envelope, but require an
-	// independent approved inspector before accepting either upload or download.
+	// ZIP-backed ZNBK is accepted after automatic structural validation; optional scanners may veto.
 	$zen_zip_path = '';
 	$zen_zip_bad = array();
 	if ( class_exists( 'ZipArchive' ) ) {
@@ -91,7 +90,7 @@ try {
 		$zip->addFromString( 'slots/config.json', '{"test":true}' );
 		$zip->close();
 		$rejected = $tc_private_call( 'inspect', $zen_zip_path, 'fixture-backup.znbk' );
-		$tc_private_expect( is_wp_error( $rejected ) && str_contains( $rejected->get_error_message(), 'approved ZNBK scanner' ), 'Bounded ZIP-backed ZNBK remains blocked without approved scanner.' );
+		$tc_private_expect( is_array( $rejected ) && 'znbk-container-checked' === $rejected['inspection'], 'Bounded ZIP-backed ZNBK works without external approval and records its actual check.' );
 		foreach ( array(
 			array( '../escape.txt', 'safe' ),
 			array( 'scripts/bootstrap.php', '<?php echo "x";' ),

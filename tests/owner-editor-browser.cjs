@@ -34,7 +34,7 @@ function dockerFile(content) {
 $root=TC_Private_Files::root();if(is_wp_error($root)){throw new RuntimeException('Private test storage unavailable.');}
 $users=array();foreach(array('owner'=>'${ownerDiscord}','staff'=>'${staffDiscord}') as $kind=>$discord){$uid=wp_insert_user(array('user_login'=>'tc_browser_${tag}_'.$kind,'user_pass'=>wp_generate_password(64,true,true),'display_name'=>'Browser '.ucfirst($kind),'role'=>'subscriber'));if(is_wp_error($uid)){throw new RuntimeException('Fixture user creation failed.');}update_user_meta($uid,'_tc_owner_browser_fixture','${tag}');update_user_meta($uid,'_tc_discord_id',$discord);update_user_meta($uid,'_tc_discord_name','Browser '.ucfirst($kind));update_option('_tc_discord_binding_'.$discord,$uid,false);$encrypt=new ReflectionMethod(TC_Discord::class,'encrypt');update_user_meta($uid,'_tc_discord_token',$encrypt->invoke(null,wp_json_encode(array('access_token'=>'fixture-${tag}-'.$kind,'refresh_token'=>'fixture-refresh','expires'=>time()+3600))));$users[$kind]=$uid;}
 $settings=array('enabled'=>1,'pilot_enabled'=>1,'pilot_ids'=>"${ownerDiscord}\n${staffDiscord}",'owner_ids'=>'${ownerDiscord}','pkce'=>0,'client_id'=>'899999999999999991','guild_id'=>'899999999999999992','free_role'=>'899999999999999993','monthly_role'=>'899999999999999994','lifetime_role'=>'899999999999999995','owner_role'=>'899999999999999996','staff_role'=>'899999999999999997','secret_encrypted'=>$encrypt->invoke(null,'fixture-client-secret'));
-echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('users'=>$users,'settings'=>$settings));`);
+$game=get_term_by('slug','apex-legends','tc_game');$device=get_term_by('slug','cronus-zen','tc_device');if(!$game||!$device){throw new RuntimeException('Seeded game/device terms required.');}echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('users'=>$users,'settings'=>$settings,'game'=>$game->term_id,'device'=>$device->term_id));`);
     directory = await fs.mkdtemp(path.join(os.tmpdir(), 'tc-owner-browser-'));
     execFileSync('openssl', ['req', '-x509', '-nodes', '-newkey', 'rsa:2048', '-days', '1', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1', '-keyout', path.join(directory, 'key.pem'), '-out', path.join(directory, 'cert.pem')], { stdio: 'ignore' });
     proxy = https.createServer({ key: await fs.readFile(path.join(directory, 'key.pem')), cert: await fs.readFile(path.join(directory, 'cert.pem')) }, (request, response) => {
@@ -87,42 +87,88 @@ add_action('template_redirect',static function(){
     expect(await page.locator('.tc-owner-form').first().evaluate(el => getComputedStyle(el).display) === 'grid', 'Actual editor stylesheet loads over test HTTPS.');
     expect(await page.locator('.tc-brand__logo').first().evaluate(el => el.complete && el.naturalWidth > 0), 'Brand image loads over test HTTPS.');
     expect(await page.locator('.tc-owner-editor').count() === 1, 'Verified Subscriber Owner sees real frontend editor.');
-    expect(await page.getByRole('button', { name: 'Save configuration', exact: true }).count() === 1, 'Owner has a working create form.');
+    expect(await page.getByRole('button', { name: 'Publish config', exact: true }).count() === 1, 'Owner has one short publish form.');
+    expect(await page.locator('form:has(input[name="operation"][value="save"]) [name="description"]').isVisible() === false, 'Advanced description stays collapsed by default.');
     const title = `LOCAL OWNER HTTP ${tag}`;
-    const save = page.locator('form:has(input[name="operation"][value="save"])');
-    await save.locator('[name="title"]').fill(title);
-    await save.locator('[name="description"]').fill('<p>Owner browser test description.</p>');
-    await save.locator('[name="status"]').selectOption('publish');
-    await save.locator('[name="tc_tier"]').selectOption('free');
-    await save.locator('[name="tc_release_status"]').selectOption('available');
-    await save.locator('[name="tc_guide_visibility"]').selectOption('free');
-    await save.locator('[name="tc_values_visibility"]').selectOption('free');
-    await save.locator('[name="tc_guide_content"]').fill('<p>Test guide only.</p>');
-    await save.locator('[name="tc_values_content"]').fill('test = 1\n');
-    async function resetAttempt(uid = fixture.users.owner) { wp(`if(get_user_meta(${uid},'_tc_owner_browser_fixture',true)!=='${tag}'){throw new RuntimeException('Wrong test identity.');}delete_user_meta(${uid},'_tc_discord_attempt');echo 'TC_OWNER_BROWSER:'.wp_json_encode(true);`); }
-    async function submit(form, button) { await resetAttempt(); await Promise.all([page.waitForURL(url => url.pathname === '/account/' && url.searchParams.has('tc_manage_configs')), form.getByRole('button', { name: button, exact: true }).click()]); await page.waitForLoadState('networkidle'); }
-    await submit(save, 'Save configuration');
+    const quickForm = () => page.locator('form:has(input[name="operation"][value="save"])');
+    const textBytes = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('Sensitivity = 10\r\n', 'utf16le')]);
+    async function fillBasic(configTitle, name = 'owner-test.txt', buffer = textBytes) {
+      const form = quickForm();
+      await form.locator('[name="title"]').fill(configTitle);
+      await form.locator('[name="tc_game[]"]').selectOption(String(fixture.game));
+      await form.locator('[name="tc_device[]"]').selectOption(String(fixture.device));
+      await form.locator('[name="tc_tier"]').selectOption('free');
+      await form.locator('input[name="tc_private_files[]"]').setInputFiles({ name, mimeType: 'text/plain', buffer });
+    }
+    async function submit(form, button) { await Promise.all([page.waitForNavigation({waitUntil:'networkidle'}), form.getByRole('button', { name: button, exact: true }).click()]); }
+    async function reveal(form) { await form.evaluate(el => { for (let node = el.parentElement; node; node = node.parentElement) { if (node.tagName === 'DETAILS') node.open = true; } }); }
+    // An actual rejected upload must not publish an empty card.
+    await fillBasic(`${title} rejected`, 'unsafe.php', Buffer.from('<?php echo 1;'));
+    await submit(quickForm(), 'Publish config');
+    let rejected = wp(`$posts=get_posts(array('post_type'=>'tc_config','post_status'=>'publish','title'=>'${title} rejected','numberposts'=>-1));echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('published'=>count($posts)));`);
+    expect(rejected.published === 0, 'Rejected HTTP upload never publishes an empty config card.');
+    await page.goto(`${origin}/account/?tc_manage_configs=1`, { waitUntil: 'networkidle' });
+    await fillBasic(title);
+    await submit(quickForm(), 'Publish config');
     id = Number(new URL(page.url()).searchParams.get('config_id'));
-    expect(id > 0, 'Actual form creates a published config.');
-    let state = wp(`$p=get_post(${id});echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('title'=>$p->post_title,'status'=>$p->post_status,'ownerRole'=>get_userdata(${fixture.users.owner})->roles,'files'=>TC_Private_Files::files(${id}),'thumb'=>get_post_thumbnail_id(${id})));`);
-    expect(state.status === 'publish' && state.title === title, 'Published title and status persist.');
+    expect(id > 0, 'One real submit creates the published config. ' + JSON.stringify({feedback:await page.locator('[role="status"],.tc-owner-feedback').allTextContents(),scripts:await page.locator('script[src*="owner-editor.js"]').count(),wait:await quickForm().getAttribute('data-wait-seconds')}));
+    let state = wp(`$p=get_post(${id});echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('title'=>$p->post_title,'status'=>$p->post_status,'release'=>get_post_meta(${id},'tc_release_status',true),'ownerRole'=>get_userdata(${fixture.users.owner})->roles,'files'=>TC_Private_Files::files(${id}),'thumb'=>get_post_thumbnail_id(${id}),'game'=>wp_get_object_terms(${id},'tc_game',array('fields'=>'ids')),'device'=>wp_get_object_terms(${id},'tc_device',array('fields'=>'ids'))));`);
+    expect(state.status === 'publish' && state.release === 'available' && state.title === title, 'Published title and available release persist.');
+    expect(state.game.includes(fixture.game) && state.device.includes(fixture.device), 'Selected game/device persist without advanced options.');
     expect(state.ownerRole.length === 1 && state.ownerRole[0] === 'subscriber', 'Frontend write does not promote WordPress role.');
-    const upload = page.locator('form:has(input[name="operation"][value="upload"])');
-    await upload.locator('input[type=file]').setInputFiles({ name: 'owner-test.gpc', mimeType: 'text/plain', buffer: Buffer.from('// Fixture script\nmain {}\n') });
-    await upload.locator('[name="version"]').fill('test-1');
-    await submit(upload, 'Add protected files');
-    state = wp(`echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('files'=>TC_Private_Files::files(${id})));`);
-    expect(state.files.length === 1 && state.files[0].name === 'owner-test.gpc', 'Actual private multipart upload persists via existing validator.');
+    expect(state.files.length === 1 && state.files[0].name === 'owner-test.txt', 'One-submit HTTP publish includes a validated private file.');
     expect(!JSON.stringify(state).includes('stored_name'), 'Owner file display does not expose storage names.');
+    const catalog = await context.newPage();
+    await catalog.goto(`${origin}/configs/?config_search=${encodeURIComponent(title)}`, { waitUntil: 'networkidle' });
+    const card = catalog.locator(`.tc-config-card.post-${id}`);
+    const cardCount = await card.count();
+    let diagnostic = '';
+    if (cardCount !== 1) {
+      await catalog.screenshot({path:path.join(root,'artifacts/owner-card-diagnostic.png'),fullPage:true});
+      const direct = wp(`$q=new WP_Query(array('post_type'=>'tc_config','post_status'=>'publish','s'=>'${title}','fields'=>'ids'));echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('found'=>$q->posts,'release'=>get_post_meta(${id},'tc_release_status',true)));`);
+      diagnostic = JSON.stringify({path:new URL(catalog.url()).pathname,h1:await catalog.locator('h1').allTextContents(),cards:await catalog.locator('.tc-config-card h2').allTextContents(),direct});
+    }
+    expect(cardCount === 1, 'New config immediately appears as a catalog card. ' + diagnostic);
+    expect(await card.getByRole('heading', { name: title, exact: true }).count() === 1, 'Card displays the genuine config title.');
+    await card.locator('img').first().scrollIntoViewIfNeeded();
+    await card.locator('img').first().evaluate(img => img.decode());
+    expect(await card.locator('img').first().evaluate(img => img.naturalWidth > 0), 'Card inherits working game artwork without a separate image upload.');
+    const downloadButton = card.getByRole('button', { name: /^Download / });
+    expect(await downloadButton.count() === 1, 'Entitled member receives contextual Download on the card.');
+    const [download] = await Promise.all([catalog.waitForEvent('download'), downloadButton.click()]);
+    const downloadedPath = path.join(directory, 'original-windows.txt'); await download.saveAs(downloadedPath);
+    expect((await fs.readFile(downloadedPath)).equals(textBytes), 'Real download preserves exact Windows UTF-16 upload bytes.');
+    await catalog.screenshot({ path: path.join(root, 'artifacts/owner-published-card-1440.png'), fullPage: true });
+    await catalog.close();
+    // Automatic ZNBK approval: real multipart upload and authenticated byte delivery.
+    const backup = wp(`$tmp=wp_tempnam('tc-zip-browser');$zip=new ZipArchive();if(true!==$zip->open($tmp,ZipArchive::CREATE|ZipArchive::OVERWRITE)){throw new RuntimeException('Fixture ZIP unavailable.');}$zip->addFromString('slots/config.json','{"fixture":true}');$zip->close();$bytes=file_get_contents($tmp);unlink($tmp);echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('bytes'=>base64_encode($bytes),'scanner'=>has_filter('timonconfigs_private_file_scan')));`);
+    expect(backup.scanner === false, 'ZNBK HTTP test runs without an external scanner-approval callback.');
+    const backupBytes = Buffer.from(backup.bytes, 'base64');
+    const upload = page.locator('form:has(input[name="operation"][value="upload"])');
+    await upload.locator('input[type=file]').setInputFiles({name:'owner-backup.znbk',mimeType:'application/zip',buffer:backupBytes});
+    await submit(upload, 'Upload script files');
+    state = wp(`echo 'TC_OWNER_BROWSER:'.wp_json_encode(TC_Private_Files::files(${id}));`);
+    expect(state.some(file => file.name === 'owner-backup.znbk') && state.length === 2, 'ZNBK is stored by actual HTTP upload without external approval.');
+    const txtID = state.find(file => file.name === 'owner-test.txt').id;
+    const order = page.locator('form:has(input[name="operation"][value="update"]):has(input[name="file_id"][value="'+txtID+'"])');
+    await reveal(order); await order.locator('[name="order"]').fill('99'); await submit(order,'Update file details');
+    const backupCatalog = await context.newPage();
+    await backupCatalog.goto(`${origin}/configs/?config_search=${encodeURIComponent(title)}`, {waitUntil:'networkidle'});
+    const backupCard = backupCatalog.locator(`.tc-config-card.post-${id}`);
+    const [backupDownload] = await Promise.all([backupCatalog.waitForEvent('download'),backupCard.getByRole('button',{name:/^Download /}).click()]);
+    const backupPath = path.join(directory,'delivered-backup.znbk'); await backupDownload.saveAs(backupPath);
+    expect((await fs.readFile(backupPath)).equals(backupBytes), 'ZNBK downloads original ZIP bytes through the protected delivery route.');
+    await backupCatalog.close();
     // Generate an ordinary PNG using Chromium, then submit the real image form.
     const png = await page.screenshot({ clip: { x: 0, y: 0, width: 64, height: 64 } });
     const image = page.locator('form:has(input[name="operation"][value="image"])');
+    await reveal(image);
     await image.locator('input[type=file]').setInputFiles({ name: 'fixture.png', mimeType: 'image/png', buffer: png });
-    await submit(image, 'Upload public image');
+    await submit(image, 'Upload custom picture');
     state = wp(`$a=get_post_thumbnail_id(${id});echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('id'=>$a,'mime'=>get_post_mime_type($a)));`);
     expect(state.id > 0 && state.mime === 'image/jpeg', 'Public image is decoded/reencoded to a real JPEG attachment: ' + await page.locator('[role="status"]').allTextContents().then(x => x.join(' ').slice(0,200)));
-    await page.locator('form:has(input[name="operation"][value="save"]) [name="title"]').fill(`${title} edited`);
-    await submit(page.locator('form:has(input[name="operation"][value="save"])'), 'Save configuration');
+    await quickForm().locator('[name="title"]').fill(`${title} edited`);
+    await submit(quickForm(), 'Save changes');
     state = wp(`echo 'TC_OWNER_BROWSER:'.wp_json_encode(get_the_title(${id}));`);
     expect(state === `${title} edited`, 'Existing config edits persist through real HTTP.');
     await fs.mkdir(path.join(root, 'artifacts'), { recursive: true });
@@ -135,7 +181,7 @@ add_action('template_redirect',static function(){
     await staff.addCookies([{ name: cookieName, value: tag, url: origin, secure: true, httpOnly: true }]);
     const staffPage = await staff.newPage();
     await staffPage.goto(`${origin}/?tc_owner_fixture_login=staff`, { waitUntil: 'networkidle' });
-    expect(await staffPage.getByRole('button', { name: 'Save configuration', exact: true }).count() === 0, 'Staff sees no Owner form.');
+    expect(await staffPage.getByRole('button', { name: 'Publish config', exact: true }).count() === 0, 'Staff sees no Owner form.');
     // A real session-bound Staff nonce still cannot authorize a crafted write.
     const staffNonce = wp(`wp_set_current_user(${fixture.users.staff});$manager=WP_Session_Tokens::get_instance(${fixture.users.staff});$tokens=$manager->get_all();echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('sessions'=>count($tokens)));`);
     expect(staffNonce.sessions > 0, 'Staff has a genuine WordPress session.');
@@ -147,6 +193,7 @@ add_action('template_redirect',static function(){
     expect(state === 'publish', 'Crafted Staff request cannot trash a config.');
     await staff.close();
     const trash = page.locator('form:has(input[name="operation"][value="trash"])');
+    await reveal(trash);
     await trash.locator('[name="confirm"]').check(); await submit(trash, 'Move to Trash');
     state = wp(`echo 'TC_OWNER_BROWSER:'.wp_json_encode(get_post_status(${id}));`);
     expect(state === 'trash', 'Owner can explicitly move config to Trash.');

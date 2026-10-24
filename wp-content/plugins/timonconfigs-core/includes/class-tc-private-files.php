@@ -53,7 +53,7 @@ final class TC_Private_Files {
 
 	public static function formats_page(): void {
 		if ( ! current_user_can( 'manage_options' ) ) { return; }
-		echo '<div class="wrap"><h1>Private script formats</h1><p>Enable only the formats you distribute. GPC, JSON, TXT, CFG and INI must contain inspected text; JSON must also be valid JSON. ZNBK and XIMMR always require explicit approval from a configured scanner or format inspector, including text-encoded backups. Archives, executable files and active web content remain disabled.</p><p>Disabling a format also blocks existing downloads of that format without deleting stored files.</p><form method="post" action="options.php">';
+		echo '<div class="wrap"><h1>Private script formats</h1><p>Enable only the formats you distribute. GPC, JSON, TXT, CFG and INI must contain inspected text; JSON must also be valid JSON. ZNBK uses automatic structural checks and does not require external approval. XIMMR still requires a configured scanner or format inspector. An optional scanner may reject any file. Archives, executable files and active web content remain disabled.</p><p>Disabling a format also blocks existing downloads of that format without deleting stored files.</p><form method="post" action="options.php">';
 		settings_fields( 'tc_private_formats' );
 		echo '<input type="hidden" name="' . esc_attr( self::FORMATS_OPTION ) . '[]" value="">';
 		foreach ( self::EXTENSIONS as $extension ) { echo '<p><label><input type="checkbox" name="' . esc_attr( self::FORMATS_OPTION ) . '[]" value="' . esc_attr( $extension ) . '" ' . checked( in_array( $extension, self::extensions(), true ), true, false ) . '> ' . esc_html( strtoupper( $extension ) ) . '</label></p>'; }
@@ -131,14 +131,13 @@ final class TC_Private_Files {
 	 * Inspect a ZIP-backed Zen Backup envelope without extracting it to disk.
 	 *
 	 * ZIP framing may be legitimate for .znbk; ordinary ZIPs and all other archives
-	 * remain blocked. This is ONLY a bounded structural preflight. A trusted
-	 * timonconfigs_private_file_scan inspector must still explicitly approve the
-	 * proprietary format on both upload and download.
+	 * remain blocked. This is bounded structural validation, not vendor-format or malware certification.
+	 * A configured timonconfigs_private_file_scan handler may still veto a file.
 	 */
 	private static function inspect_znbk_zip( string $path ): bool|WP_Error {
 		$bad = static fn( string $message ): WP_Error => new WP_Error( 'tc_upload_invalid', $message );
 		if ( ! class_exists( 'ZipArchive' ) ) {
-			return $bad( 'This ZNBK uses a ZIP container. The host must enable PHP ZipArchive, and an approved ZNBK format inspector must be configured.' );
+			return $bad( 'This ZNBK uses a ZIP container. The host must enable the PHP ZIP extension (ZipArchive) to validate it automatically.' );
 		}
 		$zip = new ZipArchive();
 		if ( true !== $zip->open( $path, ZipArchive::CHECKCONS ) ) {
@@ -198,6 +197,20 @@ final class TC_Private_Files {
 		}
 	}
 
+	/** Decode only for validation; stored/downloaded bytes and checksums remain unchanged. */
+	private static function inspection_text( string $content, string $extension ): string|WP_Error {
+		if ( 'txt' !== $extension ) { return $content; }
+		if ( str_starts_with( $content, "\xff\xfe\x00\x00" ) || str_starts_with( $content, "\x00\x00\xfe\xff" ) ) { return new WP_Error( 'tc_upload_encoding', 'Save this TXT as UTF-8 or UTF-16 instead of UTF-32.' ); }
+		if ( str_starts_with( $content, "\xef\xbb\xbf" ) ) { $content = substr( $content, 3 ); }
+		elseif ( str_starts_with( $content, "\xff\xfe" ) || str_starts_with( $content, "\xfe\xff" ) ) {
+			if ( ! function_exists( 'iconv' ) ) { return new WP_Error( 'tc_upload_encoding', 'This Windows TXT uses UTF-16. Save it as UTF-8 or enable PHP iconv on the host.' ); }
+			$encoding = str_starts_with( $content, "\xff\xfe" ) ? 'UTF-16LE' : 'UTF-16BE';
+			$content = @iconv( $encoding, 'UTF-8', substr( $content, 2 ) );
+			if ( ! is_string( $content ) ) { return new WP_Error( 'tc_upload_encoding', 'The TXT contains invalid UTF-16 data. Export a fresh UTF-8 text file.' ); }
+		}
+		return '' !== $content ? $content : new WP_Error( 'tc_upload_encoding', 'The TXT must contain configuration text, not only an encoding marker.' );
+	}
+
 	/** Structural/type checks, not a malware-free certification. Optional scanner can veto. */
 	private static function inspect( string $path, mixed $raw_name ): array|WP_Error {
 		$bad = static fn( string $message ): WP_Error => new WP_Error( 'tc_upload_invalid', $message );
@@ -210,6 +223,9 @@ final class TC_Private_Files {
 		$content = file_get_contents( $path );
 		if ( false === $content || strlen( $content ) !== $size || ! class_exists( 'finfo' ) ) { return $bad( 'File inspection is unavailable; the upload was not accepted.' ); }
 		$mime = ( new finfo( FILEINFO_MIME_TYPE ) )->buffer( $content );
+		$inspection_text = self::inspection_text( $content, $extension );
+		if ( is_wp_error( $inspection_text ) ) { return $inspection_text; }
+		$text = 1 === preg_match( '//u', $inspection_text ) && ! preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $inspection_text );
 		$zip_znbk = 'znbk' === $extension && str_starts_with( $content, "PK\x03\x04" );
 		if ( $zip_znbk ) {
 			$validated = self::inspect_znbk_zip( $path );
@@ -217,23 +233,25 @@ final class TC_Private_Files {
 		} else {
 			// Do not weaken the archive, executable or shell rules for other formats.
 			$signatures = array( "PK\x03\x04", "PK\x05\x06", "PK\x07\x08", "Rar!\x1a\x07", "7z\xbc\xaf\x27\x1c", "\x1f\x8b", 'BZh', "\xfd7zXZ\x00", 'MZ', "\x7fELF", "\xcf\xfa\xed\xfe", "\xfe\xed\xfa\xcf", '#!' );
-			foreach ( $signatures as $signature ) { if ( str_starts_with( $content, $signature ) ) { return $bad( 'Archive, executable, and shell payloads are not accepted.' ); } }
+			foreach ( $signatures as $signature ) {
+				// The two printable letters MZ alone are not an executable header in genuine TXT.
+				if ( 'MZ' === $signature && 'txt' === $extension && $text ) { continue; }
+				if ( str_starts_with( $content, $signature ) ) { return $bad( 'txt' === $extension ? 'This TXT contains archive, executable or shell data. Export actual configuration text; renaming a binary backup to .txt does not convert it.' : 'Archive, executable, and shell payloads are not accepted.' ); }
+			}
+			if ( 'txt' === $extension && str_starts_with( $inspection_text, '#!' ) ) { return $bad( 'Shell scripts cannot be uploaded as TXT configuration files.' ); }
 			foreach ( array_slice( $signatures, 0, 6 ) as $archive_signature ) { if ( str_contains( $content, $archive_signature ) ) { return $bad( 'Embedded archive payloads are not accepted.' ); } }
-			if ( 'ustar' === substr( $content, 257, 5 ) || preg_match( '/<\?(?:php\b|=|\s*\$)|<script\b/i', $content ) ) { return $bad( 'Executable or archive content is not accepted inside script files.' ); }
+			if ( 'ustar' === substr( $content, 257, 5 ) || preg_match( '/<\?(?:php\b|=|\s*\$)|<script\b/i', $inspection_text ) ) { return $bad( 'Executable or archive content is not accepted inside script files.' ); }
 		}
-		$text = 1 === preg_match( '//u', $content ) && ! preg_match( '/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $content );
 		$allowed_mime = array( 'text/plain', 'application/json', 'text/x-c', 'text/x-c++', 'text/x-csrc', 'text/x-c++src' );
 		if ( in_array( $extension, array( 'znbk', 'ximmr' ), true ) ) { $allowed_mime[] = 'application/octet-stream'; }
 		if ( $zip_znbk ) { $allowed_mime = array_merge( $allowed_mime, array( 'application/zip', 'application/x-zip', 'application/x-zip-compressed' ) ); }
+		if ( 'txt' === $extension && ! $text ) { return $bad( 'TXT must contain UTF-8 or BOM-marked UTF-16 configuration text. Export a fresh text file; do not rename a binary backup to .txt.' ); }
 		if ( ! in_array( $mime, $allowed_mime, true ) || ( in_array( $extension, array( 'gpc', 'json', 'txt', 'cfg', 'ini' ), true ) && ! $text ) ) { return $bad( 'The actual content does not match an allowed script format.' ); }
 		if ( 'json' === $extension ) { json_decode( $content, true, 64 ); if ( JSON_ERROR_NONE !== json_last_error() ) { return $bad( 'JSON uploads must contain valid JSON.' ); } }
 		$scan = apply_filters( 'timonconfigs_private_file_scan', null, $path, $extension, $mime );
 		if ( is_wp_error( $scan ) || ( null !== $scan && true !== $scan ) ) { return $bad( 'The configured file scanner did not approve this file.' ); }
-		if ( ( ! $text || in_array( $extension, array( 'znbk', 'ximmr' ), true ) ) && true !== $scan ) {
-			if ( $zip_znbk ) { return $bad( 'This appears to be a ZIP-backed ZNBK. Container checks passed, but the approved ZNBK scanner/format inspector is not configured; the file was not stored.' ); }
-			return $bad( 'ZNBK and XIMMR backups require an approved scanner or format inspector, including text-encoded backups. GPC, JSON, TXT, CFG and INI remain available with structural checks.' );
-		}
-		return array( 'name' => $name, 'extension' => $extension, 'size' => $size, 'checksum' => hash( 'sha256', $content ), 'inspection' => true === $scan ? 'scanner-approved' : 'structural-only' );
+		if ( 'ximmr' === $extension && true !== $scan ) { return $bad( 'XIMMR backups require an approved scanner or format inspector. ZNBK, GPC, JSON, TXT, CFG and INI use automatic structural checks.' ); }
+		return array( 'name' => $name, 'extension' => $extension, 'size' => $size, 'checksum' => hash( 'sha256', $content ), 'inspection' => true === $scan ? 'scanner-approved' : ( $zip_znbk ? 'znbk-container-checked' : 'structural-only' ) );
 	}
 
 	/** One filesystem lock serializes all writes and quota calculations. */
@@ -427,7 +445,7 @@ final class TC_Private_Files {
 		$id = isset( $_GET['config_id'] ) && is_scalar( $_GET['config_id'] ) ? absint( $_GET['config_id'] ) : 0;
 		echo '<div class="wrap"><h1>Private script files</h1>';
 		if ( ! self::authorise( $id ) ) { echo '<p>Open a configuration in the editor, then choose <strong>Manage private files</strong>.</p></div>'; return; }
-		echo '<h2>' . esc_html( get_the_title( $id ) ) . '</h2><p>Files are stored outside the public website. Archives and executables are disabled. Limits: 10 files per upload, 20 MB per file, 100 files / 100 MB per config, 1 GB total. Structural checks are not a malware-free certification; ZNBK and XIMMR backups require an approved scanner or format inspector through the file-scanner integration, even when text-encoded.</p>';
+		echo '<h2>' . esc_html( get_the_title( $id ) ) . '</h2><p>Files are stored outside the public website. Archives and executables are disabled. Limits: 10 files per upload, 20 MB per file, 100 files / 100 MB per config, 1 GB total. Structural checks are not a malware-free certification; ZNBK is validated automatically, including ZIP structure when present. XIMMR requires an approved format inspector. A configured optional scanner may veto uploads.</p>';
 		$root = self::root();
 		if ( is_wp_error( $root ) ) { echo '<div class="notice notice-error inline"><p>' . esc_html( $root->get_error_message() ) . '</p></div></div>'; return; }
 		self::form_start( $id, 'upload' );

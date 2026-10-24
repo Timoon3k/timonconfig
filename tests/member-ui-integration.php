@@ -11,6 +11,7 @@ $id = '8' . (string) random_int( 10000000000000000, 99999999999999999 );
 $roles = array();
 $mode = 'ok';
 $fixtures = array();
+$config_ids = array();
 $https = static fn() => 'https://localhost:8080';
 $encrypt = new ReflectionMethod( TC_Discord::class, 'encrypt' );
 $http = static function ( $pre, $args, $url ) use ( &$roles, &$mode, $id ) {
@@ -62,10 +63,34 @@ try {
 		if ( 'monthly' === $state ) { $assert( 2 === substr_count( $html, 'class="tc-member-state"' ), 'Multiple verified roles render without duplicating the current membership badge.' ); }
 		$fixtures[ $state ] = $html;
 	}
+	$settings['owner_role'] = '800000000000000007'; $settings['staff_role'] = '800000000000000008'; $settings['owner_ids'] = $id;
+	update_option( 'timonconfigs_discord', $settings, false ); $roles = array( $settings['owner_role'] ); $mode = 'ok'; $seed();
+	$html = TC_Member_Area::render(); $owner_status = TC_Discord::status();
+	$assert( 'unverified' === $owner_status['state'] && true === $owner_status['owner_verified'], 'Owner management does not change paid membership state.' );
+	$assert( str_contains( $html, 'Owner tools enabled' ) && str_contains( $html, 'data-state="owner"' ), 'Approved Owner receives a clear management status.' );
+	$assert( str_contains( $html, 'Owner management verified; downloads need membership' ) && str_contains( $html, 'You can manage configs. Downloads follow your Free or VIP membership.' ), 'Owner copy separates management from membership downloads.' );
+	$assert( ! str_contains( $html, 'Reconnect Discord' ) && ! str_contains( $html, 'Complete verification in the TimonConfigs Discord server' ), 'Verified Owner is not sent through an unrelated verification or reconnect flow.' );
+	$assert( str_contains( $html, '<a class="tc-button" href="' . esc_url( TC_Owner_Editor::url() ) . '">Manage Configs</a>' ), 'Approved Owner has a prominent primary management action.' );
+	$assert( 1 === substr_count( $html, 'class="tc-member-state"' ) && 4 === substr_count( $html, 'class="tc-member-quick__card"' ), 'Owner role is not duplicated and management is available among shortcuts.' );
+	$assert( ! str_contains( $html, 'Current membership' ) && ! str_contains( $html, 'Current license' ), 'Owner without membership receives no paid-plan claim.' );
+	foreach ( array( 'free', 'monthly' ) as $tier ) {
+		$config_id = wp_insert_post( array( 'post_type' => 'tc_config', 'post_status' => 'publish', 'post_title' => 'Disposable Owner UI access ' . $tier, 'meta_input' => array( 'tc_tier' => $tier, 'tc_release_status' => 'available' ) ) ); $config_ids[] = $config_id;
+		$assert( false === TC_Discord::can_access( $config_id ), 'Owner UI change does not grant ' . $tier . ' file access.' );
+	}
+	$fixtures['owner-tools'] = $html;
+	$roles = array( $settings['owner_role'], $settings['monthly_role'] ); $seed(); $html = TC_Member_Area::render();
+	$assert( 'monthly' === TC_Discord::status()['state'] && str_contains( $html, 'data-state="monthly"' ) && str_contains( $html, 'data-state="owner"' ), 'Owner with real paid membership keeps both independent badges.' );
+	$assert( str_contains( $html, 'Manage Configs' ) && str_contains( $html, 'Current membership' ), 'Approved paid Owner sees management and their genuine membership.' );
+	$fixtures['owner-monthly'] = $html;
+	$settings['owner_ids'] = ''; update_option( 'timonconfigs_discord', $settings, false ); $roles = array( $settings['owner_role'] ); $seed(); $html = TC_Member_Area::render();
+	$assert( ! str_contains( $html, 'Owner tools enabled' ) && ! str_contains( $html, 'Manage Configs' ), 'Owner badge without approval cannot receive management UI.' );
+	$roles = array( $settings['staff_role'] ); $seed(); $html = TC_Member_Area::render();
+	$assert( str_contains( $html, 'data-state="staff"' ) && ! str_contains( $html, 'Owner tools enabled' ) && ! str_contains( $html, 'Manage Configs' ), 'Staff badge never receives Owner management actions.' );
 	wp_set_current_user( 0 );
 	$assert( ! str_contains( TC_Member_Area::render(), $id ), 'Returning to guest cannot retain owner data.' );
 	WP_CLI::line( wp_json_encode( array( 'passed' => true, 'assertions' => $checks, 'fixtures' => $fixtures ) ) );
 } finally {
+	foreach ( $config_ids as $config_id ) { wp_delete_post( $config_id, true ); }
 	remove_filter( 'pre_http_request', $http, 10 );
 	remove_filter( 'option_home', $https );
 	if ( $uid ) { require_once ABSPATH . 'wp-admin/includes/user.php'; delete_option( '_tc_discord_binding_' . $id ); delete_option( '_tc_discord_lock_' . $uid ); wp_delete_user( $uid ); }

@@ -27,8 +27,16 @@ const root = path.resolve(__dirname, '..');
           report.checks.push({ state, width });
           continue;
         }
-        assert.equal(await page.locator('.tc-member-state').first().getAttribute('data-state'), state);
-        assert.equal(await page.locator('.tc-member-quick__card').count(), 3);
+        const ownerTools = state.startsWith('owner-');
+        const displayState = state === 'owner-tools' ? 'owner' : (state === 'owner-monthly' ? 'monthly' : state);
+        assert.equal(await page.locator('.tc-member-state').first().getAttribute('data-state'), displayState);
+        assert.equal(await page.locator('.tc-member-quick__card').count(), ownerTools ? 4 : 3);
+        if (ownerTools) {
+          const primaryManage = page.locator('.tc-member-profile .tc-actions .tc-button').first();
+          assert.equal(await primaryManage.innerText(), 'Manage Configs');
+          assert.equal(new URL(await primaryManage.getAttribute('href')).searchParams.get('tc_manage_configs'), '1');
+          assert.equal(await page.getByRole('link', {name: 'Reconnect Discord', exact: true}).count(), 0);
+        }
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `No overflow: ${state}/${width}`);
         const columns = await page.locator('.tc-member-quick__grid').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length);
         assert.equal(columns, width <= 600 ? 1 : 2);
@@ -36,6 +44,7 @@ const root = path.resolve(__dirname, '..');
         assert.equal(await page.locator('.tc-member-quick__card').first().evaluate(el => el === document.activeElement), true);
         const focus = await page.locator('.tc-member-quick__card').first().evaluate(el => getComputedStyle(el).outlineStyle);
         assert.notEqual(focus, 'none', 'Keyboard focus remains visible');
+        if (state === 'owner-tools') await page.screenshot({ path: path.join(root, `artifacts/member-owner-tools-${width}.png`), fullPage: true });
         if (state === 'monthly') await page.screenshot({ path: path.join(root, `artifacts/member-dashboard-fixture-${width}.png`), fullPage: true });
         report.checks.push({ state, width, longName: true, missingAvatar: true });
       }
