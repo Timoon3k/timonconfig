@@ -264,3 +264,9 @@ The three catalogue entries currently visible in the Docker database are local-o
 - Existing configurations present upload of protected scripts before general edit fields, and public custom artwork is folded into optional details. Added clear Owner-facing diagnostic when TIMONCONFIGS_PRIVATE_STORAGE_DIR is absent; no fallback to public media or disabling file checks.
 - Version bump: Core 0.8.3, theme 0.10.3. Disposable WordPress integration 40048011266 succeeded including Owner assertions, catalog and protected downloads; PHP lint 40048011263 passed. Hostinger folder/root not configured by source changes; production download still unverified.
 - Guide: docs/SCRIPT_FIRST_OWNER_UPLOAD_0.8.3.md.
+
+## 2026-10-24 — ZNBK ZIP preflight without bypassing proprietary inspection (PR #6)
+
+- User saw `Archive, executable, and shell payloads are not accepted` while uploading `.znbk`. In Core 0.8.3, blanket ZIP signature rejection ran before the proprietary inspector. Updated Core 0.8.4: strictly bound ZIP envelopes are considered ONLY for `.znbk` and parsed without extraction. Ordinary ZIP/executables, traversals, dangerous nested entries and decompression attacks remain rejected. External trusted `timonconfigs_private_file_scan` approval remains mandatory even for valid ZIP-backed ZNBK; upload/download both inspect.
+- Test source expanded: `tests/private-files-integration.php`. GitHub Actions run `40050567738` passed (private-files: 73 assertions, protected downloads: 69, catalog: 45, Owner editor: 223); PHP lint run `40050567733` passed. Fixtures are synthetic, no real user's `.znbk` was inspected or uploaded and no production Hostinger scanner was configured.
+- Guide: `docs/ZNBK_ZIP_CONTAINER_INSPECTOR_0.8.4.md`. GitHub source change alone does NOT make this format downloadable until safe inspector is installed and real sample passes.
