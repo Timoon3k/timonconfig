@@ -68,7 +68,7 @@ try {
 	$html = TC_Member_Area::render(); $owner_status = TC_Discord::status();
 	$assert( 'unverified' === $owner_status['state'] && true === $owner_status['owner_verified'], 'Owner management does not change paid membership state.' );
 	$assert( str_contains( $html, 'Owner tools enabled' ) && str_contains( $html, 'data-state="owner"' ), 'Approved Owner receives a clear management status.' );
-	$assert( str_contains( $html, 'Owner management verified; downloads need membership' ) && str_contains( $html, 'You can manage configs. Downloads follow your Free or VIP membership.' ), 'Owner copy separates management from membership downloads.' );
+	$assert( str_contains( $html, 'Owner account approved; downloads need membership' ) && str_contains( $html, 'You can manage configs. Downloads follow your Free or VIP membership.' ), 'Owner copy separates approved account management from membership downloads.' );
 	$assert( ! str_contains( $html, 'Reconnect Discord' ) && ! str_contains( $html, 'Complete verification in the TimonConfigs Discord server' ), 'Verified Owner is not sent through an unrelated verification or reconnect flow.' );
 	$assert( str_contains( $html, '<a class="tc-button" href="' . esc_url( TC_Owner_Editor::url() ) . '">Manage Configs</a>' ), 'Approved Owner has a prominent primary management action.' );
 	$assert( 1 === substr_count( $html, 'class="tc-member-state"' ) && 4 === substr_count( $html, 'class="tc-member-quick__card"' ), 'Owner role is not duplicated and management is available among shortcuts.' );

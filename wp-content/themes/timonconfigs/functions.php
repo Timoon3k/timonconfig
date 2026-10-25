@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.11.0' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.11.1' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 require_once get_template_directory() . '/inc/seo.php';
@@ -156,7 +156,7 @@ function timonconfigs_display_price( string $plan ): string {
 	return array( 'monthly' => '€29.99', 'lifetime' => '€80' )[ $plan ] ?? '';
 }
 
-/** Keep checkout instructions aligned with the active, approved routing. */
+/** Whether new website payments are enabled in the current environment. */
 function timonconfigs_direct_billing(): bool {
 	return is_callable( array( 'TC_Billing', 'direct_enabled' ) ) && TC_Billing::direct_enabled();
 }
@@ -181,7 +181,7 @@ function timonconfigs_faq_items(): array {
 		);
 	}
 	return array(
-		array( 'question' => 'How do I receive my configs?', 'answer' => timonconfigs_direct_billing() ? 'Explore Free access or choose a VIP plan. Sign in with Discord before secure hosted checkout. Your account shows verified payment and Discord access status.' : 'Explore Free access or choose a VIP plan. Upgrade.chat manages checkout and Discord role delivery.' ),
+		array( 'question' => 'How do I receive my configs?', 'answer' => 'Explore Free access or choose a VIP plan. Sign in with Discord, review checkout availability and the plan terms, then continue with an available payment provider. Your account shows verified payment and Discord access status.' ),
 		array( 'question' => 'Do I need a Cronus Zen or XIM Matrix?', 'answer' => 'Yes. Each configuration lists its supported device, input method, and platform. Check these details before choosing a plan.' ),
 		array( 'question' => 'Which games are supported?', 'answer' => 'Apex Legends is the current flagship collection. Additional releases appear only when their compatibility details are ready.' ),
 		array( 'question' => 'What does VIP Lifetime include?', 'answer' => sprintf( 'A one-time %s license with access and updates defined by the Lifetime terms presented at checkout.', timonconfigs_display_price( 'lifetime' ) ) ),

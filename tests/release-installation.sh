@@ -4,8 +4,8 @@
 set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.11.0.zip}")"
-core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.9.0.zip}")"
+theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.11.1.zip}")"
+core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.9.1.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
 db_image='mariadb:11.4'
@@ -119,9 +119,12 @@ foreach ( array( 'Store', 'Stripe', 'PayPal', 'Discord', 'UI' ) as $billing_clas
 }
 $expect( class_exists( 'TC_Billing' ), 'packaged billing controller is available' );
 $billing_config = TC_Billing::config();
-$expect( 'legacy' === $billing_config['routing'] && 'test' === $billing_config['mode'] && ! $billing_config['role_sync_enabled'] && ! $billing_config['paypal_enabled'], 'fresh billing preserves legacy routing and disables role writes and PayPal' );
+$expect( 'disabled' === $billing_config['routing'] && 'test' === $billing_config['mode'] && ! $billing_config['role_sync_enabled'] && ! $billing_config['paypal_enabled'], 'fresh billing disables new checkout, role writes and PayPal' );
 $expect( ! TC_Billing::direct_enabled() && ! TC_Billing::mode_allowed( 'live' ), 'installing ZIPs cannot activate direct sales or Live mode' );
 $expect( ! TC_Billing::provider_ready( 'stripe', 'test' ) && ! TC_Billing::provider_ready( 'paypal', 'test' ), 'fresh packages contain no payment credentials' );
+$expect( '€29.99' === TC_Billing::display_price( 'monthly' ) && '€80' === TC_Billing::display_price( 'lifetime' ), 'disabled checkout still uses the central EUR catalogue' );
+$disabled_checkout = TC_Billing_UI::checkout( 'monthly' );
+$expect( ! str_contains( $disabled_checkout, '<form' ) && ! str_contains( strtolower( $disabled_checkout ), 'upgrade.chat' ), 'fresh checkout contains no payment form or retired provider instruction' );
 global $wpdb;
 foreach ( array( 'orders', 'entitlements', 'events', 'sync_jobs', 'owned_roles', 'leases' ) as $billing_table ) {
 	$installed_table = $wpdb->get_row( $wpdb->prepare( 'SHOW TABLE STATUS WHERE Name = %s', $wpdb->prefix . 'tc_billing_' . $billing_table ), ARRAY_A );
@@ -177,7 +180,11 @@ foreach ( $flagships as $draft ) {
 }
 $expect( 0 === (int) wp_count_posts( 'tc_config' )->publish, 'fresh installation publishes no configurations' );
 $expect( array() === get_option( 'timonconfigs_checkout_urls', array() ), 'no product checkout settings are invented' );
-$expect( '' === TC_Checkout::get_destination( 'monthly' ) && '' === TC_Checkout::get_destination( 'lifetime' ), 'both checkout destinations remain unconfigured' );
+$expect( '' === TC_Checkout::get_destination( 'monthly' ) && '' === TC_Checkout::get_destination( 'lifetime' ), 'both external checkout destinations are retired' );
+$expect( home_url( '/checkout/monthly/' ) === TC_Checkout::get_checkout_url( 'monthly' ) && home_url( '/checkout/lifetime/' ) === TC_Checkout::get_checkout_url( 'lifetime' ), 'both local checkout routes are available for Ticket Tool links' );
+$retired_urls = array( 'monthly' => 'https://upgrade.chat/release-old-monthly', 'lifetime' => 'https://upgrade.chat/release-old-lifetime' );
+update_option( 'timonconfigs_checkout_urls', $retired_urls, false );
+$expect( '' === TC_Checkout::get_destination( 'monthly' ) && '' === TC_Checkout::get_destination( 'lifetime' ) && $retired_urls === get_option( 'timonconfigs_checkout_urls' ), 'old checkout URLs are preserved but cannot redirect a new purchase' );
 
 // Keep an authored change and compare actual records across a repeated installation.
 $authored = get_post_field( 'post_content', $first['pricing'] ) . "\n<!-- wp:paragraph --><p>Disposable authored preservation fixture.</p><!-- /wp:paragraph -->";
@@ -197,7 +204,8 @@ $expect( $before === $snapshot( $second ), 'reinstallation preserves all content
 $expect( $authored === get_post_field( 'post_content', $first['pricing'] ), 'authored content survives reinstallation' );
 $expect( $menu_locations === get_nav_menu_locations(), 'reinstallation preserves assigned menu locations' );
 $expect( 3 === count( get_posts( array( 'post_type' => 'tc_config', 'post_status' => 'draft', 'meta_key' => '_tc_seeded_flagship', 'posts_per_page' => -1 ) ) ), 'reinstallation does not duplicate draft configs' );
-$expect( array() === get_option( 'timonconfigs_checkout_urls', array() ), 'reinstallation leaves checkout settings empty' );
+$expect( $retired_urls === get_option( 'timonconfigs_checkout_urls', array() ), 'reinstallation preserves retired checkout history without reactivating it' );
+$expect( '' === TC_Checkout::get_destination( 'monthly' ) && '' === TC_Checkout::get_destination( 'lifetime' ), 'repeat installation cannot reactivate a stored external destination' );
 WP_CLI::success( sprintf( 'Fresh ZIP installation: %d assertions passed; WordPress %s; theme %s; Core %s; 14 required pages, 7 games, 2 devices, 3 platforms, 3 unpublished draft configs, 10 Home blocks. Existing WordPress Privacy Policy status preserved as %s.', $checks, get_bloginfo( 'version' ), wp_get_theme()->get( 'Version' ), TIMONCONFIGS_CORE_VERSION, get_post_status( $first['privacy-policy'] ) ) );
 PHP
 chmod 755 "$test_directory"

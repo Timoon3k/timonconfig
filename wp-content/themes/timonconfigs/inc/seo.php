@@ -12,7 +12,7 @@ function timonconfigs_external_seo_active(): bool {
 function timonconfigs_seo_page_defaults(): array {
 	$monthly = timonconfigs_display_price( 'monthly' );
 	$lifetime = timonconfigs_display_price( 'lifetime' );
-	$checkout = timonconfigs_direct_billing() ? 'secure hosted checkout' : 'the official Upgrade.chat checkout';
+	$checkout = 'secure website checkout';
 	return array(
 		'home' => array( 'title' => 'XIM Matrix & Cronus Zen Configs for Apex Legends | TimonConfigs', 'description' => 'Explore Apex Legends configs for XIM Matrix and Cronus Zen. Compare controller and MnK compatibility, release guides, gameplay videos, and Free or VIP access.' ),
 		'games' => array( 'title' => 'Game Config Collections & Roadmap | TimonConfigs', 'description' => 'Explore Apex Legends and the TimonConfigs game roadmap. Check each collection for released configurations, supported devices, input methods, and availability.' ),
@@ -20,7 +20,7 @@ function timonconfigs_seo_page_defaults(): array {
 		'vip-monthly' => array( 'title' => sprintf( 'TimonConfigs VIP Monthly — %s per Month', $monthly ), 'description' => 'VIP Monthly offers premium config access, covered updates while subscribed, private Discord channels, and VIP support. Review recurring billing and cancellation.' ),
 		'vip-lifetime' => array( 'title' => sprintf( 'TimonConfigs VIP Lifetime — %s One Time', $lifetime ), 'description' => sprintf( 'Choose VIP Lifetime for a %s one-time purchase. Explore premium configuration access, included license terms, and covered updates without monthly billing.', $lifetime ) ),
 		'reviews' => array( 'title' => 'Community Reviews & Customer Vouches | TimonConfigs', 'description' => 'Read TimonConfigs community feedback and configuration experiences. Demonstration cards are explicitly marked Sample Review and are not customer endorsements.' ),
-		'faq' => array( 'title' => 'Configuration, Membership & Checkout FAQ | TimonConfigs', 'description' => sprintf( 'Find answers about Cronus Zen and XIM Matrix compatibility, Apex Legends releases, Free and VIP plans, %s, Discord access, and support.', timonconfigs_direct_billing() ? 'hosted checkout' : 'Upgrade.chat checkout' ) ),
+		'faq' => array( 'title' => 'Configuration, Membership & Checkout FAQ | TimonConfigs', 'description' => sprintf( 'Find answers about Cronus Zen and XIM Matrix compatibility, Apex Legends releases, Free and VIP plans, %s, Discord access, and support.', 'website checkout' ) ),
 		'contact' => array( 'title' => 'Contact & Discord Support | TimonConfigs', 'description' => 'Contact TimonConfigs for configuration guidance, membership questions, privacy requests, and account support. Find the current official Discord community link.' ),
 		'video-showcase' => array( 'title' => 'Apex Legends Gameplay Video Showcase | TimonConfigs', 'description' => 'Watch first-party TimonConfigs Apex Legends demonstrations. Check each video for confirmed device, configuration, recording, and setup information.' ),
 		'terms-of-service' => array( 'title' => 'Terms of Service | TimonConfigs', 'description' => 'Review TimonConfigs terms for digital configuration licenses, memberships, acceptable use, payment handling, account responsibilities, and consumer rights.' ),
@@ -163,9 +163,9 @@ function timonconfigs_schema_graph(): array {
 			$schemas[] = $schema;
 		}
 	}
-	if ( is_page( array( 'vip-monthly', 'vip-lifetime' ) ) && ( timonconfigs_direct_billing() || method_exists( 'TC_Checkout', 'get_destination' ) ) ) {
+	if ( is_page( array( 'vip-monthly', 'vip-lifetime' ) ) && timonconfigs_direct_billing() ) {
 		$plan = is_page( 'vip-lifetime' ) ? 'lifetime' : 'monthly';
-		$checkout = timonconfigs_direct_billing() ? timonconfigs_plan_url( $plan ) : TC_Checkout::get_destination( $plan );
+		$checkout = timonconfigs_plan_url( $plan );
 		$price = timonconfigs_display_price( $plan );
 		if ( $checkout && preg_match( '/^€\s*(\d+(?:[.,]\d{1,2})?)$/u', trim( $price ), $matches ) ) {
 			$schemas[] = array(

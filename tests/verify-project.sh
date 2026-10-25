@@ -43,6 +43,15 @@ required_files=(
   "$theme/assets/js/main.js"
   "$plugin/timonconfigs-core.php"
   "$plugin/includes/class-tc-checkout.php"
+  "$plugin/includes/class-tc-billing.php"
+  "$plugin/includes/class-tc-billing-ui.php"
+  "$plugin/includes/class-tc-billing-store.php"
+  "$plugin/includes/class-tc-billing-stripe.php"
+  "$plugin/includes/class-tc-billing-paypal.php"
+  "$plugin/includes/class-tc-billing-discord.php"
+  "$theme/assets/css/billing.css"
+  "$project_root/tests/checkout-integration.php"
+  "$project_root/tests/billing-integration.php"
   "$plugin/includes/class-tc-settings.php"
   "$plugin/includes/class-tc-catalog.php"
   "$plugin/includes/class-tc-editorial.php"
@@ -59,10 +68,7 @@ test "$(find "$theme/assets/video" -type f -name '*.mp4' | wc -l)" -eq 3
 test "$(find "$theme/assets/images" -type f -name 'apex-demo-*.jpg' | wc -l)" -eq 3
 test "$(find "$theme/assets/images" -type f -name 'game-*.webp' | wc -l)" -eq 7
 
-rg -q "array\( 'https' \)" "$plugin/includes/class-tc-checkout.php"
-rg -q "upgrade\.chat" "$plugin/includes/class-tc-checkout.php"
 rg -q "manage_options" "$plugin/includes/class-tc-settings.php"
-rg -q "nocache_headers" "$plugin/includes/class-tc-checkout.php"
 rg -q "preload=\"none\"" "$theme/template-parts/video-cards.php"
 rg -q "prefers-reduced-motion" "$theme/assets/css/main.css"
 rg -q "register_post_type" "$plugin/includes/class-tc-catalog.php"
@@ -81,5 +87,5 @@ fi
 
 node --check "$theme/assets/js/main.js"
 node --check "$theme/assets/js/blocks.js"
-echo "Project structure, checkout safeguards, content claims, media, and JavaScript checks passed."
+echo "Project structure, native billing modules, content claims, media, and JavaScript checks passed. Checkout behavior requires checkout/billing integration suites."
 

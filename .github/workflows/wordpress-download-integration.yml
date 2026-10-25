@@ -16,6 +16,8 @@ on:
       - 'tests/catalog-routes-integration.php'
       - 'tests/billing-*-integration.php'
       - 'tests/billing-integration.php'
+      - 'tests/checkout-integration.php'
+      - 'tests/site-checkout-copy-integration.php'
       - '.github/workflows/wordpress-download-integration.yml'
   workflow_dispatch:
 
@@ -41,6 +43,10 @@ jobs:
           bash tools/setup-local-wordpress.sh > /tmp/timonconfigs-local-setup.log 2>&1 || { tail -100 /tmp/timonconfigs-local-setup.log; exit 1; }
       - name: Catalog visibility and filters
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/catalog-integration.php
+      - name: Website-only checkout and preserved historical URL options
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/checkout-integration.php
+      - name: Retired checkout stock copy migration and authored content safety
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/site-checkout-copy-integration.php
       - name: Protected Matrix TXT download and replay controls
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/downloads-integration.php
       - name: Compact cards and member catalog

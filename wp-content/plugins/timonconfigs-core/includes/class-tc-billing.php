@@ -18,7 +18,10 @@ final class TC_Billing {
 
 	public static function config(): array {
 		$value = get_option( 'timonconfigs_billing', array() );
-		return array_merge( array( 'mode' => 'test', 'routing' => 'legacy', 'stripe_test_confirmed' => false, 'migration_confirmed' => false, 'legal_confirmed' => false, 'paypal_enabled' => false, 'role_sync_enabled' => false ), is_array( $value ) ? $value : array() );
+		$config = array_merge( array( 'mode' => 'test', 'routing' => 'disabled', 'stripe_test_confirmed' => false, 'migration_confirmed' => false, 'legal_confirmed' => false, 'paypal_enabled' => false, 'role_sync_enabled' => false ), is_array( $value ) ? $value : array() );
+		// Retired routing values never reactivate a former checkout provider.
+		$config['routing'] = 'direct' === $config['routing'] ? 'direct' : 'disabled';
+		return $config;
 	}
 	public static function setting( string $key, string $mode ): string { $value = self::config()[ $mode . '_' . $key ] ?? ''; return in_array( $mode, array( 'test', 'live' ), true ) && is_string( $value ) ? $value : ''; }
 	public static function secret( string $name, string $mode ): string {
@@ -37,8 +40,6 @@ final class TC_Billing {
 	public static function display_price( string $plan ): string {
 		$product = self::plan( $plan );
 		if ( ! $product ) { return ''; }
-		// Existing provider routing keeps its published offer until the approved cutover.
-		if ( ! self::direct_enabled() && 'free' !== $plan ) { return 'monthly' === $plan ? '€40' : '€100'; }
 		return '€' . ( $product['amount'] % 100 ? number_format( $product['amount'] / 100, 2, '.', '' ) : (string) (int) ( $product['amount'] / 100 ) );
 	}
 	public static function mode_allowed( string $mode ): bool {
@@ -62,7 +63,7 @@ final class TC_Billing {
 	public static function sanitize( mixed $input ): array {
 		$old = self::config();
 		if ( ! current_user_can( 'manage_options' ) || ! is_array( $input ) ) { return $old; }
-		$result = array( 'mode' => in_array( $input['mode'] ?? '', array( 'test', 'live' ), true ) ? $input['mode'] : 'test', 'routing' => 'direct' === ( $input['routing'] ?? '' ) ? 'direct' : 'legacy' );
+		$result = array( 'mode' => in_array( $input['mode'] ?? '', array( 'test', 'live' ), true ) ? $input['mode'] : 'test', 'routing' => 'direct' === ( $input['routing'] ?? '' ) ? 'direct' : 'disabled' );
 		foreach ( array( 'stripe_test_confirmed', 'migration_confirmed', 'legal_confirmed', 'paypal_enabled', 'role_sync_enabled' ) as $flag ) { $result[ $flag ] = in_array( $input[ $flag ] ?? null, array( true, 1, '1' ), true ); }
 		foreach ( array( 'test', 'live' ) as $mode ) {
 			foreach ( self::public_keys() as $key ) {
@@ -71,7 +72,7 @@ final class TC_Billing {
 			}
 		}
 		if ( 'live' === $result['mode'] && ( ! defined( 'TIMONCONFIGS_BILLING_LIVE_APPROVED' ) || true !== TIMONCONFIGS_BILLING_LIVE_APPROVED || ! $result['stripe_test_confirmed'] || ! $result['migration_confirmed'] || ! $result['legal_confirmed'] ) ) {
-			$result['mode'] = 'test'; $result['routing'] = 'legacy';
+			$result['mode'] = 'test'; $result['routing'] = 'disabled';
 			add_settings_error( 'tc_billing', 'live_disabled', 'Live remains locked until verified test results, approved migration and server-side approval are configured.' );
 		}
 		return $result;

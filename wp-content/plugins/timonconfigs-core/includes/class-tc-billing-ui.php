@@ -14,6 +14,10 @@ final class TC_Billing_UI {
 		$identity = TC_Billing::identity(); $config = TC_Billing::config();
 		ob_start();
 		echo '<section class="tc-billing tc-billing-checkout"><p class="tc-eyebrow">TIMONCONFIGS MEMBERSHIP</p><h1>' . esc_html( $product['name'] ) . '</h1><p>' . esc_html( TC_Billing::display_price( $plan ) ) . ( 'monthly' === $plan ? ' / month. Renews automatically until canceled.' : ' one time. No monthly renewal.' ) . '</p>';
+		if ( ! TC_Billing::direct_enabled() ) {
+			echo '<p class="tc-billing-notice" role="status">Online checkout is not available yet. No payment can be made from this page.</p><p>For help, open a support ticket in our Discord server. Payments are completed on this website after checkout is enabled.</p><a class="tc-button tc-button--ghost" href="' . esc_url( home_url( '/contact/' ) ) . '">Get membership support</a> <a href="' . esc_url( home_url( '/pricing/' ) ) . '">Back to memberships</a></section>';
+			return (string) ob_get_clean();
+		}
 		if ( 'test' === $config['mode'] ) { echo '<p class="tc-billing-notice" role="status">Test checkout — use test payment details only. This purchase does not confirm a live membership.</p>'; }
 		if ( is_wp_error( $identity ) ) {
 			echo '<p>Continue with Discord to securely link this purchase to your member account.</p><a class="tc-button" href="' . esc_url( TC_Discord::login_url() ) . '">Continue with Discord</a><p>After signing in, return to this membership checkout.</p></section>';
@@ -69,19 +73,19 @@ final class TC_Billing_UI {
 			}
 			self::start( 'refresh', array( 'order_id' => $order['id'] ) ); echo '<button class="tc-button tc-button--ghost" type="submit">Refresh payment status</button></form></article>';
 		}
-		echo '<div class="tc-billing-actions">' . ( $has_lifetime ? '' : '<a class="tc-button" href="' . esc_url( TC_Checkout::get_checkout_url( 'lifetime' ) ) . '">Upgrade to Lifetime</a>' ) . '<a href="' . esc_url( home_url( '/contact/' ) ) . '">Membership support</a></div><p>Existing Upgrade.chat purchases remain managed in <a href="https://upgrade.chat/" rel="noopener noreferrer">your Upgrade.chat account</a>. A new purchase does not cancel another provider’s subscription.</p></section>';
+		echo '<div class="tc-billing-actions">' . ( $has_lifetime ? '' : '<a class="tc-button" href="' . esc_url( TC_Checkout::get_checkout_url( 'lifetime' ) ) . '">Upgrade to Lifetime</a>' ) . '<a href="' . esc_url( home_url( '/contact/' ) ) . '">Membership support</a></div><p>For an earlier purchase or missing access, open a support ticket in our Discord server. A new purchase does not cancel an existing subscription. Complete payments through this website; a ticket message does not confirm payment.</p></section>';
 		return (string) ob_get_clean();
 	}
 	public static function admin(): void {
 		if ( ! current_user_can( 'manage_options' ) ) { return; }
-		$config = TC_Billing::config(); echo '<div class="wrap"><h1>TimonConfigs billing</h1><p>Direct billing is disabled by default. Start on isolated HTTPS staging with Stripe Test. PayPal activation requires confirmed Stripe tests; Live also requires server-side approval and a reviewed migration.</p>';
+		$config = TC_Billing::config(); echo '<div class="wrap"><h1>TimonConfigs billing</h1><p>Website payments are disabled by default. Start on isolated HTTPS staging with Stripe Test. PayPal activation requires confirmed Stripe tests; Live also requires server-side approval and a review of earlier purchases. Discord Ticket Tool messages should link to this website.</p>';
 		$notice = get_transient( 'tc_billing_admin_' . get_current_user_id() ); if ( is_string( $notice ) ) { delete_transient( 'tc_billing_admin_' . get_current_user_id() ); echo '<div class="notice notice-info"><p>' . esc_html( $notice ) . '</p></div>'; }
 		echo '<form method="post" action="options.php">'; settings_fields( 'tc_billing' );
-		foreach ( array( 'mode' => array( 'test' => 'Test / Sandbox', 'live' => 'Live' ), 'routing' => array( 'legacy' => 'Keep Upgrade.chat checkout', 'direct' => 'Direct checkout' ) ) as $key => $options ) {
+		foreach ( array( 'mode' => array( 'test' => 'Test / Sandbox', 'live' => 'Live' ), 'routing' => array( 'disabled' => 'Checkout unavailable', 'direct' => 'Website checkout' ) ) as $key => $options ) {
 			echo '<p><label>' . esc_html( ucfirst( $key ) ) . ' <select name="timonconfigs_billing[' . esc_attr( $key ) . ']">';
 			foreach ( $options as $value => $label ) { echo '<option value="' . esc_attr( $value ) . '" ' . selected( $config[ $key ], $value, false ) . '>' . esc_html( $label ) . '</option>'; } echo '</select></label></p>';
 		}
-		foreach ( array( 'stripe_test_confirmed' => 'I completed real Stripe Test checkout, renewal, refund and cancellation checks', 'migration_confirmed' => 'I reviewed existing Upgrade.chat access and approved the migration', 'legal_confirmed' => 'Seller identity, EUR VAT-inclusive pricing, invoices, renewal consent and EU withdrawal/refund policies were reviewed for this actual business', 'paypal_enabled' => 'Enable PayPal after Stripe tests', 'role_sync_enabled' => 'Enable configured VIP role synchronization' ) as $key => $label ) { echo '<p><label><input type="checkbox" name="timonconfigs_billing[' . esc_attr( $key ) . ']" value="1" ' . checked( ! empty( $config[ $key ] ), true, false ) . '> ' . esc_html( $label ) . '</label></p>'; }
+		foreach ( array( 'stripe_test_confirmed' => 'I completed real Stripe Test checkout, renewal, refund and cancellation checks', 'migration_confirmed' => 'I reviewed earlier purchases and confirmed that valid access is preserved without duplicate subscriptions', 'legal_confirmed' => 'Seller identity, EUR VAT-inclusive pricing, invoices, renewal consent and EU withdrawal/refund policies were reviewed for this actual business', 'paypal_enabled' => 'Enable PayPal after Stripe tests', 'role_sync_enabled' => 'Enable configured VIP role synchronization' ) as $key => $label ) { echo '<p><label><input type="checkbox" name="timonconfigs_billing[' . esc_attr( $key ) . ']" value="1" ' . checked( ! empty( $config[ $key ] ), true, false ) . '> ' . esc_html( $label ) . '</label></p>'; }
 		foreach ( array( 'test', 'live' ) as $mode ) {
 			echo '<h2>' . esc_html( ucfirst( $mode ) ) . ' configuration</h2><table class="form-table">';
 			foreach ( TC_Billing::public_keys() as $key ) { echo '<tr><th><label for="tc-billing-' . esc_attr( $mode . '-' . $key ) . '">' . esc_html( str_replace( '_', ' ', $key ) ) . '</label></th><td><input class="regular-text" id="tc-billing-' . esc_attr( $mode . '-' . $key ) . '" name="timonconfigs_billing[' . esc_attr( $mode . '_' . $key ) . ']" value="' . esc_attr( TC_Billing::setting( $key, $mode ) ) . '"></td></tr>'; }

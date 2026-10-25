@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '..');
   const line = log.split('\n').find(value => value.startsWith('TC_BILLING_FIXTURES:'));
   assert.ok(line, 'Run billing-integration.php with TC_BILLING_RENDER=1 first.');
   const fixtures = JSON.parse(line.slice('TC_BILLING_FIXTURES:'.length));
-  assert.equal(Object.keys(fixtures).length, 3);
+  assert.equal(Object.keys(fixtures).length, 4);
   const styles = (await Promise.all(['main', 'premium', 'member', 'billing'].map(name => readFile(path.join(root, `wp-content/themes/timonconfigs/assets/css/${name}.css`), 'utf8')))).join('\n');
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
   const report = { passed: false, views: [], errors: [] };
@@ -22,9 +22,14 @@ const root = path.resolve(__dirname, '..');
         await page.setContent(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><base href="http://127.0.0.1:8080/wp-content/themes/timonconfigs/assets/css/"><style>${styles}</style></head><body class="tc-site"><main id="main"><div class="tc-shell tc-entry"><div class="tc-entry__content">${html}</div></div></main></body></html>`, { waitUntil: 'networkidle' });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `No document overflow at ${state}/${width}`);
         assert.equal(await page.locator('.tc-billing').count(), 1);
-        assert.match(await page.locator('.tc-billing-notice').first().innerText(), /Test/i);
+        assert.match(await page.locator('.tc-billing-notice').first().innerText(), state === 'checkout-disabled' ? /not available yet/ : /Test/i);
         assert.doesNotMatch(await page.locator('body').innerText(), /Fatal error|Warning:|sk_test_|whsec_/);
-        if (state.startsWith('checkout-')) {
+        if (state === 'checkout-disabled') {
+          assert.equal(await page.locator('h1').count(), 1);
+          assert.equal(await page.locator('form').count(), 0, 'Disabled checkout offers no payment operation');
+          assert.match(await page.locator('.tc-billing').innerText(), /€29\.99/);
+          assert.equal(await page.getByRole('link', { name: 'Get membership support', exact: true }).count(), 1);
+        } else if (state.startsWith('checkout-')) {
           assert.equal(await page.locator('h1').count(), 1);
           assert.match(await page.locator('.tc-billing').innerText(), state.endsWith('monthly') ? /€29\.99/ : /€80/);
           const form = page.locator('form').first();
@@ -48,6 +53,18 @@ const root = path.resolve(__dirname, '..');
       }
       await page.close();
     }
+    // These are real local HTTP routes, with actual default-disabled configuration.
+    const livePage = await browser.newPage({ viewport: { width: 390, height: 900 } });
+    for (const plan of ['monthly', 'lifetime']) {
+      const response = await livePage.goto(`http://127.0.0.1:8080/checkout/${plan}/`, { waitUntil: 'networkidle' });
+      assert.equal(response.status(), 200, 'Unavailable checkout renders inside the real theme instead of a WordPress error');
+      assert.equal(response.headers().location, undefined, 'The route never redirects to a retired checkout');
+      assert.match(response.headers()['cache-control'], /no-store/);
+      assert.equal(await livePage.locator('.tc-billing form').count(), 0);
+      assert.match(await livePage.locator('.tc-billing').innerText(), /Online checkout is not available yet/);
+      assert.equal(await livePage.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    }
+    await livePage.close();
     assert.deepEqual(report.errors, []);
     report.passed = true;
     console.log(`Billing browser: ${report.views.length} responsive views passed; no provider navigation or purchases.`);

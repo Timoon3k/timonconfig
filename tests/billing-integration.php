@@ -130,7 +130,10 @@ try {
 	update_option( '_tc_discord_binding_' . $ids['user'], $uid, false );
 	$assert( $error_is( TC_Billing::perform( array_merge( $payload(), array( 'consent' => '0' ) ) ), 'tc_billing_consent' ), 'Checkout requires explicit consent.' );
 	$legacy = $billing; $legacy['routing'] = 'legacy'; update_option( 'timonconfigs_billing', $legacy, false );
-	$assert( $error_is( TC_Billing::perform( $payload() ), 'tc_billing_disabled' ), 'Legacy routing prevents a new direct purchase.' );
+	$assert( 'disabled' === TC_Billing::config()['routing'] && $error_is( TC_Billing::perform( $payload() ), 'tc_billing_disabled' ), 'Stored retired routing becomes disabled and cannot reactivate an external purchase.' );
+	$disabled_checkout = TC_Billing_UI::checkout( 'monthly' );
+	$assert( str_contains( $disabled_checkout, 'Online checkout is not available yet' ) && ! str_contains( $disabled_checkout, '<form' ) && ! str_contains( $disabled_checkout, 'Continue with Stripe' ), 'Disabled checkout never renders a payment form even with valid Test credentials.' );
+	$assert( '€29.99' === TC_Billing::display_price( 'monthly' ) && '€80' === TC_Billing::display_price( 'lifetime' ), 'Website catalogue prices stay consistent while checkout is disabled.' );
 	update_option( 'timonconfigs_billing', $billing, false );
 	$assert( array() === TC_Billing_Store::orders_for_user( $uid, 'test' ) && array() === $checkout_posts, 'Rejected requests do not create orders or payment sessions.' );
 	foreach ( array( 'monthly', 'lifetime' ) as $legacy_plan ) {
@@ -147,6 +150,7 @@ try {
 	$wpdb->delete( $tables['orders'], array( 'id' => $uncertain['id'] ) );
 	$rendered_fixtures = array();
 	if ( getenv( 'TC_BILLING_RENDER' ) ) {
+		$rendered_fixtures['checkout-disabled'] = $disabled_checkout;
 		$rendered_fixtures['checkout-monthly'] = TC_Billing_UI::checkout( 'monthly' );
 		$rendered_fixtures['checkout-lifetime'] = TC_Billing_UI::checkout( 'lifetime' );
 	}
@@ -256,7 +260,7 @@ try {
 	wp_set_current_user( $users['admin'] ); $admin_data['_wpnonce'] = wp_create_nonce( 'tc_billing_admin' );
 	$assert( $error_is( TC_Billing::admin_perform( array_merge( $admin_data, array( '_wpnonce' => 'forged' ) ) ), 'tc_billing_forbidden' ), 'Administrator mutations also require their dedicated nonce.' );
 	$sanitized = TC_Billing::sanitize( array_merge( $confirmed, array( 'mode' => 'live', 'routing' => 'direct', 'migration_confirmed' => '1', 'stripe_test_confirmed' => '1' ) ) );
-	$assert( 'test' === $sanitized['mode'] && 'legacy' === $sanitized['routing'], 'Saving confirmation checkboxes cannot replace the separate server-side Live approval.' );
+	$assert( 'test' === $sanitized['mode'] && 'disabled' === $sanitized['routing'], 'Saving confirmation checkboxes cannot replace the separate server-side Live approval.' );
 	$assert( true === $must( TC_Billing::admin_perform( array_merge( $admin_data, array( 'mode' => 'live' ) ) ) ), 'An administrator can record a separate Live legacy inventory review.' );
 	$assert( '1' === get_user_meta( $uid, '_tc_billing_legacy_reviewed_live', true ) && '' === get_user_meta( $uid, '_tc_billing_legacy_reviewed_test', true ), 'A Live review never authorizes Test role removal or access denial.' );
 	$charges[ $charge_id ]['amount_refunded'] = 8000; $charges[ $charge_id ]['refunded'] = true;
@@ -296,18 +300,18 @@ try {
 	finally { remove_filter( 'query', $coverage_fault ); $wpdb->suppress_errors( $old_suppress ); }
 	$assert( $coverage_faulted && false === $unavailable_access, 'A ledger read failure denies a paid download even while the premium Discord role remains valid.' );
 	$assert( 200 === $deliver( 'refund_again', $charge_id, 'charge.refunded' )->get_status() && true === $must( TC_Billing::process_event( $stored_event( 'refund_again' ) ) ) && 2 === count( TC_Billing_Store::active( $uid, 'test' ) ), 'A later direct refund cannot erase either external source.' );
-	// Legacy checkout routing still has to expire independent grant-only access.
+	// Disabling new checkout still has to expire independent grant-only access.
 	$expiry_uid = $users['expiry']; $past = gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS );
 	$expiry = array( 'source' => $tag . ':grant-only-test', 'user_id' => $expiry_uid, 'discord_id' => $ids['expiry'], 'provider' => 'grant', 'mode' => 'test', 'plan' => 'monthly', 'status' => 'active', 'valid_until' => $past );
 	$must( TC_Billing_Store::upsert_entitlement( $expiry ) ); $live_expiry = $expiry; $live_expiry['source'] = $tag . ':grant-only-live'; $live_expiry['mode'] = 'live'; $must( TC_Billing_Store::upsert_entitlement( $live_expiry ) );
 	$assert( array() === TC_Billing_Store::orders_for_user( $expiry_uid, 'test' ) && array() === TC_Billing_Store::sync_state( $expiry_uid, 'test' ), 'The expiring fixture has only independently recorded grant coverage, with no order or existing outbox job.' );
 	$legacy = $billing; $legacy['routing'] = 'legacy'; $legacy['role_sync_enabled'] = false; update_option( 'timonconfigs_billing', $legacy, false ); wp_clear_scheduled_hook( 'tc_billing_tick' ); TC_Billing::schedule();
 	$scheduled = wp_get_scheduled_event( 'tc_billing_tick' );
-	$assert( ! TC_Billing::direct_enabled() && TC_Billing_Store::maintenance_needed( 'test' ) && $scheduled && 'tc_billing_five_minutes' === $scheduled->schedule, 'Existing billing coverage keeps recurring maintenance scheduled while new checkout routing remains legacy.' );
+	$assert( 'disabled' === TC_Billing::config()['routing'] && ! TC_Billing::direct_enabled() && TC_Billing_Store::maintenance_needed( 'test' ) && $scheduled && 'tc_billing_five_minutes' === $scheduled->schedule, 'Existing billing coverage keeps recurring maintenance scheduled while new checkout is disabled.' );
 	wp_set_current_user( $users['admin'] ); wp_clear_scheduled_hook( 'tc_billing_tick' );
 	$wake = TC_Billing::admin_perform( array( '_wpnonce' => wp_create_nonce( 'tc_billing_admin' ), 'operation' => 'retry_sync', 'user_id' => $uid, 'mode' => 'test' ) );
 	$wake_at = wp_next_scheduled( 'tc_billing_tick' );
-	$assert( true === $must( $wake ) && false !== $wake_at && $wake_at <= time() + 2, 'An authorized administrator retry wakes the worker even under legacy routing.' );
+	$assert( true === $must( $wake ) && false !== $wake_at && $wake_at <= time() + 2, 'An authorized administrator retry wakes the worker even while new checkout is disabled.' );
 	foreach ( $users as $fixture_uid ) { foreach ( array( 'test', 'live' ) as $fixture_mode ) { foreach ( TC_Billing_Store::orders_for_user( $fixture_uid, $fixture_mode, 100 ) as $fixture_order ) { TC_Billing_Store::mark_reconciled( $fixture_order['id'], 3600 ); } } }
 	$before_writes = count( $role_writes() ); TC_Billing::tick(); $expiry_job = TC_Billing_Store::sync_state( $expiry_uid, 'test' );
 	$assert( 'expired' === TC_Billing_Store::entitlement( $expiry['source'] )['status'] && ! empty( $expiry_job['id'] ) && count( $role_writes() ) === $before_writes, 'The actual legacy-maintenance worker expires grant-only Monthly access and leaves durable sync work while role writes are disabled.' );

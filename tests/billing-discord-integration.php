@@ -225,7 +225,7 @@ try {
     $token = $issue(); $key = 'tc_billing_intent_' . hash( 'sha256', $token ); $stored = get_transient( $key ); $stored['expires'] = time() - 1; set_transient( $key, $stored, 30 );
     $assert( is_wp_error( TC_Billing_Discord::consume_intent( $token, $ids['user'] ) ), 'Explicit intent expiry is enforced even while its transient exists.' );
     update_option( 'timonconfigs_billing', array_merge( $billing, array( 'routing' => 'legacy' ) ), false );
-    $assert( is_wp_error( TC_Billing_Discord::interaction( ...$signed( $command( 'buy' ) ) ) ), 'Legacy routing cannot create direct-checkout intents.' );
+    $assert( 'disabled' === TC_Billing::config()['routing'] && is_wp_error( TC_Billing_Discord::interaction( ...$signed( $command( 'buy' ) ) ) ), 'Stored retired routing stays disabled and cannot create checkout intents.' );
     $assert( count( $requests ) === $before, 'Signed commands and intent consumption never call Discord, billing providers, or collect payments.' );
     WP_CLI::success( "Discord billing integration: $checks assertions; local mock HTTP and real signature verification only." );
 } finally {

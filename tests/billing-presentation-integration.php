@@ -27,7 +27,7 @@ if ( ! class_exists( 'TC_Billing' ) ) {
 		public static int $rendered_for = 0;
 		public static function direct_enabled(): bool { return self::$direct; }
 		public static function display_price( string $plan ): string {
-			return ( self::$direct ? array( 'monthly' => '€29.99', 'lifetime' => '€80' ) : array( 'monthly' => '€40', 'lifetime' => '€100' ) )[ $plan ] ?? '';
+			return array( 'monthly' => '€29.99', 'lifetime' => '€80' )[ $plan ] ?? '';
 		}
 		public static function render_account( int $uid ): string {
 			self::$rendered_for = $uid;
@@ -44,8 +44,12 @@ if ( ! class_exists( 'TC_Discord' ) ) {
 }
 if ( ! class_exists( 'TC_Checkout' ) ) {
 	final class TC_Checkout {
-		public static function get_destination( string $plan ): string { return 'https://upgrade.chat/fixture-' . $plan; }
+		public static function get_destination( string $plan ): string { throw new RuntimeException( 'Retired destination lookup was used by a public template.' ); }
+		public static function get_checkout_url( string $plan ): string { return in_array( $plan, array( 'monthly', 'lifetime' ), true ) ? home_url( '/checkout/' . $plan . '/' ) : ''; }
 	}
+}
+if ( ! function_exists( 'timonconfigs_checkout_url' ) ) {
+	function timonconfigs_checkout_url( string $plan ): string { return TC_Checkout::get_checkout_url( $plan ); }
 }
 require_once WP_PLUGIN_DIR . '/timonconfigs-core/includes/class-tc-member-area.php';
 
@@ -72,11 +76,12 @@ try {
 	if ( ! $monthly_page instanceof WP_Post || ! $lifetime_page instanceof WP_Post ) { throw new RuntimeException( 'Local VIP pages must exist before this read-only suite.' ); }
 	foreach ( array( false, true ) as $direct ) {
 		TC_Billing::$direct = $direct;
-		$monthly = $direct ? '€29.99' : '€40';
-		$lifetime = $direct ? '€80' : '€100';
-		$expect( $monthly === timonconfigs_display_price( 'monthly' ) && $lifetime === timonconfigs_display_price( 'lifetime' ), 'The active billing catalogue owns both paid display amounts.' );
+		$monthly = '€29.99';
+		$lifetime = '€80';
+		$expect( $monthly === timonconfigs_display_price( 'monthly' ) && $lifetime === timonconfigs_display_price( 'lifetime' ), 'The same central EUR offer is shown while checkout is disabled or enabled.' );
 		$cards = $render( 'template-parts/pricing-cards' );
 		$expect( str_contains( $cards, $monthly ) && str_contains( $cards, $lifetime ) && str_contains( $cards, '€0' ) && ! str_contains( $cards, '€987.65' ), 'Home/pricing cards ignore saved price overrides.' );
+		$expect( ! str_contains( strtolower( $cards ), 'upgrade.chat' ) && str_contains( $cards, '/checkout/monthly/' ) && str_contains( $cards, '/checkout/lifetime/' ), 'Purchase cards link to the website without a retired external provider.' );
 		ob_start(); include get_template_directory() . '/patterns/pricing.php'; $pattern = (string) ob_get_clean();
 		$expect( str_contains( $pattern, $monthly ) && str_contains( $pattern, $lifetime ), 'Newly inserted patterns snapshot the current catalogue.' );
 		$metadata = timonconfigs_seo_page_defaults();
@@ -92,7 +97,11 @@ try {
 			$expected = 'monthly' === $plan ? $monthly : $lifetime;
 			$expect( str_contains( $html, $expected ) && ! str_contains( $html, '€987.65' ), 'Plan details ignore old price controls: ' . $plan );
 			$products = array_values( array_filter( timonconfigs_schema_graph(), static fn( array $node ): bool => 'Product' === $node['@type'] ) );
-			$expect( 1 === count( $products ) && substr( $expected, strlen( '€' ) ) === $products[0]['offers']['price'] && 'EUR' === $products[0]['offers']['priceCurrency'], 'Schema Offer agrees with the visible amount: ' . $plan );
+			if ( $direct ) {
+				$expect( 1 === count( $products ) && substr( $expected, strlen( '€' ) ) === $products[0]['offers']['price'] && 'EUR' === $products[0]['offers']['priceCurrency'] && home_url( '/checkout/' . $plan . '/' ) === $products[0]['offers']['url'], 'Enabled Schema Offer agrees with the amount and local checkout: ' . $plan );
+			} else {
+				$expect( array() === $products, 'Disabled checkout emits no active product offer: ' . $plan );
+			}
 		}
 	}
 	$GLOBALS['wp_query'] = $old_query; $GLOBALS['wp_the_query'] = $old_main;
@@ -105,8 +114,9 @@ try {
 		$has_billing = $case[0] || $case[1];
 		$expect( get_current_user_id() === TC_Billing::$rendered_for, 'Account renderer receives the current user only.' );
 		$expect( $has_billing === str_contains( $html, 'class="tc-billing"' ), 'Direct routing or retained direct records show the billing renderer.' );
-		$expect( $has_billing !== str_contains( $html, 'class="tc-member-management"' ), 'Legacy management appears only without direct routing/data.' );
+		$expect( $has_billing !== str_contains( $html, 'class="tc-member-management"' ), 'Neutral membership support appears only without direct billing/data.' );
 		$expect( ! str_contains( $html, '€987.65' ) && str_contains( $html, 'tc-member-profile' ), 'Account keeps identity UI and ignores old price controls.' );
+		$expect( ! str_contains( strtolower( $html ), 'upgrade.chat' ), 'Account guidance contains no retired provider link or purchase instruction.' );
 	}
 	wp_set_current_user( 0 );
 	$guest = TC_Member_Area::render();

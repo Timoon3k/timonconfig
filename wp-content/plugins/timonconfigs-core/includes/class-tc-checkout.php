@@ -1,6 +1,6 @@
 <?php
 /**
- * Upgrade.chat checkout redirect handler.
+ * Website membership checkout routes.
  *
  * @package TimonConfigs_Core
  */
@@ -8,7 +8,6 @@
 defined( 'ABSPATH' ) || exit;
 
 final class TC_Checkout {
-	private const OPTION_NAME = 'timonconfigs_checkout_urls';
 	private const QUERY_VAR   = 'tc_checkout_plan';
 	private const PLANS       = array( 'monthly', 'lifetime' );
 
@@ -50,16 +49,8 @@ final class TC_Checkout {
 			self::render_unavailable();
 		}
 
-		if ( class_exists( 'TC_Billing' ) && TC_Billing::direct_enabled() ) { TC_Billing::render_checkout( $plan ); }
-
-		$destination = self::get_destination( $plan );
-		if ( '' === $destination ) {
-			self::render_unavailable();
-		}
-
-		nocache_headers();
-		wp_redirect( $destination, 302, 'TimonConfigs' ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- URL is strictly validated against Upgrade.chat hosts.
-		exit;
+		if ( class_exists( 'TC_Billing' ) ) { TC_Billing::render_checkout( $plan ); }
+		self::render_unavailable();
 	}
 
 	public static function get_checkout_url( string $plan ): string {
@@ -72,38 +63,13 @@ final class TC_Checkout {
 	}
 
 	public static function get_destination( string $plan ): string {
-		$urls = get_option( self::OPTION_NAME, array() );
-		if ( ! is_array( $urls ) || ! isset( $urls[ $plan ] ) ) {
-			return '';
-		}
-
-		return self::sanitize_checkout_url( $urls[ $plan ] );
+		// Retired external checkout API. Stored historical options are never used.
+		return '';
 	}
 
 	public static function sanitize_checkout_url( $url ): string {
-		if ( ! is_string( $url ) ) {
-			return '';
-		}
-		$url = esc_url_raw( trim( (string) $url ), array( 'https' ) );
-		if ( '' === $url ) {
-			return '';
-		}
-
-		$scheme = strtolower( (string) wp_parse_url( $url, PHP_URL_SCHEME ) );
-		$host   = strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) );
-		$port   = wp_parse_url( $url, PHP_URL_PORT );
-		$user   = wp_parse_url( $url, PHP_URL_USER );
-		$pass   = wp_parse_url( $url, PHP_URL_PASS );
-
-		if ( 'https' !== $scheme || ( null !== $port && 443 !== $port ) || null !== $user || null !== $pass ) {
-			return '';
-		}
-
-		if ( 'upgrade.chat' !== $host && ! str_ends_with( $host, '.upgrade.chat' ) ) {
-			return '';
-		}
-
-		return $url;
+		// Compatibility only: new purchases cannot configure external destinations.
+		return '';
 	}
 
 	private static function render_unavailable(): void {
