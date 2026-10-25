@@ -1,6 +1,6 @@
 # Następna sesja — checkout na stronie / Ticket Tool, 2026-10-25
 
-Kontynuuj `feature/site-only-checkout` (kod `068ff98`, Core 0.9.1/theme 0.11.1), baza opublikowanego main `664333f`. Nie przywracaj Upgrade.chat do nowych zakupów ani poprzedniego fallbacku. Historia i ważne dostępy pozostają zachowane. Nowe zmiany nie zostały wdrożone produkcyjnie.
+Na wyraźne polecenie właściciela przetestowany kod `93eafde` z `feature/site-only-checkout` opublikowano na GitHub `main` przez fast-forward z `664333f`. Kontynuuj od aktualnego `main` (Core 0.9.1/theme 0.11.1). Nie przywracaj Upgrade.chat do nowych zakupów ani poprzedniego fallbacku. Historia i ważne dostępy pozostają zachowane. Nie potwierdzono aktualizacji WordPressa na Hostingerze; płatności Live nie zostały włączone.
 
 1. Przeczytaj najnowszy PROGRESS, `docs/WEBSITE_CHECKOUT_TICKET_TOOL.md` i aktualny `docs/DIRECT_BILLING_SETUP.md`. Routing tylko disabled/direct; stare legacy oznacza disabled, ceny zawsze29.99/80. Stare URL options nie są kasowane, ale nie mogą przekierowywać. Nie włączaj Live ani role sync bez konfiguracji i zgody.
 2. Sprawdzone: 553 asercje PHP, 5 porównań rzeczywistego poprzedniego stock source, 16 layoutów +2 HTTP checkout +6 publicznych stron, lint 72/static/JS. ZIP-y0.11.1 /0.9.1 (89/20plików) zgodne ze źródłami, świeża instalacja 96 asercji. Browser/raporty/manifest w artifacts. Operatorzy i Discord są mockowane — nie zastępuje to realnego staging acceptance.

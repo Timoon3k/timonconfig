@@ -1,3 +1,9 @@
+## Publikacja website-only checkout na GitHub main — 2026-10-25
+
+- Na wyraźne polecenie właściciela „wypchnij na main, produkcje” opublikowano przetestowany kod `93eafde` na GitHub `main`, fast-forward z `664333f`, bez force push i bez nowych zmian kodu.
+- Ponownie potwierdzono istniejące wyniki 553 asercji PHP, 96 świeżej instalacji i 16 widoków przeglądarkowych oraz zgodność każdego pliku źródłowego z przetestowanymi ZIP-ami. Core 0.9.1 / theme 0.11.1.
+- Nie włączono Live ani synchronizacji ról; brak instalacji paczek na Hostingerze i brak potwierdzenia zdalnego automatycznego deploymentu. Push na main nie zastępuje konfiguracji Stripe Test i aktualizacji działającego WordPressa.
+
 ## Website-only checkout + Ticket Tool — Core 0.9.1 / theme 0.11.1 (2026-10-25)
 
 - Na nowe polecenie właściciela wycofano Upgrade.chat z NOWYCH zakupów i aktywnego UI. Domyślny checkout jest `disabled`; dawne `legacy`/nieznane wartości są mapowane na `disabled`, bez kasowania zapisanych opcji. `get_destination` i stary sanitizer zawsze zwracają pustą wartość, więc żaden stary URL nie może przekierować klienta. Wyłączony checkout renderuje czytelny widok w motywie, bez formularza płatności, zamiast błędu WordPressa.
