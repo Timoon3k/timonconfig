@@ -140,6 +140,11 @@ try {
 	}
 	$assert( array() === TC_Billing_Store::orders_for_user( $uid, 'test' ) && array() === $checkout_posts, 'Legacy migration protection creates no new orders or provider sessions.' );
 	$member_roles = array( $ids['free'] ); $fresh_roles( $uid );
+	$uncertain = $must( TC_Billing_Store::create_order( $uid, $ids['user'], 'stripe', 'test', 'monthly' ) );
+	$wpdb->update( $tables['orders'], array( 'created_at' => '2000-01-01 00:00:00' ), array( 'id' => $uncertain['id'] ) );
+	$assert( $error_is( TC_Billing::perform( $payload( 'monthly' ) ), 'tc_billing_pending' ) && array() === $checkout_posts, 'A lost old provider response without an external ID cannot start another payment after idempotency retention expires.' );
+	$assert( 1 === count( TC_Billing_Store::checkout_attempts( $uid, 'test', 'monthly' ) ), 'Uncertain checkout lookup is independent of recent history and checkout age.' );
+	$wpdb->delete( $tables['orders'], array( 'id' => $uncertain['id'] ) );
 	$rendered_fixtures = array();
 	if ( getenv( 'TC_BILLING_RENDER' ) ) {
 		$rendered_fixtures['checkout-monthly'] = TC_Billing_UI::checkout( 'monthly' );

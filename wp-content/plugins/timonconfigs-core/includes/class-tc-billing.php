@@ -123,12 +123,13 @@ final class TC_Billing {
 				if ( $covered_role && '1' !== get_user_meta( $identity['user_id'], '_tc_billing_legacy_reviewed_' . $mode, true ) ) {
 					return self::error( 'tc_billing_legacy_review', 'Your Discord account already has paid access. Contact support to review the existing purchase before starting another. Monthly members may separately upgrade to Lifetime.' );
 				}
-				$order = null;
-				foreach ( TC_Billing_Store::orders_for_user( $identity['user_id'], $mode ) as $pending ) {
-					if ( $pending['plan'] === $plan && in_array( $pending['status'], array( 'pending', 'checkout' ), true ) && strtotime( $pending['created_at'] . ' UTC' ) > time() - DAY_IN_SECONDS ) {
-						if ( $pending['provider'] !== $provider ) { return self::error( 'tc_billing_pending', 'An unfinished checkout already exists with another provider. Contact support before creating a second subscription.' ); }
-						$order = $pending; break;
-					}
+				$attempts = TC_Billing_Store::checkout_attempts( $identity['user_id'], $mode, $plan );
+				if ( is_wp_error( $attempts ) ) { return $attempts; }
+				if ( count( $attempts ) > 1 ) { return self::error( 'tc_billing_pending', 'Multiple unfinished purchases need support review before a new payment.' ); }
+				$order = $attempts[0] ?? null;
+				if ( $order ) {
+					if ( $order['provider'] !== $provider ) { return self::error( 'tc_billing_pending', 'An unfinished checkout already exists with another provider. Contact support before creating another payment.' ); }
+					if ( empty( $order['checkout_id'] ) && empty( $order['subscription_id'] ) && strtotime( $order['created_at'] . ' UTC' ) <= time() - 600 ) { return self::error( 'tc_billing_pending', 'An earlier checkout has an uncertain provider response. Contact support to reconcile it before retrying payment.' ); }
 				}
 				if ( null === $order ) { $order = TC_Billing_Store::create_order( $identity['user_id'], $identity['discord_id'], $provider, $mode, $plan ); }
 				if ( is_wp_error( $order ) ) { return $order; }

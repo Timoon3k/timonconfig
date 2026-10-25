@@ -234,6 +234,13 @@ final class TC_Billing_Store {
 		// An ambiguous external ID must never resolve to an arbitrary account.
 		return 1 === count( $rows ) ? $rows[0] : null;
 	}
+	/** An uncertain checkout is not evidence of an abandoned purchase, regardless of age. */
+	public static function checkout_attempts( int $uid, string $mode, string $plan ): array|WP_Error {
+		global $wpdb;
+		if ( $uid < 1 || ! self::mode( $mode ) || ! in_array( $plan, array( 'monthly', 'lifetime' ), true ) ) { return self::error( 'billing_invalid_order' ); }
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'orders' ) . " WHERE user_id = %d AND mode = %s AND plan = %s AND status IN ('pending','checkout') ORDER BY created_at ASC, id ASC LIMIT 2", $uid, $mode, $plan ), ARRAY_A );
+		return '' === $wpdb->last_error && is_array( $rows ) ? $rows : self::error( 'billing_order_read_failed' );
+	}
 	/** Expired paid time does not prove that the provider stopped retrying renewal. */
 	public static function unresolved_recurring( int $uid, string $mode ): array|WP_Error {
 		global $wpdb;
