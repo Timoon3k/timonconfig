@@ -1,3 +1,21 @@
+# Następna sesja — native billing, 2026-10-25
+
+Ten wpis ma pierwszeństwo nad historycznymi handoffami poniżej. Kontynuuj `feature/direct-billing-test`; nie wracaj do starszych poprawek uploadu. Baza została zaktualizowana do GitHub main `ea566d4` (PR #11). Kod: Core 0.9.0/theme 0.11.0, checkpointy `a6175c0`, `a0988d8`, `be2f391`, merge `3de6024`, ostatnia poprawka `ad539de`.
+
+1. Przeczytaj najnowszy PROGRESS oraz `docs/DIRECT_BILLING_SETUP.md` i `docs/DIRECT_BILLING_TEST_REPORT.md`. Nie przepisuj OAuth, Owner ani prywatnego magazynu. Owner nadal używa lokalnej zatwierdzonej tożsamości; premium downloader wymaga aktualnych ról Discord.
+2. Lokalnie zaliczono 949 asercji PHP, 12 layoutów billingowych, lint 72 i static/JS. Operatorzy/Discord są symulowani; nie jest to rzeczywisty Stripe Test/Sandbox. Paczki 0.11.0/0.9.0 są w artifacts, źródła: 89 / 20 plików zgodne. Świeża instalacja ZIP zaliczyła 91 asercji na oddzielnym WP 6.8.3/PHP 8.2; wynik w `artifacts/billing-release-installation.log`, SHA256 w manifeście.
+3. Najwyższy priorytet: odizolowany HTTPS staging, faktyczne Stripe Test Product/Price IDs dla EUR 29.99/miesiąc i EUR 80/raz, klucz API i endpoint signing secret wyłącznie na serwerze. W Settings → TimonConfigs billing przełącz routing tylko na stagingu; nie włączaj Live. Rejestracja webhooków i macierz akceptacji są w instrukcji.
+4. Zweryfikuj rzeczywiste Monthly/Lifetime, odnowienie, nieudane obciążenie, cancel z zachowaniem opłaconego okresu, refund/dispute, zewnętrzne duplikaty/out-of-order i awarię Discorda. Bot zarządza tylko skonfigurowanymi VIP, musi być nad nimi; istniejących ról nie przejmuje automatycznie. Powodzenie zdalnego PUT + awaria DB wymaga ręcznej oceny, nie sztucznego ownership.
+5. Dopiero po realnym Stripe acceptance skonfiguruj PayPal Sandbox i jego webhook ID, następnie powtórz scenariusze. Komendy Discord wymagają public key i ręcznej rejestracji, bez nadpisywania cudzych komend. Osobny proces bota nie jest wymagany; cron serwerowy co 5 min jest wymagany.
+6. Sprzedawca w Polsce, ceny EUR. Nie potwierdzono bieżących taryf/FX/wypłat przez blokadę403 oficjalnych źródeł. Uzgodnij rzeczywiste konto EUR, VAT/OSS, faktury i zgodność treści prawnych. Przeczytaj zachowane dokumenty PR #11. Podatki nie są automatycznie wdrożone.
+7. Żadnego Live, faktycznych obciążeń, zmian istniejących subskrypcji ani produkcji bez WYRAŹNEJ zgody. Domyślny routing=legacy chroni Upgrade.chat i jego dotychczasowe ceny. Własne ceny29.99/80 są aktywne w direct. Stare uprawnienia muszą mieć zweryfikowane źródła/daty; globalna flaga migracji nie zastępuje przeglądu członka. Przed Live potrzebny przegląd bezpieczeństwa/rozliczeń (wskazany wcześniej Astra Medium), realne testy i zatwierdzony cutover jednego autora ról. Nie oznaczaj zwykłego checkboxa jako wykonanego audytu.
+
+Browser fixtures można odtworzyć lokalnie: `docker compose -f docker-compose.local.yml run --rm -T -e TC_BILLING_RENDER=1 cli wp eval-file - < tests/billing-integration.php > artifacts/billing-render.log 2>&1`, następnie `node tests/billing-browser.cjs`. Nie uruchamiaj mutujących testów WP równolegle.
+
+---
+
+## Historyczne przekazania (nie wyznaczają bieżącej wersji)
+
 ## Aktualizacja: poprawki są już na GitHub main
 
 Na wyraźne polecenie właściciela opublikowano fast-forward kod `b5d4de2` na `main` i zweryfikowano zdalny ref. Nie trzeba ponownie scalać `fix/owner-upload-recovery`. Core 0.8.6 / theme 0.10.5; kod i paczki pozostają zgodne z wcześniejszymi testami. Nie potwierdzono aktualizacji WordPressa na Hostingerze; push nie jest dowodem instalacji paczek. Następny priorytet to rzeczywista wersja hostingu, purge cache i próba oryginalnego pliku właściciela, bez zmian ról/płatności.

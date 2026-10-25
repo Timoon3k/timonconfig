@@ -1,6 +1,6 @@
 # Direct billing — implementation report
 
-2026-10-25 · Baseline: GitHub `main` at `7990e20` (Core 0.8.10 / theme 0.10.6). Work continues on `feature/direct-billing-test`. This report describes local implementation, not a production payment or security certification. Setup and external acceptance: [DIRECT_BILLING_SETUP.md](DIRECT_BILLING_SETUP.md).
+2026-10-25 · Baseline: GitHub `main` at `7990e20` (Core 0.8.10 / theme 0.10.6). Latest main `ea566d4` (PR #11 documentation) was subsequently merged; work remains on `feature/direct-billing-test` with Core 0.9.0/theme 0.11.0. This report describes local implementation, not a production payment or security certification. Setup and external acceptance: [DIRECT_BILLING_SETUP.md](DIRECT_BILLING_SETUP.md).
 
 ## Delivered scope
 
@@ -17,7 +17,7 @@
 
 ## Verification evidence
 
-The exact final assertion counts, browser evidence, package versions and commit IDs are recorded by the coordinating agent in `PROGRESS.md` / `NEXT_SESSION.md` when the release checkpoint is complete. Do not infer that a suite passed merely because the test file exists.
+Local final evidence: **949 PHP assertions** (459 billing +490 existing regressions), **12 responsive browser views**, source lint 72, static/JS checks and whitespace checks passed. Billing split: Store 112, Stripe 66, PayPal 79, Discord 86, facade 83, presentation 33. Existing split: Checkout 14, OAuth 127, Downloads 69, Owner 169, Owner identity 20, Catalog 45, Shared VIP 24, SEO 22. Browser fixtures use actual WordPress PHP rendering with simulated providers, check 1440/768/390/320px, consent/focus and contained table scrolling; no provider navigation occurs. The final actual ZIPs passed **91 fresh-install assertions** on a separate disposable WordPress 6.8.3/PHP 8.2. Package installation result and SHA256 are in `artifacts/billing-release-installation.log` and `artifacts/direct-billing-release-manifest.json`; source contents89 theme / 20 Core match their ZIPs. Safe code checkpoints: `a6175c0`, `a0988d8`, `be2f391`, `ad539de`; merge `3de6024` preserves the latest main.
 
 Added automated suites:
 

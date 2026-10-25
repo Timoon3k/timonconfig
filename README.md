@@ -1,5 +1,7 @@
 # TimonConfigs WordPress website
 
+Current staging implementation: **Core 0.9.0 / theme 0.11.0** adds direct Stripe/PayPal EUR billing and scoped Discord synchronization, disabled by default. Existing Upgrade.chat sales remain in place until approved migration. See [billing setup](docs/DIRECT_BILLING_SETUP.md) and [implementation/test report](docs/DIRECT_BILLING_TEST_REPORT.md). No Live acceptance or production deployment is implied.
+
 Custom WordPress theme and business plugin for `timonconfigs.com`.
 
 ## Components
