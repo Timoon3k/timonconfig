@@ -1,14 +1,18 @@
 # Direct billing — configuration and controlled rollout
 
-2026-10-25 · Seller country: Poland · Checkout currency: EUR. This release is for local/staging review. It has not been enabled on production or validated against real Stripe Test, PayPal Sandbox or Discord accounts.
+2026-10-25 · Core 0.9.1 / theme 0.11.1 · Seller country: Poland · Checkout currency: EUR. This release is for local/staging review. It has not been enabled on production or validated against real Stripe Test, PayPal Sandbox or Discord accounts.
 
-## 1. Preserve the existing service
+## 1. Website checkout and preserved existing access
 
 Back up the WordPress database, plugin/theme and private file store. Install this release first on an **isolated HTTPS staging site**, with separate payment credentials and preferably an isolated Discord guild/application. Set `WP_ENVIRONMENT_TYPE` to `staging`. Do not copy production payment secrets, production subscription data, cron jobs or role automation into a test environment.
 
-The default is `mode=test`, `routing=legacy`, with both PayPal and role synchronization disabled. Existing Upgrade.chat URLs and subscriptions continue working. `/checkout/monthly/` and `/checkout/lifetime/` are preserved. Routing changes affect new checkout only; they do not cancel an existing subscription.
+The default is `mode=test`, `routing=disabled`, with both PayPal and role synchronization disabled. The only routing values are `disabled` and `direct`; a stored `legacy` or unknown value resolves to `disabled`. Upgrade.chat is retired for new website purchases. There is no external checkout fallback: stored historical URL options are retained but ignored, and destination/sanitization compatibility methods return an empty value. `/checkout/monthly/` and `/checkout/lifetime/` remain the website entry points. Removing old routing does not cancel an earlier subscription or erase purchased access.
 
-The active legacy offer continues displaying €40 / €100. When direct checkout is deliberately enabled on staging, the central offer becomes **Free €0, Monthly €29.99/month, Lifetime €80 once**. Browser fields and Customizer amounts cannot change the charged price. Review manually authored Gutenberg/FAQ/SEO/legal content during cutover; the release does not overwrite stored content.
+The central displayed offer is always **Free €0, Monthly €29.99/month, Lifetime €80 once**, including while checkout is disabled. Showing the price does not enable payment: an unavailable checkout displays its setup notice and offers no purchase form. Browser fields and Customizer amounts cannot change the charged price. Discord Ticket Tool messages should link to these website routes; the ticket is a support/link channel, never payment proof. See [Ticket Tool handoff](WEBSITE_CHECKOUT_TICKET_TOOL.md).
+
+**Settings → TimonConfigs** shows three read-only links for Pricing, Monthly and Lifetime. Configure provider IDs and Test/Sandbox settings separately under **Settings → TimonConfigs billing** (`/wp-admin/options-general.php?page=tc-billing`). The former external URL editor is not registered.
+
+On the first administrator request, a versioned `admin_init` migration with `manage_options` updates only five exactly recognized, whole stock pages: Pricing, VIP Monthly, Terms of Service, Privacy Policy and Refund Policy. A private `_tc_checkout_copy_v1_backup` retains the former content, and SQL compare-and-swap refuses concurrent edits. Page title, status, publication/modification dates and legal-review metadata are preserved. No page-content write occurs on a public request. Authored content is not replaced; review any flagged wording under **Tools → TimonConfigs setup → Website checkout content**. The same page offers a safe retry after a failed update. Legal draft markers remain until the actual business completes review; no existing page is published or unpublished by this migration, and it is not legal approval.
 
 ## 2. Server secrets
 
@@ -34,7 +38,7 @@ PHP 8.2 is the tested runtime. Use HTTPS, working CA certificates and outbound H
 ## 3. Stripe Test first
 
 1. Create two **test** Stripe products/prices: EUR 29.99 recurring every one month (no trial) and EUR 80.00 one time. Quantity is always one. Do not add a second billing intermediary.
-2. In **Settings → TimonConfigs billing**, enter the test Monthly/Lifetime Product IDs (`prod_…`) and Price IDs (`price_…`). Set Mode to Test / Sandbox. Leave PayPal disabled. Set Routing to Direct checkout only on the isolated staging site.
+2. In **Settings → TimonConfigs billing**, enter the test Monthly/Lifetime Product IDs (`prod_…`) and Price IDs (`price_…`). Set Mode to Test / Sandbox. Leave PayPal disabled. Change Routing from Disabled to Direct checkout only on the isolated staging site after entering the required settings. This does not approve Live.
 3. Create the test webhook endpoint:
    `https://<staging-host>/wp-json/timonconfigs/v1/billing/stripe/test`.
    Use the endpoint signing secret, not an API key, for `STRIPE_WEBHOOK_SECRET`.
@@ -66,7 +70,9 @@ Stripe validation checks the configured product/price, exact EUR amount, interva
 
 Sandbox and Live use separate pinned API hosts and credentials. Webhook verification calls PayPal's signature-verification API with the configured webhook ID; the plugin does not fetch arbitrary notification certificate URLs. A subscription merely marked ACTIVE is not payment proof. An uncertain older checkout with no saved provider ID is blocked for support reconciliation; do not delete its ledger row to force another charge. Retrieve the real provider outcome by its TimonConfigs order UUID first. PayPal sale records lack a directly trusted service-period end in this integration; paid-time calculation is conservatively limited to a calendar month, and actual renewal/cancellation timing must pass Sandbox acceptance.
 
-## 5. Discord roles and purchase commands
+## 5. Ticket Tool, Discord roles and optional purchase commands
+
+For the requested Discord purchase entry, paste the website links or prepared English message from [WEBSITE_CHECKOUT_TICKET_TOOL.md](WEBSITE_CHECKOUT_TICKET_TOOL.md) into the appropriate existing Ticket Tool response or buttons. This code change does not configure Ticket Tool remotely. A normal website link is sufficient; the signed slash commands below are optional, not a requirement for Ticket Tool.
 
 Existing OAuth remains responsible for account identity and current role checks during downloads. Keep its exact callback registered: `https://<staging-host>/?tc_discord_callback=1`. Keep Security Bot verification and approved Owner publishing settings intact.
 
@@ -120,7 +126,7 @@ Perform these first with isolated accounts and provider test modes:
 
 Before any Live cutover, export the real Upgrade.chat inventory and match each account to its existing Discord ID. Record **only verified** Monthly end dates and Lifetime/grant rights in the administrator's Verified legacy access section. Reviews are mode-specific; Test review does not approve Live. Confirm each member's legacy inventory only after all valid sources were recorded. The plugin does not import fabricated dates, take over externally managed roles, cancel Upgrade.chat subscriptions or stop its role automation.
 
-Plan ownership of each legacy role/subscription with Upgrade.chat before allowing the new bot to manage it. Two writers for the same VIP role can conflict even with the plugin's conservative safeguards; the migration needs an explicit operational cutover. Tell customers that a new Lifetime payment does not cancel a pre-existing Monthly subscription. Obtain explicit migration consent and verify cancellation/stop of an old recurring contract before starting another one. A rollback switches **new checkout routing** to legacy, keeps ledger tables and scheduled maintenance, and preserves audit/payment records. It does not undo charges or erase contracts already created.
+Plan ownership of each legacy role/subscription with Upgrade.chat before allowing the new bot to manage it. Two writers for the same VIP role can conflict even with the plugin's conservative safeguards; the migration needs an explicit operational cutover. Tell customers that a new Lifetime payment does not cancel a pre-existing Monthly subscription. Obtain explicit migration consent and verify cancellation/stop of an old recurring contract before starting another one. A rollback sets **new checkout routing** to `disabled`, keeps ledger tables and scheduled maintenance, and preserves audit/payment records. It must not restore retired external URLs or a legacy fallback. Existing native contracts still require their current environment, credentials and working reconciliation cron; disabling new purchases does not undo charges or erase contracts already created.
 
 ## 8. Poland, EUR, taxes and actual costs
 
@@ -138,4 +144,4 @@ For both €29.99 and €80 calculate `customer total − percentage fee − fix
 
 Before Live, the actual Polish business must supply its legal name, address, NIP/VAT information, contact details, accurate prices/tax treatment, supported customer locations, invoices/receipts, renewal/cancellation terms, Lifetime license and privacy/retention policy. Review EU consumer withdrawal/digital-content delivery consent and refund handling for this exact offer with an accountant/legal adviser. The existing payment-consent checkbox is not proof that every legal condition has been satisfied. There is no automatic VAT/OSS determination, tax invoice integration or completed legal approval in this release. The fixed charge is expected to be the reviewed customer total, so tax-inclusive treatment and any territorial restrictions must be resolved before enabling Live. The administrator legal confirmation records a real review; it must not be checked simply to bypass the guard.
 
-Related launch documents preserved from main PR #11: [legal publication](LEGAL_PUBLICATION_CHECKLIST_2026.md), [SEO/GSC](SEO_GSC_APEX_LAUNCH_2026.md) and [authentic reviews](REVIEWS_AUTHENTIC_FEEDBACK_2026.md). Their current-production price statements stay valid until the approved direct-billing cutover.
+Related launch documents preserved from main PR #11: [legal publication](LEGAL_PUBLICATION_CHECKLIST_2026.md), [SEO/GSC](SEO_GSC_APEX_LAUNCH_2026.md) and [authentic reviews](REVIEWS_AUTHENTIC_FEEDBACK_2026.md). Their older €40/€100 and active Upgrade.chat checkout references are historical; the current 0.9.1 offer and routing instructions above take precedence. Seller identity, legal approval, genuine-feedback and SEO readiness checks remain required.

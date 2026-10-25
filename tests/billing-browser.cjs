@@ -64,10 +64,20 @@ const root = path.resolve(__dirname, '..');
       assert.match(await livePage.locator('.tc-billing').innerText(), /Online checkout is not available yet/);
       assert.equal(await livePage.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     }
+    for (const route of ['/', '/pricing/', '/vip-monthly/', '/vip-lifetime/', '/faq/', '/account/']) {
+      const response = await livePage.goto(`http://127.0.0.1:8080${route}`, { waitUntil: 'networkidle' });
+      assert.equal(response.status(), 200, `Public website responds: ${route}`);
+      assert.doesNotMatch(await livePage.locator('body').innerText(), /upgrade\.chat/i, `No retired provider instructions: ${route}`);
+      assert.equal(await livePage.locator('a[href*="upgrade.chat"]').count(), 0, 'Public pages never advertise retired checkout links');
+      if (route === '/pricing/') {
+        assert.match(await livePage.locator('.tc-price-card').nth(1).innerText(), /€29\.99/);
+        assert.match(await livePage.locator('.tc-price-card').nth(2).innerText(), /€80/);
+      }
+    }
     await livePage.close();
     assert.deepEqual(report.errors, []);
     report.passed = true;
-    console.log(`Billing browser: ${report.views.length} responsive views passed; no provider navigation or purchases.`);
+    console.log(`Billing browser: ${report.views.length} responsive views, 2 checkout routes and 6 public pages passed; no provider navigation or purchases.`);
   } finally {
     await browser.close();
     await writeFile(path.join(root, 'artifacts/billing-browser-report.json'), JSON.stringify(report, null, 2));

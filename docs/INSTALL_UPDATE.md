@@ -1,12 +1,14 @@
 # Installation and update — theme 0.10.5 / Core 0.8.6
 
+Current release: **Core 0.9.1 / theme 0.11.1**, website-only checkout, disabled by default. See [Ticket Tool links](WEBSITE_CHECKOUT_TICKET_TOOL.md) and [current billing configuration](DIRECT_BILLING_SETUP.md) before testing.
+
 ## Environment requirements
 
 - WordPress 6.5+ with PHP 8.1+; local verification uses WordPress 6.8.3/PHP 8.2/MariaDB 11.4.
 - Standard WordPress permalinks and writable uploads for public artwork only.
 - No production Node server, WooCommerce installation, or parallel payment processor is required.
 - For the new member library, also follow `MEMBER_LIBRARY_0.8.md`: OpenSSL/fileinfo, private storage outside all public roots, actual Discord configuration, cache exclusions, and real HTTPS staging tests. OAuth starts disabled.
-- Provide the real Monthly/Lifetime Upgrade.chat checkout URLs, a working support email, the current Discord invite, owner-approved legal identity/terms, and original brand assets.
+- Configure the website payment products and private credentials using [direct billing setup](DIRECT_BILLING_SETUP.md), and provide a working support email, the current Discord invite, owner-approved legal identity/terms, and original brand assets.
 - For future Discord sign-in, obtain real client/guild/role configuration separately; do not place secrets in the theme, plugin ZIP, public uploads, or repository.
 
 ## Safe update process
@@ -16,7 +18,7 @@
 3. Activate **TimonConfigs Core**, then **TimonConfigs**. Existing config content uses the unchanged `tc_config` identifier and does not require a destructive migration.
 4. Open **Tools → TimonConfigs setup** and run the explicit action. It fills missing/empty content without replacing authored pages, statuses, or assigned menus, prepares collections/draft structures, and refreshes rewrites.
 5. Confirm **Settings → Reading** uses the intended Home and inspect **Appearance → Menus**. Existing menu assignments remain authoritative. Set normal pretty permalinks if not already enabled.
-6. Enter actual Upgrade.chat URLs under **Settings → TimonConfigs**. Keep existing Stripe/PayPal products and Discord role automation unchanged. Test the redirect destination without completing a transaction.
+6. Follow [website billing setup](DIRECT_BILLING_SETUP.md) on isolated HTTPS staging. **Settings → TimonConfigs** supplies read-only Ticket Tool links; payment settings are separate under **TimonConfigs billing**. Old external destinations are ignored. Preserve earlier contracts and access; do not perform real purchases during setup.
 7. Review all 25 routes in `URL_STATUS.md`, configured Discord buttons, filters, editor previews, media playback, indexing, sitemap, and supported SEO-plugin behavior. Replace demo reviews and unpublished release drafts only with verified content.
 8. Review the policy drafts with the owner before production use; confirm entity, contact information, Lifetime scope, cancellation, refunds, privacy, and storage disclosures. Setup preserves WordPress's existing draft Privacy Policy: publish approved legal pages deliberately before expecting their public URLs to respond.
 9. Purge the target site's page/CDN cache after a staging update so CSS/JS version 0.10.5 and the artwork are served together. Compare screenshots with the approved reference. If Home showed the default welcome post, follow the targeted steps in `HOME_FIX_0.7.1.md`. An update of an already active Core still needs the explicit setup to create missing member pages; no existing content is overwritten.
@@ -46,4 +48,4 @@ For Owner/Staff settings, the frontend editor, protected Guides/Values, permitte
 
 Current upload/access policy: `UPLOAD_AND_SHARED_VIP_0.8.5.md`. Mandatory external approval was removed for ZNBK at the explicit owner request; older inspector instructions apply only to historical versions or XIMMR. Install both current packages to receive the compact form and automatic cooldown handling.
 
-Current recovery update: [Core 0.8.6 / theme 0.10.5](OWNER_UPLOAD_RECOVERY_0.8.6.md). Install both packages; preserve the existing private storage and Discord/Upgrade.chat configuration.
+Historical recovery update (superseded by current releases): [Core 0.8.6 / theme 0.10.5](OWNER_UPLOAD_RECOVERY_0.8.6.md). Install both packages; preserve existing private storage, Discord identity and earlier purchase records.

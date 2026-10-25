@@ -1,13 +1,13 @@
 # TimonConfigs WordPress website
 
-Current staging implementation: **Core 0.9.0 / theme 0.11.0** adds direct Stripe/PayPal EUR billing and scoped Discord synchronization, disabled by default. Existing Upgrade.chat sales remain in place until approved migration. See [billing setup](docs/DIRECT_BILLING_SETUP.md) and [implementation/test report](docs/DIRECT_BILLING_TEST_REPORT.md). No Live acceptance or production deployment is implied.
+Current staging implementation: **Core 0.9.1 / theme 0.11.1** adds direct Stripe/PayPal EUR billing and scoped Discord synchronization, disabled by default. New purchases use website checkout only; retired external checkout links are ignored while earlier purchases and access are preserved. Discord Ticket Tool can link to the [website checkout routes](docs/WEBSITE_CHECKOUT_TICKET_TOOL.md). See [billing setup](docs/DIRECT_BILLING_SETUP.md) and [implementation/test report](docs/DIRECT_BILLING_TEST_REPORT.md). No Live acceptance or production deployment is implied.
 
 Custom WordPress theme and business plugin for `timonconfigs.com`.
 
 ## Components
 
 - `wp-content/themes/timonconfigs` — premium marketing theme with Home, Pricing, Games, VIP plan landings, video showcase, FAQ, Contact, policy pages, config catalogue templates, block patterns, responsive navigation, and SEO metadata.
-- `wp-content/plugins/timonconfigs-core` — existing Upgrade.chat redirects, editable catalogue/CMS/SEO, private multi-file management, disabled-by-default Discord OAuth/role checks, member pages and protected session-bound downloads.
+- `wp-content/plugins/timonconfigs-core` — website Stripe/PayPal checkout, editable catalogue/CMS/SEO, private multi-file management, disabled-by-default Discord OAuth/role checks, member pages and protected session-bound downloads.
 
 The production site needs WordPress 6.5+ and PHP 8.1+. No Node.js server is required at runtime.
 
@@ -37,7 +37,7 @@ docker compose -f docker-compose.local.yml down
 4. Open **Tools → TimonConfigs setup** and run the explicit installer. It creates missing pages, fills genuinely empty content with native blocks, seeds seven game collections and three unpublished Apex draft structures, and refreshes permalinks. Existing authored content, statuses, and assigned menus are preserved.
 5. Set a static front page in **Settings → Reading**.
 6. Create and assign Primary and Footer menus in **Appearance → Menus**.
-7. Enter the real product checkout URLs under **Settings → TimonConfigs**. Only HTTPS links on `upgrade.chat` or its subdomains are accepted.
+7. Configure payment Product/Price IDs and server secrets using the [billing setup](docs/DIRECT_BILLING_SETUP.md). **Settings → TimonConfigs** provides read-only website links for Ticket Tool; external checkout destinations are retired.
 8. Edit **Pages → Home** to reorder its ten native TimonConfigs sections or change their heading/hero/benefit content. Shared prices, links, branding, and fallbacks remain in **Appearance → Customize → TimonConfigs site content**.
 9. Manage collections under **Configs → Games / Devices / Platforms**, and add release details in the Config Gutenberg editor. Keep unverified releases as drafts; empty/coming-soon collections are noindex and excluded from the core sitemap.
 10. Add FAQs, videos, and approved reviews in their dedicated Gutenberg menus. Every sample review is visibly labelled Demo Content and excluded from rating schema. Videos support native MP4/VTT and click-to-load YouTube, with inline playback by default and an optional per-entry modal.
@@ -83,10 +83,10 @@ After building the release ZIPs, run `bash tests/release-installation.sh` to ins
 
 ## Member library
 
-Read [member dashboard update](docs/MEMBER_DASHBOARD_0.9.md), [member-library handoff](docs/MEMBER_LIBRARY_0.8.md) and [PR #1 review](docs/PR_1_REVIEW.md). Private uploads use a separate Docker volume outside the web root. The explicit setup provisions Profile and My Downloads in addition to the original fourteen pages. OAuth is **off** until actual client/guild/role configuration and isolated HTTPS staging tests; no secrets are bundled. Existing payment providers and Discord automation remain unchanged.
+Read [member dashboard update](docs/MEMBER_DASHBOARD_0.9.md), [member-library handoff](docs/MEMBER_LIBRARY_0.8.md) and [PR #1 review](docs/PR_1_REVIEW.md). Private uploads use a separate Docker volume outside the web root. The explicit setup provisions Profile and My Downloads in addition to the original fourteen pages. OAuth is **off** until actual client/guild/role configuration and isolated HTTPS staging tests; no secrets are bundled. Existing purchases and Discord role IDs are preserved; new purchases use separately configured website checkout.
 
 New focused suites are `discord`, `private-files`, and `downloads` integration files. `tests/member-catalog-integration.php` uses service doubles and requires `--skip-plugins=timonconfigs-core`; flush rewrites with the real plugin after isolated presentation tests if needed. Browser tests are `tests/private-files-browser.cjs` and `tests/member-area-browser.cjs`; `node tests/download-stream.cjs` verifies delivery bytes and descriptor integrity. These mutate only disposable localhost data. No actual provider consent or purchase is automated.
 
 `node tools/capture-theme-screenshot.cjs` creates the real 1200x900 WordPress screenshot and separately retains untouched full-page captures; its compact-preview mode is documented in the tool/report.
 
-Current upload recovery: [Core 0.8.6 / theme 0.10.5](docs/OWNER_UPLOAD_RECOVERY_0.8.6.md). Install both packages for Windows GPC/TXT support and a form that preserves selected files after temporary Discord verification failures.
+Historical upload recovery (superseded by the current Core release): [Core 0.8.6 / theme 0.10.5](docs/OWNER_UPLOAD_RECOVERY_0.8.6.md). Install both packages for Windows GPC/TXT support and a form that preserves selected files after temporary Discord verification failures.

@@ -18,6 +18,7 @@ on:
       - 'tests/billing-integration.php'
       - 'tests/checkout-integration.php'
       - 'tests/site-checkout-copy-integration.php'
+      - 'tests/member-ui-integration.php'
       - '.github/workflows/wordpress-download-integration.yml'
   workflow_dispatch:
 
@@ -47,6 +48,18 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/checkout-integration.php
       - name: Retired checkout stock copy migration and authored content safety
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/site-checkout-copy-integration.php
+      - name: Member account and approved Owner UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/member-ui-integration.php > /tmp/tc-member-ui-render.log 2>&1 || { tail -c 3000 /tmp/tc-member-ui-render.log; exit 1; }
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(next(line for line in Path('/tmp/tc-member-ui-render.log').read_text().splitlines() if line.startswith('{')))
+          assert result['passed']
+          print('Member UI:', result['assertions'], 'assertions passed.')
+          PY
       - name: Protected Matrix TXT download and replay controls
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/downloads-integration.php
       - name: Compact cards and member catalog
