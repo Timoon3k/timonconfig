@@ -368,6 +368,9 @@ final class TC_Discord {
         $allowed = array( 'free' => array( 'free', 'monthly', 'lifetime' ), 'monthly' => array( 'monthly', 'lifetime' ), 'lifetime' => array( 'lifetime' ) );
         if ( ! isset( $allowed[ $tier ] ) ) { return false; }
         $status = self::status( $user_id, $force );
-        return 'unavailable' === $status['state'] ? self::error() : in_array( $status['state'], $allowed[ $tier ], true );
+        if ( 'unavailable' === $status['state'] ) { return self::error(); }
+        $role_allowed = in_array( $status['state'], $allowed[ $tier ], true );
+        $billing_allowed = class_exists( 'TC_Billing' ) ? TC_Billing::access_constraint( $tier, $user_id ?: get_current_user_id() ) : null;
+        return $role_allowed && false !== $billing_allowed;
     }
 }

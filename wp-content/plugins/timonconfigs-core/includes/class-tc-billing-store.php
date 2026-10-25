@@ -159,7 +159,7 @@ final class TC_Billing_Store {
 	}
 	private static function safe_code( string $error ): string {
 		if ( '' === $error ) { return ''; }
-		$known = array( 'billing_busy', 'billing_mode_disabled', 'billing_sync_disabled', 'billing_operation_failed', 'billing_rate_limited', 'discord_rate_limited', 'stripe_rate_limited', 'paypal_rate_limited', 'provider_disabled' );
+		$known = array( 'billing_busy', 'billing_mode_disabled', 'billing_sync_disabled', 'billing_operation_failed', 'billing_role_write_failed', 'billing_role_read_failed', 'billing_rate_limited', 'discord_rate_limited', 'stripe_rate_limited', 'paypal_rate_limited', 'provider_disabled' );
 		foreach ( array( 'disabled', 'configuration', 'binding', 'permissions', 'hierarchy', 'legacy_review', 'external_role', 'signature', 'interaction', 'intent', 'rate_limited', 'network', 'http', 'invalid_response' ) as $suffix ) { $known[] = 'tc_billing_discord_' . $suffix; }
 		// An unknown error may itself contain a token, even if it looks like a code.
 		return in_array( $error, $known, true ) ? $error : 'billing_error_' . substr( hash( 'sha256', $error ), 0, 16 );
@@ -234,17 +234,45 @@ final class TC_Billing_Store {
 		// An ambiguous external ID must never resolve to an arbitrary account.
 		return 1 === count( $rows ) ? $rows[0] : null;
 	}
-
-	public static function entitlements( int $uid, string $mode ): array {
+	/** Expired paid time does not prove that the provider stopped retrying renewal. */
+	public static function unresolved_recurring( int $uid, string $mode ): array|WP_Error {
 		global $wpdb;
-		if ( $uid < 1 || ! self::mode( $mode ) ) { return array(); }
-		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'entitlements' ) . ' WHERE user_id = %d AND mode = %s ORDER BY id ASC', $uid, $mode ), ARRAY_A );
+		if ( $uid < 1 || ! self::mode( $mode ) ) { return self::error( 'billing_invalid_order' ); }
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'orders' ) . " WHERE user_id=%d AND mode=%s AND plan='monthly' AND subscription_id IS NOT NULL AND subscription_id<>'' AND status NOT IN ('canceled','cancelled') ORDER BY created_at ASC", $uid, $mode ), ARRAY_A );
+		return '' === $wpdb->last_error && is_array( $rows ) ? $rows : self::error( 'billing_order_read_failed' );
+	}
+	public static function maintenance_needed( string $mode ): bool {
+		global $wpdb;
+		if ( ! self::mode( $mode ) ) { return false; }
+		foreach ( array( 'orders', 'entitlements', 'events', 'sync_jobs' ) as $name ) { if ( $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM ' . self::table( $name ) . ' WHERE mode=%s LIMIT 1', $mode ) ) ) { return true; } }
+		return false;
+	}
+	/** Also expires grant-only memberships, independently of provider orders. */
+	public static function expire_entitlements( string $mode ): int|WP_Error {
+		global $wpdb;
+		if ( ! self::mode( $mode ) ) { return self::error( 'billing_invalid_mode' ); }
+		return self::transaction( static function () use ( $wpdb, $mode ): int|WP_Error {
+			$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id,user_id FROM ' . self::table( 'entitlements' ) . " WHERE mode=%s AND plan='monthly' AND status='active' AND valid_until<=%s ORDER BY valid_until ASC LIMIT 50 FOR UPDATE", $mode, self::now() ), ARRAY_A );
+			if ( '' !== $wpdb->last_error || ! is_array( $rows ) ) { return self::error( 'billing_entitlement_read_failed' ); }
+			foreach ( $rows as $row ) {
+				if ( false === $wpdb->update( self::table( 'entitlements' ), array( 'status' => 'expired', 'updated_at' => self::now() ), array( 'id' => $row['id'] ) ) || ! self::write_sync( (int) $row['user_id'], $mode ) ) { return self::error( 'billing_entitlement_write_failed' ); }
+			}
+			return count( $rows );
+		} );
 	}
 
-	public static function active( int $uid, string $mode ): array {
+	public static function entitlements( int $uid, string $mode ): array|WP_Error {
 		global $wpdb;
 		if ( $uid < 1 || ! self::mode( $mode ) ) { return array(); }
-		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'entitlements' ) . " WHERE user_id = %d AND mode = %s AND status = 'active' AND ((plan = 'lifetime' AND valid_until IS NULL) OR valid_until > %s) ORDER BY id ASC", $uid, $mode, self::now() ), ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'entitlements' ) . ' WHERE user_id = %d AND mode = %s ORDER BY id ASC', $uid, $mode ), ARRAY_A );
+		return '' === $wpdb->last_error && is_array( $rows ) ? $rows : self::error( 'billing_entitlement_read_failed' );
+	}
+
+	public static function active( int $uid, string $mode ): array|WP_Error {
+		global $wpdb;
+		if ( $uid < 1 || ! self::mode( $mode ) ) { return array(); }
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'entitlements' ) . " WHERE user_id = %d AND mode = %s AND status = 'active' AND ((plan = 'lifetime' AND valid_until IS NULL) OR valid_until > %s) ORDER BY id ASC", $uid, $mode, self::now() ), ARRAY_A );
+		return '' === $wpdb->last_error && is_array( $rows ) ? $rows : self::error( 'billing_entitlement_read_failed' );
 	}
 
 	public static function entitlement( string $source ): ?array {
@@ -388,17 +416,19 @@ final class TC_Billing_Store {
 		return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'sync_jobs' ) . ' WHERE user_id = %d AND mode = %s', $uid, $mode ), ARRAY_A ) ?: array();
 	}
 
-	public static function owned_roles( int $uid, string $mode ): array {
+	public static function owned_roles( int $uid, string $mode ): array|WP_Error {
 		global $wpdb;
 		if ( $uid < 1 || ! self::mode( $mode ) ) { return array(); }
-		return $wpdb->get_results( $wpdb->prepare( 'SELECT guild_id,role_id FROM ' . self::table( 'owned_roles' ) . ' WHERE user_id = %d AND mode = %s ORDER BY id ASC', $uid, $mode ), ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT guild_id,role_id FROM ' . self::table( 'owned_roles' ) . ' WHERE user_id = %d AND mode = %s ORDER BY id ASC', $uid, $mode ), ARRAY_A );
+		return '' === $wpdb->last_error && is_array( $rows ) ? $rows : self::error( 'billing_role_read_failed' );
 	}
-	public static function own_role( int $uid, string $mode, string $guild, string $role, bool $owned ): void {
+	public static function own_role( int $uid, string $mode, string $guild, string $role, bool $owned ): bool|WP_Error {
 		global $wpdb;
-		if ( $uid < 1 || ! self::mode( $mode ) || ! self::discord( $guild ) || ! self::discord( $role ) ) { return; }
+		if ( $uid < 1 || ! self::mode( $mode ) || ! self::discord( $guild ) || ! self::discord( $role ) ) { return self::error( 'billing_role_write_failed' ); }
 		$table = self::table( 'owned_roles' );
-		if ( $owned ) { $wpdb->query( $wpdb->prepare( "INSERT INTO $table (user_id,mode,guild_id,role_id,created_at) VALUES (%d,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE id = id", $uid, $mode, $guild, $role, self::now() ) ); }
-		else { $wpdb->delete( $table, array( 'user_id' => $uid, 'mode' => $mode, 'guild_id' => $guild, 'role_id' => $role ) ); }
+		if ( $owned ) { $result = $wpdb->query( $wpdb->prepare( "INSERT INTO $table (user_id,mode,guild_id,role_id,created_at) VALUES (%d,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE id = id", $uid, $mode, $guild, $role, self::now() ) ); }
+		else { $result = $wpdb->delete( $table, array( 'user_id' => $uid, 'mode' => $mode, 'guild_id' => $guild, 'role_id' => $role ) ); }
+		return false === $result ? self::error( 'billing_role_write_failed' ) : true;
 	}
 
 	public static function due_reconcile( int $limit = 10 ): array {

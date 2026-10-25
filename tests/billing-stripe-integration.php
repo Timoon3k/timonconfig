@@ -162,9 +162,23 @@ $tc_cancelled_sub = $tc_sub; $tc_cancelled_sub['cancel_at_period_end'] = true; $
 $tc_routes['GET subscriptions/sub_monthly'] = $tc_cancelled_sub;
 $tc_cancelled = TC_Billing_Stripe::reconcile( array_replace( $tc_event, array( 'type' => 'customer.subscription.deleted', 'object_id' => 'sub_monthly' ) ) );
 $tc_assert( ! is_wp_error( $tc_cancelled ) && 'active' === $tc_cancelled['entitlement']['status'] && $tc_result['entitlement']['valid_until'] === $tc_cancelled['entitlement']['valid_until'] && null === $tc_cancelled['entitlement']['next_payment_at'], 'Cancellation retains the prepaid period and stops the future billing display.' );
+$tc_assert( 'canceled' === $tc_cancelled['order_fields']['status'], 'A canonically canceled contract records proof of stopped renewals independently of prepaid access.' );
+$tc_routes = $tc_base_routes;
+$tc_routes['GET subscriptions/sub_monthly']['status'] = 'incomplete_expired';
+$tc_routes['GET invoices?subscription=sub_monthly&status=paid&limit=100']['data'] = array();
+$tc_never_paid_stop = TC_Billing_Stripe::reconcile( $tc_event );
+$tc_assert( ! is_wp_error( $tc_never_paid_stop ) && 'canceled' === $tc_never_paid_stop['order_fields']['status'] && null === $tc_never_paid_stop['order_fields']['next_payment_at'] && ! isset( $tc_never_paid_stop['entitlement'] ), 'An incomplete-expired contract proves stopped renewals without fabricating paid access.' );
+foreach ( array( 'active', 'past_due', 'unpaid' ) as $tc_running_status ) {
+	$tc_routes = $tc_base_routes;
+	$tc_routes['GET subscriptions/sub_monthly']['status'] = $tc_running_status;
+	$tc_routes['GET subscriptions/sub_monthly']['cancel_at_period_end'] = true;
+	$tc_scheduled_stop = TC_Billing_Stripe::reconcile( $tc_event );
+	$tc_assert( ! is_wp_error( $tc_scheduled_stop ) && 'canceled' !== $tc_scheduled_stop['order_fields']['status'] && 'active' === $tc_scheduled_stop['entitlement']['status'] && $tc_result['entitlement']['valid_until'] === $tc_scheduled_stop['entitlement']['valid_until'], 'A scheduled cancellation does not prove a stopped contract while canonical status is ' . $tc_running_status . '.' );
+}
 $tc_routes = $tc_base_routes; $tc_routes['GET subscriptions/sub_monthly']['status'] = 'past_due';
 $tc_failure = TC_Billing_Stripe::reconcile( array_replace( $tc_event, array( 'type' => 'invoice.payment_failed' ) ) );
 $tc_assert( ! is_wp_error( $tc_failure ) && $tc_result['entitlement']['valid_until'] === $tc_failure['entitlement']['valid_until'] && 'active' === $tc_failure['entitlement']['status'], 'A failed renewal neither extends nor removes paid access.' );
+$tc_assert( 'canceled' !== $tc_failure['order_fields']['status'], 'A failed renewal never records stopped-contract proof.' );
 $tc_routes['GET invoices?subscription=sub_monthly&status=paid&limit=100']['data'] = array();
 $tc_failure = TC_Billing_Stripe::reconcile( $tc_event );
 $tc_assert( ! is_wp_error( $tc_failure ) && ! isset( $tc_failure['entitlement'] ), 'Missing canonical paid evidence never replaces an existing entitlement.' );

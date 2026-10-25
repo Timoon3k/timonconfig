@@ -14,6 +14,7 @@ foreach ( array( 'store', 'discord' ) as $class ) {
 if ( ! class_exists( 'TC_Billing' ) ) { require WP_PLUGIN_DIR . '/timonconfigs-core/includes/class-tc-billing.php'; }
 
 $checks = 0;
+global $wpdb;
 $assert = static function ( bool $ok, string $message ) use ( &$checks ): void { if ( ! $ok ) { throw new RuntimeException( $message ); } ++$checks; };
 $old_billing = get_option( 'timonconfigs_billing', null );
 $old_oauth = get_option( 'timonconfigs_discord', null );
@@ -135,7 +136,8 @@ try {
     $error = TC_Billing_Discord::sync( $job );
     $assert( is_wp_error( $error ) && 'tc_billing_discord_external_role' === $error->get_error_code() && ! $writes() && ! TC_Billing_Store::owned_roles( $uid, 'test' ), 'A pre-existing legacy role is never adopted or removed, even after review.' );
     $source( 'monthly', 'monthly' );
-    $assert( true === TC_Billing_Discord::sync( $job ) && ! $writes() && ! TC_Billing_Store::owned_roles( $uid, 'test' ), 'Active purchase still does not adopt a pre-existing role.' );
+    $error = TC_Billing_Discord::sync( $job );
+    $assert( is_wp_error( $error ) && 'tc_billing_discord_external_role' === $error->get_error_code() && ! $writes() && ! TC_Billing_Store::owned_roles( $uid, 'test' ), 'Active purchase preserves an external role and reports manual review instead of silently claiming synchronization.' );
     $source( 'monthly', 'monthly', 'revoked' ); $member_roles = array();
     TC_Billing_Store::own_role( $uid, 'test', $ids['guild'], $ids['monthly'], true );
     $assert( true === TC_Billing_Discord::sync( $job ) && ! TC_Billing_Store::owned_roles( $uid, 'test' ), 'A canonically missing role clears its stale ownership before external re-addition.' );
@@ -146,6 +148,36 @@ try {
     $source( 'lifetime-independent', 'lifetime', 'revoked' ); $fault = 'write-429';
     $assert( is_wp_error( TC_Billing_Discord::sync( $job ) ) && 1 === count( TC_Billing_Store::owned_roles( $uid, 'test' ) ), 'Failed DELETE keeps ownership for a safe retry.' );
     $fault = ''; $assert( true === TC_Billing_Discord::sync( $job ), 'Queued role deletion can recover.' );
+    $source( 'marker-failure', 'monthly' ); $requests = array();
+    $ownership_table = $wpdb->prefix . 'tc_billing_owned_roles';
+    $sql_operation = 'INSERT'; $sql_faulted = false;
+    $ownership_fault = static function ( string $sql ) use ( $ownership_table, &$sql_operation, &$sql_faulted ): string {
+        if ( ! $sql_faulted && str_starts_with( $sql, $sql_operation . ' ' ) && str_contains( $sql, $ownership_table ) ) {
+            $sql_faulted = true;
+            return 'SELECT tc_missing_ownership_fixture_column FROM ' . $ownership_table;
+        }
+        return $sql;
+    };
+    $suppress = $wpdb->suppress_errors( true ); add_filter( 'query', $ownership_fault );
+    try { $error = TC_Billing_Discord::sync( $job ); }
+    finally { remove_filter( 'query', $ownership_fault ); $wpdb->suppress_errors( $suppress ); }
+    $assert( $sql_faulted && is_wp_error( $error ) && 'billing_role_write_failed' === $error->get_error_code() && 1 === count( $writes() ) && array( $ids['monthly'] ) === $member_roles && ! TC_Billing_Store::owned_roles( $uid, 'test' ), 'A successful remote add with a failed ownership write is reported, never falsely completed.' );
+    $requests = array(); $error = TC_Billing_Discord::sync( $job );
+    $assert( is_wp_error( $error ) && 'tc_billing_discord_external_role' === $error->get_error_code() && ! $writes() && ! TC_Billing_Store::owned_roles( $uid, 'test' ), 'Retry preserves the uncertain role without adopting it or manufacturing ownership with another PUT.' );
+    // Resolve the synthetic uncertainty as an operator would, then verify failed removal markers.
+    $assert( true === TC_Billing_Store::own_role( $uid, 'test', $ids['guild'], $ids['monthly'], true ), 'Fixture records operator-resolved role ownership.' );
+    $sql_operation = 'SELECT'; $sql_faulted = false; $requests = array();
+    $suppress = $wpdb->suppress_errors( true ); add_filter( 'query', $ownership_fault );
+    try { $error = TC_Billing_Discord::sync( $job ); }
+    finally { remove_filter( 'query', $ownership_fault ); $wpdb->suppress_errors( $suppress ); }
+    $assert( $sql_faulted && is_wp_error( $error ) && 'billing_role_read_failed' === $error->get_error_code() && ! $writes(), 'Unavailable ownership data prevents all remote mutations.' );
+    $source( 'marker-failure', 'monthly', 'revoked' ); $sql_operation = 'DELETE'; $sql_faulted = false; $requests = array();
+    $suppress = $wpdb->suppress_errors( true ); add_filter( 'query', $ownership_fault );
+    try { $error = TC_Billing_Discord::sync( $job ); }
+    finally { remove_filter( 'query', $ownership_fault ); $wpdb->suppress_errors( $suppress ); }
+    $assert( $sql_faulted && is_wp_error( $error ) && 'billing_role_write_failed' === $error->get_error_code() && 1 === count( $writes() ) && ! $member_roles && 1 === count( TC_Billing_Store::owned_roles( $uid, 'test' ) ), 'A failed removal marker stays retryable after the remote role is gone.' );
+    $requests = array();
+    $assert( true === TC_Billing_Discord::sync( $job ) && ! $writes() && ! TC_Billing_Store::owned_roles( $uid, 'test' ), 'Retry clears a stale marker without repeating the remote deletion.' );
     $source( 'expired', 'monthly', 'active', null, gmdate( 'Y-m-d H:i:s', time() - 1 ) ); $requests = array();
     $assert( true === TC_Billing_Discord::sync( $job ) && ! $writes(), 'An expired active-status Monthly row never grants a role.' );
     $source( 'wrong-identity', 'monthly', 'active', $ids['other'] );
@@ -170,6 +202,15 @@ try {
         $response = TC_Billing_Discord::interaction( ...$signed( $command( $name ) ) );
         $assert( is_array( $response ) && 64 === $response['data']['flags'] && str_contains( $response['data']['content'], home_url( '/account/' ) ) && array() === $response['data']['allowed_mentions']['parse'], 'Ephemeral controlled account link for /' . $name );
     }
+    $response = TC_Billing_Discord::interaction( ...$signed( $command( 'membership' ) ) );
+    $assert( str_contains( $response['data']['content'], 'No current direct or imported paid access' ) && str_contains( $response['data']['content'], 'TEST environment' ), 'Membership checks only the signed actor’s bound ledger and clearly labels Test.' );
+    $source( 'membership-command', 'lifetime' );
+    $response = TC_Billing_Discord::interaction( ...$signed( $command( 'membership' ) ) );
+    $assert( str_contains( $response['data']['content'], 'Verified billing access: VIP Lifetime' ), 'Membership reports the actor’s current verified paid package without provider HTTP.' );
+    $source( 'membership-command', 'lifetime', 'revoked' );
+    $unlinked = $command( 'membership' ); $unlinked['member']['user']['id'] = $ids['guild_owner'];
+    $response = TC_Billing_Discord::interaction( ...$signed( $unlinked ) );
+    $assert( str_contains( $response['data']['content'], 'Link this Discord account' ) && ! str_contains( $response['data']['content'], 'VIP Lifetime' ), 'An unlinked signed actor cannot see another member’s billing access.' );
     $assert( is_wp_error( TC_Billing_Discord::interaction( ...$signed( $command( 'buy', array( array( 'name' => 'plan', 'type' => 3, 'value' => 'owner' ) ) ) ) ) ), 'Unconfigured plans cannot create an intent.' );
     $token = $issue( 'lifetime' );
     $stored = get_transient( 'tc_billing_intent_' . hash( 'sha256', $token ) );

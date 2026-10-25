@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.10.6' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.11.0' );
 
 require_once get_template_directory() . '/inc/customizer.php';
 require_once get_template_directory() . '/inc/seo.php';
@@ -42,7 +42,7 @@ add_action(
 	static function (): void {
 		wp_enqueue_style( 'timonconfigs', get_template_directory_uri() . '/assets/css/main.css', array(), TIMONCONFIGS_THEME_VERSION );
 		wp_enqueue_style( 'timonconfigs-premium', get_template_directory_uri() . '/assets/css/premium.css', array( 'timonconfigs' ), TIMONCONFIGS_THEME_VERSION );
-		foreach ( array( 'catalog', 'media', 'member', 'config-content', 'owner-editor' ) as $stylesheet ) {
+		foreach ( array( 'catalog', 'media', 'member', 'config-content', 'owner-editor', 'billing' ) as $stylesheet ) {
 			if ( file_exists( get_template_directory() . '/assets/css/' . $stylesheet . '.css' ) ) {
 				wp_enqueue_style( 'timonconfigs-' . $stylesheet, get_template_directory_uri() . '/assets/css/' . $stylesheet . '.css', array( 'timonconfigs-premium' ), TIMONCONFIGS_THEME_VERSION );
 			}
@@ -149,6 +149,18 @@ function timonconfigs_plan_url( string $plan ): string {
 	return home_url( '/pricing/' );
 }
 
+/** Public amounts share the billing catalogue; saved theme prices never set a charge. */
+function timonconfigs_display_price( string $plan ): string {
+	if ( 'free' === $plan ) { return '€0'; }
+	if ( is_callable( array( 'TC_Billing', 'display_price' ) ) ) { return TC_Billing::display_price( $plan ); }
+	return array( 'monthly' => '€29.99', 'lifetime' => '€80' )[ $plan ] ?? '';
+}
+
+/** Keep checkout instructions aligned with the active, approved routing. */
+function timonconfigs_direct_billing(): bool {
+	return is_callable( array( 'TC_Billing', 'direct_enabled' ) ) && TC_Billing::direct_enabled();
+}
+
 /** Keep the community CTA visible while pointing to honest contact guidance until configured. */
 function timonconfigs_community_url(): string {
 	$url = (string) get_theme_mod( 'timonconfigs_discord_url', '' );
@@ -169,10 +181,10 @@ function timonconfigs_faq_items(): array {
 		);
 	}
 	return array(
-		array( 'question' => 'How do I receive my configs?', 'answer' => 'Explore Free access or choose a VIP plan. Upgrade.chat manages checkout and Discord role delivery.' ),
+		array( 'question' => 'How do I receive my configs?', 'answer' => timonconfigs_direct_billing() ? 'Explore Free access or choose a VIP plan. Sign in with Discord before secure hosted checkout. Your account shows verified payment and Discord access status.' : 'Explore Free access or choose a VIP plan. Upgrade.chat manages checkout and Discord role delivery.' ),
 		array( 'question' => 'Do I need a Cronus Zen or XIM Matrix?', 'answer' => 'Yes. Each configuration lists its supported device, input method, and platform. Check these details before choosing a plan.' ),
 		array( 'question' => 'Which games are supported?', 'answer' => 'Apex Legends is the current flagship collection. Additional releases appear only when their compatibility details are ready.' ),
-		array( 'question' => 'What does VIP Lifetime include?', 'answer' => 'A one-time €100 license with access and updates defined by the Lifetime terms presented at checkout.' ),
+		array( 'question' => 'What does VIP Lifetime include?', 'answer' => sprintf( 'A one-time %s license with access and updates defined by the Lifetime terms presented at checkout.', timonconfigs_display_price( 'lifetime' ) ) ),
 		array( 'question' => 'Do you offer refunds?', 'answer' => 'Review the Refund Policy for digital access, subscription cancellation, and support. Statutory consumer rights remain unaffected.' ),
 	);
 }

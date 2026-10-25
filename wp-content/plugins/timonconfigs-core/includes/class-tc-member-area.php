@@ -107,6 +107,11 @@ final class TC_Member_Area {
 
 	private static function ready(): bool { return class_exists( 'TC_Discord' ) && is_callable( array( 'TC_Discord', 'is_ready' ) ) && TC_Discord::is_ready(); }
 	private static function account_url(): string { return home_url( '/account/' ); }
+	private static function display_price( string $plan ): string {
+		if ( 'free' === $plan ) { return '€0'; }
+		if ( is_callable( array( 'TC_Billing', 'display_price' ) ) ) { return TC_Billing::display_price( $plan ); }
+		return array( 'monthly' => '€29.99', 'lifetime' => '€80' )[ $plan ] ?? '';
+	}
 
 	private static function navigation( bool $downloads ): void {
 		?>
@@ -188,26 +193,31 @@ final class TC_Member_Area {
 				</section>
 				<?php if ( ! $downloads ) { self::quick_actions(); } ?>
 				<?php if ( $downloads ) : ?><p class="tc-member-note">Downloads are available on each <a href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">configuration page</a>. Your download history remains private.</p><?php endif; ?>
-				<?php self::memberships( $state ); ?>
-				<section class="tc-member-management"><div class="tc-member-section-heading"><h2>Membership management</h2></div><p>Manage an existing subscription in the Upgrade.chat account used for your purchase. Cancellation and billing stay with Upgrade.chat and its payment providers. For a missing role or account mismatch, contact support.</p><div class="tc-actions"><a class="tc-button tc-button--ghost" href="https://upgrade.chat/" rel="noopener noreferrer">Open Upgrade.chat</a><a class="tc-text-link" href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Get membership support</a></div></section>
+				<?php
+				$billing_account = is_callable( array( 'TC_Billing', 'render_account' ) ) ? TC_Billing::render_account( get_current_user_id() ) : '';
+				$direct_billing = ( is_callable( array( 'TC_Billing', 'direct_enabled' ) ) && TC_Billing::direct_enabled() ) || '' !== trim( $billing_account );
+				self::memberships( $state, $direct_billing );
+				echo $billing_account; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Billing owns and escapes its private account markup.
+				?>
+				<?php if ( ! $direct_billing ) : ?><section class="tc-member-management"><div class="tc-member-section-heading"><h2>Membership management</h2></div><p>Manage an existing subscription in the Upgrade.chat account used for your purchase. Cancellation and billing stay with Upgrade.chat and its payment providers. For a missing role or account mismatch, contact support.</p><div class="tc-actions"><a class="tc-button tc-button--ghost" href="https://upgrade.chat/" rel="noopener noreferrer">Open Upgrade.chat</a><a class="tc-text-link" href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">Get membership support</a></div></section><?php endif; ?>
 			<?php endif; ?>
 		</div>
 		<?php
 		return (string) ob_get_clean();
 	}
 
-	private static function memberships( string $state ): void {
+	private static function memberships( string $state, bool $direct_billing = false ): void {
 		$plans = array(
-			'free' => array( 'Free', '€0', 'Selected protected releases after Discord verification.', home_url( '/configs/?tier=free' ) ),
-			'monthly' => array( 'VIP Monthly', '€40', 'Recurring access to the covered premium library.', home_url( '/vip-monthly/' ) ),
-			'lifetime' => array( 'VIP Lifetime', '€100', 'One-time access under the purchased Lifetime license.', home_url( '/vip-lifetime/' ) ),
+			'free' => array( 'Free', 'Selected protected releases after Discord verification.', home_url( '/configs/?tier=free' ) ),
+			'monthly' => array( 'VIP Monthly', 'Recurring access to the covered premium library.', home_url( '/vip-monthly/' ) ),
+			'lifetime' => array( 'VIP Lifetime', 'One-time access under the purchased Lifetime license.', home_url( '/vip-lifetime/' ) ),
 		);
 		?>
 		<section class="tc-member-memberships" aria-labelledby="tc-member-memberships"><div class="tc-member-section-heading"><h2 id="tc-member-memberships">Your memberships</h2><a href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">Browse Memberships</a></div><div class="tc-member-plan-grid">
 		<?php foreach ( $plans as $plan => $values ) : $included = $plan === $state || ( 'free' === $plan && in_array( $state, array( 'monthly', 'lifetime' ), true ) ) || ( 'monthly' === $plan && 'lifetime' === $state ); ?>
-			<article class="tc-member-plan<?php echo $included ? ' is-included' : ''; ?>"><span class="tc-member-plan__status"><?php echo esc_html( $plan === $state ? ( 'lifetime' === $plan ? 'Current license' : 'Current membership' ) : ( $included ? 'Included access' : ( 'free' === $plan ? 'Verification required' : 'Available membership' ) ) ); ?></span><h3><?php echo esc_html( get_theme_mod( 'timonconfigs_plan_' . $plan . '_name', $values[0] ) ); ?></h3><p class="tc-member-plan__price"><?php echo esc_html( get_theme_mod( 'timonconfigs_plan_' . $plan . '_price', $values[1] ) ); ?><small><?php echo 'monthly' === $plan ? '/ month' : ( 'lifetime' === $plan ? 'one time' : 'Free access' ); ?></small></p><p><?php echo esc_html( $values[2] ); ?></p><a class="tc-text-link" href="<?php echo esc_url( $values[3] ); ?>"><?php echo $included ? 'View included access' : ( 'free' === $plan ? 'Explore Free configs' : 'View membership' ); ?></a></article>
+			<article class="tc-member-plan<?php echo $included ? ' is-included' : ''; ?>"><span class="tc-member-plan__status"><?php echo esc_html( $plan === $state ? ( 'lifetime' === $plan ? 'Current license' : 'Current membership' ) : ( $included ? 'Included access' : ( 'free' === $plan ? 'Verification required' : 'Available membership' ) ) ); ?></span><h3><?php echo esc_html( get_theme_mod( 'timonconfigs_plan_' . $plan . '_name', $values[0] ) ); ?></h3><p class="tc-member-plan__price"><?php echo esc_html( self::display_price( $plan ) ); ?><small><?php echo 'monthly' === $plan ? '/ month' : ( 'lifetime' === $plan ? 'one time' : 'Free access' ); ?></small></p><p><?php echo esc_html( $values[1] ); ?></p><a class="tc-text-link" href="<?php echo esc_url( $values[2] ); ?>"><?php echo $included ? 'View included access' : ( 'free' === $plan ? 'Explore Free configs' : 'View membership' ); ?></a></article>
 		<?php endforeach; ?>
-		</div><p class="tc-member-note">Membership status comes from current Discord roles. Manage existing billing through Upgrade.chat; this website does not create a separate subscription.</p></section>
+		</div><p class="tc-member-note"><?php echo $direct_billing ? 'Membership badges reflect your current Discord roles. Review payment, renewal, and access sync status below.' : 'Membership status comes from current Discord roles. Manage existing billing through Upgrade.chat; this website does not create a separate subscription.'; ?></p></section>
 		<?php
 	}
 

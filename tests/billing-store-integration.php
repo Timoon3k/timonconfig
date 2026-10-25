@@ -33,7 +33,7 @@ try {
 		$state = $wpdb->get_row( $wpdb->prepare( 'SHOW TABLE STATUS WHERE Name = %s', $table ), ARRAY_A );
 		$assert( $state && 'InnoDB' === $state['Engine'], 'Every ledger/outbox/lease table is InnoDB.' );
 	}
-	foreach ( array( 'first', 'second' ) as $name ) {
+	foreach ( array( 'first', 'second', 'grant_only' ) as $name ) {
 		$uid = wp_insert_user( array( 'user_login' => $tag . '_' . $name, 'user_pass' => wp_generate_password( 40, true, true ), 'role' => 'subscriber' ) );
 		if ( is_wp_error( $uid ) ) { throw new RuntimeException( 'Could not create disposable ledger fixture.' ); } $uids[] = $uid;
 	}
@@ -163,6 +163,14 @@ try {
 	TC_Billing_Store::locked( $key, static function () use ( $wpdb, $tables, $hash, $successor ) { $wpdb->update( $tables['leases'], array( 'nonce' => $successor ), array( 'lease_key' => $hash ) ); return true; } );
 	$assert( $successor === $wpdb->get_var( $wpdb->prepare( 'SELECT nonce FROM ' . $tables['leases'] . ' WHERE lease_key = %s', $hash ) ), 'A stale lease owner cannot delete its successor lease.' );
 	$wpdb->delete( $tables['leases'], array( 'lease_key' => $hash ) );
+	$fence_key = $tag . ':financial-read'; $fence_event = $make_event( $monthly, 'fenced' );
+	$expired = TC_Billing_Store::locked( $fence_key, static function () use ( $wpdb, $tables, $fence_key, $fence_event, $monthly ) {
+		$wpdb->update( $tables['leases'], array( 'expires_at' => '2000-01-01 00:00:00' ), array( 'lease_key' => hash( 'sha256', $fence_key ) ) );
+		return TC_Billing_Store::apply_event( (int) $fence_event['id'], array( 'order_id' => $monthly['id'], 'order_fields' => array() ), $fence_key );
+	} );
+	$assert( is_wp_error( $expired ) && 'billing_busy' === $expired->get_error_code() && 'pending' === TC_Billing_Store::event( (int) $fence_event['id'] )['status'], 'An expired financial-read lease cannot commit a stale provider snapshot.' );
+	$applied = TC_Billing_Store::locked( $fence_key, static fn() => TC_Billing_Store::apply_event( (int) $fence_event['id'], array( 'order_id' => $monthly['id'], 'order_fields' => array() ), $fence_key ) );
+	$assert( true === $applied && 'done' === TC_Billing_Store::event( (int) $fence_event['id'] )['status'], 'A current financial-read lease is fenced inside the same committing transaction.' );
 	$diagnostics = TC_Billing_Store::diagnostics( 1 );
 	$assert( count( $diagnostics['events'] ) <= 1 && count( $diagnostics['jobs'] ) <= 1, 'Admin diagnostic lists are bounded.' );
 	$all = wp_json_encode( TC_Billing_Store::diagnostics( 100 ) );
@@ -189,6 +197,59 @@ try {
 	TC_Billing_Store::enqueue_sync( $uid, 'test' ); TC_Billing_Store::due_syncs( 100 );
 	TC_Billing_Store::sync_result( (int) $job['id'], 'error', 'tc_billing_discord_legacy_review', 3600 );
 	$assert( 'tc_billing_discord_legacy_review' === TC_Billing_Store::sync_state( $uid, 'test' )['last_error'], 'A hardcoded manual-review diagnostic remains explicit while arbitrary errors are redacted.' );
+	foreach ( array( 'unresolved_recurring', 'active', 'entitlements' ) as $read_method ) {
+		$read_faulted = false; $read_table = 'unresolved_recurring' === $read_method ? $tables['orders'] : $tables['entitlements'];
+		$read_fault = static function ( string $sql ) use ( &$read_faulted, $read_table ): string {
+			if ( ! $read_faulted && str_starts_with( $sql, 'SELECT ' ) && str_contains( $sql, $read_table ) ) { $read_faulted = true; return 'SELECT tc_fixture_missing_ledger_column FROM ' . $read_table; }
+			return $sql;
+		};
+		$old_suppress = $wpdb->suppress_errors( true ); add_filter( 'query', $read_fault );
+		try { $unavailable_read = TC_Billing_Store::$read_method( $uid, 'test' ); }
+		finally { remove_filter( 'query', $read_fault ); $wpdb->suppress_errors( $old_suppress ); }
+		$assert( $read_faulted && is_wp_error( $unavailable_read ), 'A failed ' . $read_method . ' read reports unavailable coverage instead of an empty authoritative ledger.' );
+	}
+
+	// Grant-only subscriptions have no order to drive reconciliation. Their
+	// expiration and its outbox job must still commit or roll back together.
+	$grant_uid = $uids[2]; $expiry_sources = array(); $past = gmdate( 'Y-m-d H:i:s', time() - HOUR_IN_SECONDS );
+	foreach ( array( 'grant', 'legacy', 'operator' ) as $provider ) {
+		$expiring = array( 'source' => $tag . ':expiry:' . $provider, 'user_id' => $grant_uid, 'discord_id' => $other_discord, 'provider' => $provider, 'mode' => 'test', 'plan' => 'monthly', 'status' => 'active', 'valid_until' => $past );
+		$sources[] = $expiring['source']; $expiry_sources[] = $expiring['source']; $must( TC_Billing_Store::upsert_entitlement( $expiring ) );
+	}
+	$live_grant = $expiring; $live_grant['source'] = $tag . ':expiry:live'; $live_grant['provider'] = 'grant'; $live_grant['mode'] = 'live'; $sources[] = $live_grant['source']; $must( TC_Billing_Store::upsert_entitlement( $live_grant ) );
+	$lifetime_grant = $expiring; $lifetime_grant['source'] = $tag . ':expiry:lifetime'; $lifetime_grant['provider'] = 'grant'; $lifetime_grant['plan'] = 'lifetime'; $lifetime_grant['valid_until'] = null; $sources[] = $lifetime_grant['source']; $must( TC_Billing_Store::upsert_entitlement( $lifetime_grant ) );
+	$assert( array() === TC_Billing_Store::orders_for_user( $grant_uid, 'test' ) && array() === TC_Billing_Store::sync_state( $grant_uid, 'test' ), 'Grant-only expiry does not rely on an order or a pre-existing sync job.' );
+	$expiry_read_faulted = false;
+	$expiry_read_fault = static function ( string $sql ) use ( &$expiry_read_faulted, $tables ): string {
+		if ( ! $expiry_read_faulted && str_starts_with( $sql, 'SELECT id,user_id FROM ' . $tables['entitlements'] ) ) { $expiry_read_faulted = true; return 'SELECT tc_fixture_missing_expiry_read FROM ' . $tables['entitlements']; }
+		return $sql;
+	};
+	$old_suppress = $wpdb->suppress_errors( true ); add_filter( 'query', $expiry_read_fault );
+	try { $expiry_read_failed = TC_Billing_Store::expire_entitlements( 'test' ); }
+	finally { remove_filter( 'query', $expiry_read_fault ); $wpdb->suppress_errors( $old_suppress ); }
+	$unchanged = array_map( static fn( string $source ): string => TC_Billing_Store::entitlement( $source )['status'], $expiry_sources );
+	$assert( $expiry_read_faulted && is_wp_error( $expiry_read_failed ) && array( 'active', 'active', 'active' ) === $unchanged && array() === TC_Billing_Store::sync_state( $grant_uid, 'test' ), 'An expiry candidate-read failure is explicit and cannot change coverage or enqueue incomplete state.' );
+	$expiry_faulted = false;
+	$expiry_fault = static function ( string $sql ) use ( &$expiry_faulted, $tables ): string {
+		if ( ! $expiry_faulted && str_starts_with( $sql, 'INSERT INTO ' . $tables['sync_jobs'] ) ) { $expiry_faulted = true; return 'INSERT INTO ' . $tables['sync_jobs'] . ' (tc_fixture_missing_expiry_column) VALUES (1)'; }
+		return $sql;
+	};
+	$old_suppress = $wpdb->suppress_errors( true ); add_filter( 'query', $expiry_fault );
+	try { $expiry_failed = TC_Billing_Store::expire_entitlements( 'test' ); }
+	finally { remove_filter( 'query', $expiry_fault ); $wpdb->suppress_errors( $old_suppress ); }
+	$assert( $expiry_faulted && is_wp_error( $expiry_failed ), 'An expiry outbox write failure returns a safe transaction error.' );
+	$still_active = array_map( static fn( string $source ): string => TC_Billing_Store::entitlement( $source )['status'], $expiry_sources );
+	$assert( array( 'active', 'active', 'active' ) === $still_active && array() === TC_Billing_Store::sync_state( $grant_uid, 'test' ), 'A failed expiry transaction rolls back every status change and leaves no partial outbox job.' );
+	$expired_count = $must( TC_Billing_Store::expire_entitlements( 'test' ) );
+	$expired_statuses = array_map( static fn( string $source ): string => TC_Billing_Store::entitlement( $source )['status'], $expiry_sources );
+	$assert( $expired_count >= 3 && array( 'expired', 'expired', 'expired' ) === $expired_statuses, 'Monthly expiry applies equally to grants, reviewed legacy subscriptions and independent operator coverage.' );
+	$expiry_state = TC_Billing_Store::sync_state( $grant_uid, 'test' );
+	$assert( 'pending' === ( $expiry_state['status'] ?? '' ), 'Successful grant-only expiration commits a durable recomputation job.' );
+	$assert( 'active' === TC_Billing_Store::entitlement( $live_grant['source'] )['status'] && array() === TC_Billing_Store::sync_state( $grant_uid, 'live' ), 'Test expiration leaves the other mode’s source and outbox untouched.' );
+	$remaining = TC_Billing_Store::active( $grant_uid, 'test' );
+	$assert( 1 === count( $remaining ) && $lifetime_grant['source'] === $remaining[0]['source'], 'Expiring Monthly sources preserves the independent unlimited Lifetime grant.' );
+	$assert( 0 === $must( TC_Billing_Store::expire_entitlements( 'test' ) ) && $expiry_state['generation'] === TC_Billing_Store::sync_state( $grant_uid, 'test' )['generation'], 'Repeating expiry does not enqueue another job for already expired sources.' );
+	$assert( TC_Billing_Store::maintenance_needed( 'test' ) && TC_Billing_Store::maintenance_needed( 'live' ) && ! TC_Billing_Store::maintenance_needed( 'invalid' ), 'Maintenance discovers persisted coverage in each exact billing mode.' );
 	$assert( 0 === $network_calls, 'All store operations complete without any remote HTTP.' );
 	WP_CLI::success( "Billing store integration: $checks assertions; durable transaction/outbox rollback, source isolation, deduplication, retry and CAS lease checks." );
 } finally {

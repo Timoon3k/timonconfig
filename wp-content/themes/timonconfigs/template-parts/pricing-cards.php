@@ -3,12 +3,13 @@
 defined( 'ABSPATH' ) || exit;
 
 $plans = array(
-	array( 'slug' => 'free', 'name' => 'Free', 'tagline' => 'Perfect to get started', 'price' => '€0', 'suffix' => 'Forever', 'description' => 'Explore selected configs and join the community.', 'features' => array( 'Selected free configurations', 'Basic config library', 'Community Discord access' ), 'cta' => 'Get Free Configs', 'url' => home_url( '/configs/?tier=free' ) ),
-	array( 'slug' => 'monthly', 'name' => 'VIP Monthly', 'tagline' => 'For serious players', 'price' => '€40', 'suffix' => '/ month', 'description' => 'Full premium access with ongoing updates and VIP support.', 'features' => array( 'Premium configuration library', 'Regular updates covered', 'Private VIP Discord channels', 'Monthly recurring access' ), 'cta' => 'Get Started', 'url' => timonconfigs_plan_url( 'monthly' ), 'featured' => true ),
-	array( 'slug' => 'lifetime', 'name' => 'VIP Lifetime', 'tagline' => 'One payment. Lifetime license.', 'price' => '€100', 'suffix' => 'one time', 'description' => 'A one-time license for long-term access under the Lifetime terms.', 'features' => array( 'Premium configuration library', 'Updates covered by your license', 'Private VIP Discord channels', 'One-time payment' ), 'cta' => 'Get Lifetime Access', 'url' => timonconfigs_plan_url( 'lifetime' ) ),
+	array( 'slug' => 'free', 'name' => 'Free', 'tagline' => 'Perfect to get started', 'suffix' => 'Forever', 'description' => 'Explore selected configs and join the community.', 'features' => array( 'Selected free configurations', 'Basic config library', 'Community Discord access' ), 'cta' => 'Get Free Configs', 'url' => home_url( '/configs/?tier=free' ) ),
+	array( 'slug' => 'monthly', 'name' => 'VIP Monthly', 'tagline' => 'For serious players', 'suffix' => '/ month', 'description' => 'Full premium access with ongoing updates and VIP support.', 'features' => array( 'Premium configuration library', 'Regular updates covered', 'Private VIP Discord channels', 'Monthly recurring access' ), 'cta' => 'Get Started', 'url' => timonconfigs_plan_url( 'monthly' ), 'featured' => true ),
+	array( 'slug' => 'lifetime', 'name' => 'VIP Lifetime', 'tagline' => 'One payment. Lifetime license.', 'suffix' => 'one time', 'description' => 'A one-time license for long-term access under the Lifetime terms.', 'features' => array( 'Premium configuration library', 'Updates covered by your license', 'Private VIP Discord channels', 'One-time payment' ), 'cta' => 'Get Lifetime Access', 'url' => timonconfigs_plan_url( 'lifetime' ) ),
 );
 foreach ( $plans as &$plan ) {
-	foreach ( array( 'name', 'tagline', 'price', 'suffix', 'description', 'cta' ) as $field ) {
+	$plan['price'] = timonconfigs_display_price( $plan['slug'] );
+	foreach ( array( 'name', 'tagline', 'suffix', 'description', 'cta' ) as $field ) {
 		$plan[ $field ] = get_theme_mod( 'timonconfigs_plan_' . $plan['slug'] . '_' . $field, $plan[ $field ] );
 	}
 	$feature_text    = get_theme_mod( 'timonconfigs_plan_' . $plan['slug'] . '_features', implode( "\n", $plan['features'] ) );

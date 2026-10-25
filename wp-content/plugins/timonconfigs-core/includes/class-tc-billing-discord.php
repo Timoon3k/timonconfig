@@ -115,7 +115,9 @@ final class TC_Billing_Discord {
     /** Fresh union: one expired/refunded source cannot erase another valid purchase. */
     private static function desired( int $uid, string $mode, string $discord ): array|WP_Error {
         $desired = array( 'monthly' => false, 'lifetime' => false );
-        foreach ( TC_Billing_Store::active( $uid, $mode ) as $source ) {
+        $sources = TC_Billing_Store::active( $uid, $mode );
+        if ( is_wp_error( $sources ) ) { return $sources; }
+        foreach ( $sources as $source ) {
             if ( ! is_array( $source ) || (int) ( $source['user_id'] ?? 0 ) !== $uid || ( $source['mode'] ?? '' ) !== $mode || ( $source['discord_id'] ?? '' ) !== $discord || ! isset( $desired[ $source['plan'] ?? '' ] ) || 'active' !== ( $source['status'] ?? '' ) ) { return self::error( 'binding', 3600 ); }
             $until = $source['valid_until'] ?? null;
             if ( null === $until && 'lifetime' === $source['plan'] ) { $desired['lifetime'] = true; continue; }
@@ -188,12 +190,18 @@ final class TC_Billing_Discord {
             $desired = self::desired( $uid, $mode, $discord );
             if ( is_wp_error( $desired ) ) { return $desired; }
             $owned = array();
-            foreach ( TC_Billing_Store::owned_roles( $uid, $mode ) as $record ) {
+            $ownership = TC_Billing_Store::owned_roles( $uid, $mode );
+            if ( is_wp_error( $ownership ) ) { return $ownership; }
+            foreach ( $ownership as $record ) {
                 if ( ( $record['guild_id'] ?? '' ) === $guild && in_array( $record['role_id'] ?? '', array( $config['monthly'], $config['lifetime'] ), true ) ) { $owned[ $record['role_id'] ] = true; }
             }
             // A missing role ends our ownership before any later external grant can inherit it.
             foreach ( array_keys( $owned ) as $role ) {
-                if ( ! isset( $present[ $role ] ) ) { TC_Billing_Store::own_role( $uid, $mode, $guild, $role, false ); unset( $owned[ $role ] ); }
+                if ( ! isset( $present[ $role ] ) ) {
+                    $saved = TC_Billing_Store::own_role( $uid, $mode, $guild, $role, false );
+                    if ( is_wp_error( $saved ) ) { return $saved; }
+                    unset( $owned[ $role ] );
+                }
             }
             foreach ( array( 'monthly', 'lifetime' ) as $plan ) {
                 $role = $config[ $plan ];
@@ -205,7 +213,8 @@ final class TC_Billing_Discord {
                     if ( ! $fresh[ $plan ] ) { continue; }
                     $result = self::request( $mode, '/guilds/' . $guild . '/members/' . $discord . '/roles/' . $role, 'PUT' );
                     if ( is_wp_error( $result ) ) { return $result; }
-                    TC_Billing_Store::own_role( $uid, $mode, $guild, $role, true );
+                    $saved = TC_Billing_Store::own_role( $uid, $mode, $guild, $role, true );
+                    if ( is_wp_error( $saved ) ) { return $saved; }
                     $present[ $role ] = true; $owned[ $role ] = true;
                 }
             }
@@ -213,17 +222,20 @@ final class TC_Billing_Discord {
             foreach ( array( 'monthly', 'lifetime' ) as $plan ) {
                 $role = $config[ $plan ];
                 if ( ! isset( $present[ $role ] ) ) { continue; }
+                // A successful remote PUT followed by a failed marker write is uncertain too.
+                // Never silently adopt that role on retry, even while payment access is active.
+                if ( ! isset( $owned[ $role ] ) ) { $blocked = $blocked ?: 'external_role'; continue; }
                 $fresh = self::desired( $uid, $mode, $discord );
                 if ( is_wp_error( $fresh ) ) { return $fresh; }
                 // Lifetime protects an existing Monthly role, but does not create an extra badge.
                 if ( $fresh[ $plan ] || ( 'monthly' === $plan && $fresh['lifetime'] ) ) { continue; }
-                if ( ! isset( $owned[ $role ] ) ) { $blocked = $blocked ?: 'external_role'; continue; }
                 if ( '1' !== get_user_meta( $uid, '_tc_billing_legacy_reviewed_' . $mode, true ) ) { $blocked = 'legacy_review'; continue; }
                 $allowed = self::write_allowed( $uid, $mode, $discord, $config );
                 if ( is_wp_error( $allowed ) ) { return $allowed; }
                 $result = self::request( $mode, '/guilds/' . $guild . '/members/' . $discord . '/roles/' . $role, 'DELETE' );
                 if ( is_wp_error( $result ) ) { return $result; }
-                TC_Billing_Store::own_role( $uid, $mode, $guild, $role, false );
+                $saved = TC_Billing_Store::own_role( $uid, $mode, $guild, $role, false );
+                if ( is_wp_error( $saved ) ) { return $saved; }
             }
             return '' === $blocked ? true : self::error( $blocked, 86400 );
         } );
@@ -271,6 +283,15 @@ final class TC_Billing_Discord {
         if ( 'buy' !== $command ) {
             if ( $options ) { return self::error( 'interaction' ); }
             $text = array( 'membership' => 'View your membership and verified Discord account: ', 'manage' => 'Manage your membership securely on the website: ', 'link' => 'Sign in with Discord on the website to link your account: ' );
+            if ( 'membership' === $command ) {
+                $uid = (int) get_option( '_tc_discord_binding_' . $actor, 0 );
+                if ( $uid < 1 || $actor !== self::bound_discord( $uid ) ) {
+                    return self::response( 'Link this Discord account to view your membership: <' . home_url( '/account/' ) . '>' );
+                }
+                $desired = self::desired( $uid, $mode, $actor );
+                $status = is_wp_error( $desired ) ? 'Billing verification is temporarily unavailable.' : ( $desired['lifetime'] ? 'Verified billing access: VIP Lifetime.' : ( $desired['monthly'] ? 'Verified billing access: VIP Monthly.' : 'No current direct or imported paid access. Existing Discord roles may still provide legacy access.' ) );
+                return self::response( ( 'test' === $mode ? 'TEST environment. ' : '' ) . $status . ' Check current Discord access and manage your membership: <' . home_url( '/account/' ) . '>' );
+            }
             return self::response( $text[ $command ] . '<' . home_url( '/account/' ) . '>' );
         }
         if ( ! TC_Billing::direct_enabled() ) { return self::error( 'disabled', 3600 ); }

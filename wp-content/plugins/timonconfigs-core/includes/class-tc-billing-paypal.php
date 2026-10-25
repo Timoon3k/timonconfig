@@ -29,6 +29,11 @@ final class TC_Billing_PayPal {
 		$guard = self::guard( $order['mode'] );
 		if ( is_wp_error( $guard ) ) { return $guard; }
 		$mode = $order['mode'];
+		// A pending approval must still match the immutable offer when resumed.
+		if ( 'monthly' === $order['plan'] ) {
+			$valid = self::validate_plan( $mode );
+			if ( is_wp_error( $valid ) ) { return $valid; }
+		}
 		if ( ! empty( $order['checkout_id'] ) || ! empty( $order['subscription_id'] ) ) {
 			$id = 'monthly' === $order['plan'] ? (string) $order['subscription_id'] : (string) $order['checkout_id'];
 			$existing = self::api( $mode, 'GET', ( 'monthly' === $order['plan'] ? '/v1/billing/subscriptions/' : '/v2/checkout/orders/' ) . rawurlencode( $id ) );
@@ -44,8 +49,6 @@ final class TC_Billing_PayPal {
 			'cancel_url' => add_query_arg( array( 'tc_billing_return' => 'cancel', 'tc_billing_order' => $order['id'] ), home_url( '/account/' ) ),
 		);
 		if ( 'monthly' === $order['plan'] ) {
-			$valid = self::validate_plan( $mode );
-			if ( is_wp_error( $valid ) ) { return $valid; }
 			$path = '/v1/billing/subscriptions';
 			$body = array( 'plan_id' => TC_Billing::setting( 'paypal_monthly_plan_id', $mode ), 'custom_id' => self::binding( $order ), 'application_context' => $context );
 		} else {
@@ -240,9 +243,11 @@ final class TC_Billing_PayPal {
 		$id = $subscription['id'];
 		$source = 'paypal:' . $mode . ':subscription:' . $id;
 		$old = TC_Billing_Store::entitlement( $source );
-		$cancelled = in_array( $subscription['status'] ?? '', array( 'CANCELLED', 'EXPIRED', 'SUSPENDED' ), true );
-		$next = $cancelled ? null : self::sql_time( $subscription['billing_info']['next_billing_time'] ?? '' );
-		$fields = array( 'subscription_id' => $id, 'checkout_id' => $id, 'status' => $cancelled ? 'cancelled' : 'pending', 'cancel_at_period_end' => $cancelled ? 1 : 0, 'next_payment_at' => $next );
+		// Suspension and failed payments can resume. Only permanent canonical stops
+		// permit the controller to consider replacing this recurring contract.
+		$cancelled = in_array( $subscription['status'] ?? '', array( 'CANCELLED', 'EXPIRED' ), true );
+		$next = $cancelled || 'SUSPENDED' === ( $subscription['status'] ?? '' ) ? null : self::sql_time( $subscription['billing_info']['next_billing_time'] ?? '' );
+		$fields = array( 'subscription_id' => $id, 'checkout_id' => $id, 'status' => $cancelled ? 'canceled' : 'pending', 'cancel_at_period_end' => $cancelled ? 1 : 0, 'next_payment_at' => $next );
 		$transition = array( 'order_id' => $order['id'], 'order_fields' => $fields );
 		if ( ! in_array( $subscription['status'] ?? '', array( 'ACTIVE', 'CANCELLED', 'EXPIRED', 'SUSPENDED' ), true ) ) { return self::preserve_monthly( $transition, $old, $cancelled, $next ); }
 		// Query canonical recent payments; status ACTIVE without a paid transaction is insufficient.
@@ -268,8 +273,10 @@ final class TC_Billing_PayPal {
 		$fields['payment_id'] = $payment_id;
 		$transition['order_fields'] = $fields;
 		if ( in_array( $sale['state'] ?? '', array( 'refunded', 'reversed' ), true ) ) {
-			$transition['order_fields']['status'] = 'refunded';
+			$transition['order_fields']['status'] = $cancelled ? 'canceled' : 'refunded';
 			$transition['entitlement'] = self::entitlement( $order, $source, $id, $payment_id, 'revoked', $old['valid_until'] ?? gmdate( 'Y-m-d H:i:s', self::calendar_month( $paid_at ) ) );
+			$transition['entitlement']['cancel_at_period_end'] = $cancelled ? 1 : 0;
+			$transition['entitlement']['next_payment_at'] = $next;
 			return self::remembered_dispute( $transition, $old, $mode );
 		}
 		if ( ! in_array( $sale['state'] ?? '', array( 'completed', 'partially_refunded' ), true ) ) { return self::preserve_monthly( $transition, $old, $cancelled, $next ); }
@@ -279,7 +286,7 @@ final class TC_Billing_PayPal {
 		if ( $next && self::timestamp( $next ) > $paid_at ) { $end = min( $end, self::timestamp( $next ) ); }
 		// Keep the independently established period when no newer successful payment exists.
 		if ( $old && $payment_id === ( $old['payment_id'] ?? '' ) && ! empty( $old['valid_until'] ) ) { $end = self::timestamp( $old['valid_until'] ); }
-		$fields['status'] = $cancelled ? 'cancelled' : ( $end > time() ? 'paid' : 'expired' );
+		$fields['status'] = $cancelled ? 'canceled' : ( $end > time() ? 'paid' : 'expired' );
 		$transition['order_fields'] = $fields;
 		$transition['entitlement'] = self::entitlement( $order, $source, $id, $payment_id, $end > time() ? 'active' : 'expired', gmdate( 'Y-m-d H:i:s', $end ) );
 		$transition['entitlement']['cancel_at_period_end'] = $cancelled ? 1 : 0;
@@ -347,15 +354,16 @@ final class TC_Billing_PayPal {
 		$transactions = $dispute['disputed_transactions'] ?? array();
 		if ( ! is_array( $transactions ) || count( $transactions ) !== 1 || $payment_id !== ( $transactions[0]['seller_transaction_id'] ?? '' ) ) { return self::error( 'dispute_binding' ); }
 		$transition['entitlement']['last_invoice_id'] = 'paypal-dispute:' . $dispute['dispute_id'];
+		$stopped_monthly = 'monthly' === $transition['entitlement']['plan'] && in_array( $transition['order_fields']['status'] ?? '', array( 'canceled', 'cancelled' ), true );
 		$status = $dispute['status'] ?? '';
 		if ( in_array( $status, array( 'OPEN', 'WAITING_FOR_BUYER_RESPONSE', 'WAITING_FOR_SELLER_RESPONSE', 'UNDER_REVIEW' ), true ) ) {
 			$transition['entitlement']['status'] = 'disputed';
-			$transition['order_fields']['status'] = 'disputed';
+			if ( ! $stopped_monthly ) { $transition['order_fields']['status'] = 'disputed'; }
 		} elseif ( 'RESOLVED' === $status ) {
 			$outcome = $dispute['dispute_outcome']['outcome_code'] ?? '';
 			if ( in_array( $outcome, array( 'RESOLVED_BUYER_FAVOUR', 'ACCEPTED', 'RESOLVED_WITH_PAYOUT' ), true ) ) {
 				$transition['entitlement']['status'] = 'revoked';
-				$transition['order_fields']['status'] = 'refunded';
+				if ( ! $stopped_monthly ) { $transition['order_fields']['status'] = 'refunded'; }
 			} elseif ( in_array( $outcome, array( 'RESOLVED_SELLER_FAVOUR', 'DENIED', 'CANCELED' ), true ) ) {
 				$transition['entitlement']['last_invoice_id'] = null;
 			} else { return self::error( 'dispute_outcome' ); }

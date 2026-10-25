@@ -14,7 +14,7 @@ add_action(
 			'timonconfigs_home',
 			array(
 				'title'       => __( 'TimonConfigs site content', 'timonconfigs' ),
-				'description' => __( 'Global links, homepage copy and replaceable media. FAQs and reviews use their own editor menus.', 'timonconfigs' ),
+				'description' => __( 'Global links, homepage copy and replaceable media. FAQs and reviews use their own editor menus. Prices come from the billing catalogue. Existing text and inserted pricing patterns need a manual review when billing changes.', 'timonconfigs' ),
 				'priority'    => 30,
 			)
 		);
@@ -94,9 +94,9 @@ add_action(
 		}
 
 		$plan_fields = array(
-			'free' => array( 'name' => 'Free', 'tagline' => 'Perfect to get started', 'price' => '€0', 'suffix' => 'Forever', 'description' => 'Explore selected configs and join the community.', 'features' => "Selected free configurations\nBasic config library\nCommunity Discord access", 'cta' => 'Get Free Configs' ),
-			'monthly' => array( 'name' => 'VIP Monthly', 'tagline' => 'For serious players', 'price' => '€40', 'suffix' => '/ month', 'description' => 'Full premium access with ongoing updates and VIP support.', 'features' => "Premium configuration library\nRegular updates covered\nPrivate VIP Discord channels\nMonthly recurring access", 'cta' => 'Get Started' ),
-			'lifetime' => array( 'name' => 'VIP Lifetime', 'tagline' => 'One payment. Lifetime license.', 'price' => '€100', 'suffix' => 'one time', 'description' => 'A one-time license for long-term access under the Lifetime terms.', 'features' => "Premium configuration library\nUpdates covered by your license\nPrivate VIP Discord channels\nOne-time payment", 'cta' => 'Get Lifetime Access' ),
+			'free' => array( 'name' => 'Free', 'tagline' => 'Perfect to get started', 'suffix' => 'Forever', 'description' => 'Explore selected configs and join the community.', 'features' => "Selected free configurations\nBasic config library\nCommunity Discord access", 'cta' => 'Get Free Configs' ),
+			'monthly' => array( 'name' => 'VIP Monthly', 'tagline' => 'For serious players', 'suffix' => '/ month', 'description' => 'Full premium access with ongoing updates and VIP support.', 'features' => "Premium configuration library\nRegular updates covered\nPrivate VIP Discord channels\nMonthly recurring access", 'cta' => 'Get Started' ),
+			'lifetime' => array( 'name' => 'VIP Lifetime', 'tagline' => 'One payment. Lifetime license.', 'suffix' => 'one time', 'description' => 'A one-time license for long-term access under the Lifetime terms.', 'features' => "Premium configuration library\nUpdates covered by your license\nPrivate VIP Discord channels\nOne-time payment", 'cta' => 'Get Lifetime Access' ),
 		);
 		foreach ( $plan_fields as $plan_slug => $values ) {
 			foreach ( $values as $field_name => $default ) {

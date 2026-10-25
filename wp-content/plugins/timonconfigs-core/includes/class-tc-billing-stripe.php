@@ -210,14 +210,18 @@ final class TC_Billing_Stripe {
 			if ( 'active' === $validated['status'] ) { $best = $validated; break; }
 		}
 		$cancel = ! empty( $subscription['cancel_at_period_end'] ) || 'canceled' === ( $subscription['status'] ?? '' );
+		$stopped = in_array( $subscription['status'] ?? '', array( 'canceled', 'incomplete_expired' ), true );
 		$fields = array( 'subscription_id' => $subscription['id'], 'customer_id' => $customer, 'cancel_at_period_end' => $cancel ? 1 : 0, 'next_payment_at' => $cancel ? null : self::date( $subscription['current_period_end'] ?? 0 ) );
+		// This order status proves the recurring contract has stopped. Access to an
+		// already paid period remains an independent entitlement below.
+		if ( $stopped ) { $fields['status'] = 'canceled'; $fields['next_payment_at'] = null; }
 		if ( $session ) { $fields['checkout_id'] = $session['id']; }
 		if ( ! $best && ! $affected ) { return self::pending( $order, $session, $fields ); }
 		// An expired older cycle cannot conceal a current refund or lost dispute.
 		if ( $best && $best['end'] <= time() && $affected && 'active' !== $affected['status'] ) { $best = null; }
 		$paid = $best ?? $affected;
 		$status = $best ? ( $best['end'] > time() ? 'active' : 'expired' ) : $affected['status'];
-		$fields['status'] = $status;
+		$fields['status'] = $stopped ? 'canceled' : $status;
 		$fields['payment_id'] = $paid['payment_id'];
 		$entitlement = self::entitlement( $order, 'subscription:' . $subscription['id'], $subscription['id'], $customer, $paid['payment_id'] );
 		$entitlement += array( 'status' => $status, 'valid_until' => self::date( $paid['end'] ), 'last_invoice_id' => $paid['invoice_id'], 'cancel_at_period_end' => $fields['cancel_at_period_end'], 'next_payment_at' => $fields['next_payment_at'], 'next_check_at' => gmdate( 'Y-m-d H:i:s', time() + 3600 ) );
@@ -363,7 +367,7 @@ final class TC_Billing_Stripe {
 	private static function pending( array $order, ?array $session, array $fields = array() ): array {
 		if ( $session ) { $fields['checkout_id'] = $session['id']; }
 		// No entitlement update: a failed or incomplete renewal cannot erase prepaid time.
-		if ( ! in_array( $order['status'] ?? '', array( 'active', 'expired', 'revoked', 'disputed' ), true ) ) { $fields['status'] = 'pending'; }
+		if ( ! array_key_exists( 'status', $fields ) && ! in_array( $order['status'] ?? '', array( 'active', 'expired', 'revoked', 'disputed' ), true ) ) { $fields['status'] = 'pending'; }
 		return array( 'order_id' => $order['id'], 'order_fields' => $fields );
 	}
 

@@ -1,0 +1,66 @@
+/* Hosted checkout and private billing use the storefront's dark and orange palette. */
+.tc-billing {
+	--billing-line: #394149;
+	--billing-accent: #ffad5d;
+	width: min(100%, 1120px);
+	margin: 36px auto;
+	color: #eef2f5;
+	overflow-wrap: anywhere;
+}
+.tc-billing *, .tc-billing *::before, .tc-billing *::after { box-sizing: border-box; }
+.tc-billing h1, .tc-billing h2, .tc-billing h3 { color: #f4f5f5; line-height: 1.2; }
+.tc-billing h2 { margin: 0 0 18px; font-size: clamp(25px, 3vw, 36px); }
+.tc-billing h3 { margin: 0 0 14px; font-size: 20px; }
+.tc-billing p { color: #bdc7d0; line-height: 1.7; }
+.tc-billing a:not(.tc-button) { color: var(--billing-accent); text-underline-offset: 3px; }
+.tc-billing a:hover { color: #ffd1a4; }
+.tc-billing :is(a, button, input, select):focus-visible { outline: 2px solid #ffbd7b; outline-offset: 4px; }
+.tc-billing-card {
+	min-width: 0;
+	margin-top: 20px;
+	padding: clamp(20px, 4vw, 32px);
+	border: 1px solid var(--billing-line);
+	border-radius: 14px;
+	background: radial-gradient(ellipse at top right, #ff850d0e, transparent 70%), linear-gradient(135deg, #151d25, #0b1219);
+}
+.tc-billing-card > :first-child { margin-top: 0; }
+.tc-billing-card > :last-child { margin-bottom: 0; }
+.tc-billing dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; margin: 20px 0; }
+.tc-billing dl > div { min-width: 0; padding: 14px; border: 1px solid var(--billing-line); border-radius: 8px; background: #0a1118; }
+.tc-billing dt { color: #aabac6; font-size: 12px; }
+.tc-billing dd { margin: 6px 0 0; font-weight: 700; color: #f4f5f5; }
+.tc-billing-price { color: #fff; font-size: clamp(28px, 5vw, 40px); font-weight: 800; letter-spacing: -.03em; }
+.tc-billing-price small { margin-left: 8px; color: #bdc7d0; font-size: 14px; font-weight: 400; letter-spacing: normal; }
+.tc-billing form { margin: 16px 0 0; }
+.tc-billing fieldset { min-width: 0; margin: 18px 0; padding: 16px; border: 1px solid var(--billing-line); border-radius: 8px; }
+.tc-billing legend { padding-inline: 6px; color: #eef2f5; font-weight: 700; }
+.tc-billing label { display: flex; align-items: flex-start; gap: 10px; margin-block: 12px; color: #d6dfe6; font-size: 14px; line-height: 1.6; cursor: pointer; }
+.tc-billing input:is([type="checkbox"], [type="radio"]) { flex: 0 0 auto; width: 18px; height: 18px; margin: 3px 0 0; accent-color: #ff9b38; }
+.tc-billing select { width: 100%; max-width: 360px; min-height: 44px; padding: 10px 12px; border: 1px solid #637280; border-radius: 6px; background: #0b1219; color: #f4f5f5; font: inherit; }
+.tc-billing button, .tc-billing .tc-button { min-height: 44px; white-space: normal; }
+.tc-billing .tc-button { display: inline-flex; align-items: center; justify-content: center; padding: 12px 20px; border: 1px solid #ce7529; border-radius: 6px; background: #b95713; color: #fff; font: 700 14px/1.4 Inter, sans-serif; text-align: center; text-decoration: none; cursor: pointer; }
+.tc-billing .tc-button--ghost { border-color: #956536; background: #211b15; color: #ffd1a4; }
+.tc-billing button:disabled { opacity: .65; cursor: not-allowed; }
+.tc-billing-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.tc-billing-actions form { margin: 0; }
+.tc-billing-notice { margin: 18px 0; padding: 14px 18px; border: 1px solid #98672e; border-radius: 8px; background: #2a1d10; color: #f5d3aa; line-height: 1.7; }
+.tc-billing-notice p { color: inherit; }
+.tc-billing-status { display: inline-flex; align-items: center; padding: 5px 10px; border: 1px solid #796239; border-radius: 20px; background: #241c12; color: #ffce98; font-size: 12px; font-weight: 700; line-height: 1.4; }
+.tc-billing-status[data-status="active"], .tc-billing-status[data-status="done"] { border-color: #477861; background: #10291e; color: #aee6c7; }
+.tc-billing-status[data-status="failed"], .tc-billing-status[data-status="revoked"], .tc-billing-status[data-status="disputed"], .tc-billing-status[data-status="error"] { border-color: #985c5c; background: #321d20; color: #ffc2c2; }
+.tc-billing-status[data-status="expired"], .tc-billing-status[data-status="cancelled"] { border-color: #63717d; background: #19222a; color: #cad4dd; }
+.tc-billing-table-wrap { max-width: 100%; overflow-x: auto; overscroll-behavior-x: contain; border: 1px solid var(--billing-line); border-radius: 10px; }
+.tc-billing-table { width: 100%; margin: 0; border-collapse: collapse; font-size: 13px; text-align: left; }
+.tc-billing-table th, .tc-billing-table td { padding: 15px 16px; border-bottom: 1px solid var(--billing-line); vertical-align: top; }
+.tc-billing-table th { background: #161f28; color: #e2eaf0; font-weight: 700; }
+.tc-billing-table td { color: #c6d0d8; }
+.tc-billing-table tr:last-child td { border-bottom: 0; }
+.tc-billing-table caption { padding: 12px 16px; color: #dce4eb; text-align: left; }
+@media (max-width: 640px) {
+	.tc-billing { margin-block: 28px; }
+	.tc-billing-card { padding: 20px 16px; }
+	.tc-billing-actions { align-items: stretch; }
+	.tc-billing-actions > *, .tc-billing-actions form .tc-button { width: 100%; }
+	.tc-billing-table { min-width: 620px; }
+	.tc-billing-table th, .tc-billing-table td { padding: 12px; }
+}

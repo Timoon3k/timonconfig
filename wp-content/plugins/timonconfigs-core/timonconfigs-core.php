@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: TimonConfigs Core
- * Description: Business features for TimonConfigs, including managed Upgrade.chat checkout links.
- * Version: 0.8.10
+ * Description: TimonConfigs private configuration library, Discord membership and test-first billing with Upgrade.chat migration controls.
+ * Version: 0.9.0
  * Author: TimonConfigs
  * Text Domain: timonconfigs-core
  * Requires at least: 6.5
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_CORE_VERSION', '0.8.10' );
+define( 'TIMONCONFIGS_CORE_VERSION', '0.9.0' );
 define( 'TIMONCONFIGS_CORE_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-tc-checkout.php';
@@ -20,6 +20,12 @@ require_once __DIR__ . '/includes/class-tc-private-files.php';
 require_once __DIR__ . '/includes/class-tc-discord.php';
 require_once __DIR__ . '/includes/class-tc-downloads.php';
 require_once __DIR__ . '/includes/class-tc-member-area.php';
+require_once __DIR__ . '/includes/class-tc-billing-store.php';
+require_once __DIR__ . '/includes/class-tc-billing-stripe.php';
+require_once __DIR__ . '/includes/class-tc-billing-paypal.php';
+require_once __DIR__ . '/includes/class-tc-billing-discord.php';
+require_once __DIR__ . '/includes/class-tc-billing-ui.php';
+require_once __DIR__ . '/includes/class-tc-billing.php';
 require_once __DIR__ . '/includes/class-tc-config-content.php';
 require_once __DIR__ . '/includes/class-tc-owner-editor.php';
 require_once __DIR__ . '/includes/class-tc-settings.php';
@@ -40,6 +46,7 @@ add_action(
 		TC_Config_Content::init();
 		TC_Owner_Editor::init();
 		TC_Settings::init();
+		TC_Billing::init();
 		TC_Editorial::init();
 		TC_SEO::init();
 		TC_Videos::init();

@@ -50,6 +50,8 @@ final class TC_Checkout {
 			self::render_unavailable();
 		}
 
+		if ( class_exists( 'TC_Billing' ) && TC_Billing::direct_enabled() ) { TC_Billing::render_checkout( $plan ); }
+
 		$destination = self::get_destination( $plan );
 		if ( '' === $destination ) {
 			self::render_unavailable();

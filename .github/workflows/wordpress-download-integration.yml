@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'wp-content/**/*.php'
+      - 'wp-content/themes/timonconfigs/assets/css/billing.css'
       - 'tests/downloads-integration.php'
       - 'tests/member-catalog-integration.php'
       - 'tests/catalog-integration.php'
@@ -13,6 +14,8 @@ on:
       - 'tests/owner-verification-integration.php'
       - 'tests/shared-vip-integration.php'
       - 'tests/catalog-routes-integration.php'
+      - 'tests/billing-*-integration.php'
+      - 'tests/billing-integration.php'
       - '.github/workflows/wordpress-download-integration.yml'
   workflow_dispatch:
 
@@ -25,6 +28,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Stripe and PayPal contracts without WordPress or external requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          php tests/billing-stripe-integration.php
+          php tests/billing-paypal-integration.php
       - name: Provision disposable WordPress and private storage
         shell: bash
         run: |
@@ -50,6 +59,14 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/shared-vip-integration.php
       - name: Archive route cache upgrade
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/catalog-routes-integration.php
+      - name: Billing ledger, durable events and expiry
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-store-integration.php
+      - name: Scoped Discord role sync and signed interactions
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-discord-integration.php
+      - name: Native checkout, verified webhooks and account access
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-integration.php
+      - name: Legacy and native billing presentation
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp --skip-plugins=timonconfigs-core eval-file /tests/billing-presentation-integration.php
       - name: Tear down disposable WordPress
         if: always()
         run: docker compose -f docker-compose.local.yml down -v --remove-orphans
