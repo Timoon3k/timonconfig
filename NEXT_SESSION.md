@@ -1,6 +1,6 @@
 # Następna sesja — native billing, 2026-10-25
 
-Ten wpis ma pierwszeństwo nad historycznymi handoffami poniżej. Kontynuuj `feature/direct-billing-test`; nie wracaj do starszych poprawek uploadu. Baza została zaktualizowana do GitHub main `ea566d4` (PR #11). Kod: Core 0.9.0/theme 0.11.0, checkpointy `a6175c0`, `a0988d8`, `be2f391`, merge `3de6024`, ostatnia poprawka `ad539de`.
+Ten wpis ma pierwszeństwo nad historycznymi handoffami poniżej. Na wyraźne polecenie właściciela przetestowany kod `3d38fb7` opublikowano na GitHub `main` przez fast-forward z `ea566d4`. Kontynuuj od aktualnego `main`; nie wracaj do starszych poprawek uploadu. Kod: Core 0.9.0/theme 0.11.0, checkpointy `a6175c0`, `a0988d8`, `be2f391`, merge `3de6024`, ostatnia poprawka `ad539de`. Nie potwierdzono instalacji na Hostingerze ani uruchomienia rzeczywistych testów operatorów. Zgoda na push nie oznacza zgody na włączenie Live.
 
 1. Przeczytaj najnowszy PROGRESS oraz `docs/DIRECT_BILLING_SETUP.md` i `docs/DIRECT_BILLING_TEST_REPORT.md`. Nie przepisuj OAuth, Owner ani prywatnego magazynu. Owner nadal używa lokalnej zatwierdzonej tożsamości; premium downloader wymaga aktualnych ról Discord.
 2. Lokalnie zaliczono 949 asercji PHP, 12 layoutów billingowych, lint 72 i static/JS. Operatorzy/Discord są symulowani; nie jest to rzeczywisty Stripe Test/Sandbox. Paczki 0.11.0/0.9.0 są w artifacts, źródła: 89 / 20 plików zgodne. Świeża instalacja ZIP zaliczyła 91 asercji na oddzielnym WP 6.8.3/PHP 8.2; wynik w `artifacts/billing-release-installation.log`, SHA256 w manifeście.

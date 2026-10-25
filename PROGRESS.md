@@ -1,3 +1,9 @@
+## Autoryzowana publikacja native billing na GitHub main — 2026-10-25
+
+- Na wyraźne polecenie właściciela wypchnięto przetestowany kod `3d38fb7` z `feature/direct-billing-test` na `main`, fast-forward z `ea566d4`, bez force push i bez nowych zmian kodu.
+- Obowiązują dotychczasowe wyniki: 949 asercji PHP, 91 instalacji ZIP, 12 widoków przeglądarkowych. Core 0.9.0 / theme 0.11.0. Testy operatorów pozostają symulowane.
+- Nie włączono płatności Live, nowych poświadczeń ani synchronizacji ról. Nie wykonano instalacji paczek na Hostingerze; sam push nie potwierdza aktualizacji działającego WordPressa. Następny krok: instalacja na stagingu i rzeczywiste Stripe Test według `docs/DIRECT_BILLING_SETUP.md`.
+
 ## TimonConfigs 2.0 — Core 0.9.0 / theme 0.11.0, etap testowy (2026-10-25)
 
 - Zachowano istniejący projekt i aktualne rozwiązanie surowych plików oraz lokalnej autoryzacji Ownera. Początek prac: main `7990e20`; ponownie sprawdzono GitHub i dołączono najnowszy main `ea566d4` (PR #11: dokumentacja SEO/prawna). Starsza lokalna praca pozostaje w `158cc91`, bez nadpisywania nowszego kodu.
