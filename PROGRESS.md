@@ -1,3 +1,12 @@
+## TimonConfigs 2.0 — native billing, etap testowy (2026-10-25)
+
+- Sprawdzono najnowszy GitHub main `7990e20` (Core0.8.10/theme0.10.6, PR8–10). Zachowano surowe pliki i lokalną autoryzację Ownera. Starszą niedokończoną lokalną poprawkę zabezpieczono w `158cc91`; nie nadpisuje ona nowszego main. Nowa gałąź `feature/direct-billing-test`.
+- Nowy prompt zastępuje wcześniejszy zakaz budowania własnych płatności, lecz nie autoryzuje produkcji ani migracji klientów. Sprzedawca: Polska, waluta EUR. Docelowy katalog: Monthly2999 centów/miesiąc, Lifetime8000 centów jednorazowo. Legacy routing i jego ceny pozostają do zatwierdzonego przełączenia; testowy direct routing pokazuje nowe centralne ceny.
+- Audyt: istniejący Checkout tylko przekierowuje do Upgrade.chat; OAuth/role/downloady już istnieją. Brakowało własnego ledgeru, podpisanych webhooków, idempotencji, kolejki ról, portalu/cancel i rozliczeń konta. Kontrakt architektury: `docs/DIRECT_BILLING_CONTRACT.md`.
+- Implementowane: oddzielne tabele transakcji/uprawnień/eventów/outbox, natywne adaptery Stripe (API2024-06-20) i PayPal, podpisane interakcje Discord, bezpieczne aktorowe linki zakupu, centralne ceny, premium panel rozliczeń i administracja. Domyślnie legacy; Test ograniczony do local/development/staging. PayPal i Live mają dodatkowe blokady. Live wymaga zgody serwerowej, realnych testów, migracji i przeglądu prawnego.
+- Dotychczas zaliczone: Store93, Stripe60, PayPal69, Discord73, presentation33 (**328 asercji**), z symulowanym HTTP. Test pełnego kontrolera/WordPress i regresje są w toku. Nie potwierdzono rzeczywistego Stripe Test/PayPal Sandbox, nie ma realnych poświadczeń. Nie uruchomiono zakupów ani zdalnych zmian ról.
+- Oficjalne strony taryf i dokumentacji Stripe/PayPal odrzucone przez proxy CONNECT403; aktualnych opłat dla polskiego konta EUR nie potwierdzono. Nie wpisano zmyślonych stawek. Porównanie opłat/VAT i instrukcja ustawień będą częścią końcowego handoff.
+
 ## Publikacja Core 0.8.6 / theme 0.10.5 na GitHub main — zatwierdzona przez właściciela
 
 - Na polecenie „WYPCHNIJ to na produkcje na gicie” przeniesiono `fix/owner-upload-recovery` do `main` przez fast-forward, bez konfliktów i force push. Push został przyjęty; osobny odczyt `refs/heads/main` potwierdził kod `b5d4de2`.
