@@ -133,6 +133,18 @@ try {
 	$assert( $error_is( TC_Billing::perform( $payload() ), 'tc_billing_disabled' ), 'Legacy routing prevents a new direct purchase.' );
 	update_option( 'timonconfigs_billing', $billing, false );
 	$assert( array() === TC_Billing_Store::orders_for_user( $uid, 'test' ) && array() === $checkout_posts, 'Rejected requests do not create orders or payment sessions.' );
+	foreach ( array( 'monthly', 'lifetime' ) as $legacy_plan ) {
+		$member_roles = array( $ids['free'], $ids[ $legacy_plan ] ); $fresh_roles( $uid );
+		$assert( $error_is( TC_Billing::perform( $payload( 'monthly' ) ), 'tc_billing_legacy_review' ), 'An unimported existing ' . $legacy_plan . ' Discord member cannot accidentally start a duplicate Monthly subscription.' );
+		if ( 'lifetime' === $legacy_plan ) { $assert( $error_is( TC_Billing::perform( $payload() ), 'tc_billing_legacy_review' ), 'An unimported Lifetime role also blocks a duplicate Lifetime purchase.' ); }
+	}
+	$assert( array() === TC_Billing_Store::orders_for_user( $uid, 'test' ) && array() === $checkout_posts, 'Legacy migration protection creates no new orders or provider sessions.' );
+	$member_roles = array( $ids['free'] ); $fresh_roles( $uid );
+	$rendered_fixtures = array();
+	if ( getenv( 'TC_BILLING_RENDER' ) ) {
+		$rendered_fixtures['checkout-monthly'] = TC_Billing_UI::checkout( 'monthly' );
+		$rendered_fixtures['checkout-lifetime'] = TC_Billing_UI::checkout( 'lifetime' );
+	}
 	// Persisting consent is a prerequisite for contacting the checkout API.
 	$consent_faulted = false;
 	$consent_fault = static function ( string $sql ) use ( &$consent_faulted, $tables ): string {
@@ -145,7 +157,10 @@ try {
 	$assert( $consent_faulted && is_wp_error( $consent_failure ) && array() === $checkout_posts, 'A failed consent write aborts checkout before any Stripe session POST.' );
 	$unconsented = TC_Billing_Store::orders_for_user( $uid, 'test' );
 	$assert( 1 === count( $unconsented ) && 'pending' === $unconsented[0]['status'] && empty( $unconsented[0]['consent_at'] ) && empty( $unconsented[0]['checkout_id'] ), 'The failed consent attempt leaves only an unpaid, resumable local order.' );
+	$member_roles = array( $ids['free'], $ids['monthly'] ); $fresh_roles( $uid );
 	$checkout = $must( TC_Billing::perform( array_merge( $payload(), array( 'amount' => '1', 'currency' => 'usd', 'price_id' => 'price_attacker', 'user_id' => $other_uid, 'discord_id' => $ids['other'] ) ) ) );
+	$assert( is_array( $checkout ) && ! empty( $checkout['redirect'] ), 'An explicitly consented Monthly-to-Lifetime upgrade remains available.' );
+	$member_roles = array( $ids['free'] ); $fresh_roles( $uid );
 	$order = TC_Billing_Store::order( $checkout['order_id'] ); $session_id = $order['checkout_id']; $payment_id = $order['payment_id']; $charge_id = $payments[ $payment_id ]['latest_charge'];
 	$assert( 8000 === (int) $order['amount'] && 'eur' === $order['currency'] && $uid === (int) $order['user_id'] && $ids['user'] === $order['discord_id'], 'Client price, currency and ownership fields cannot change the stored Lifetime order.' );
 	$sent = $checkout_posts[0]['body'];
@@ -188,6 +203,7 @@ try {
 	$writes = $role_writes(); $assert( 1 === count( $writes ) && 'PUT' === $writes[0][1]['method'] && str_ends_with( $writes[0][0], '/roles/' . $ids['lifetime'] ), 'The full service flow performs one exact Lifetime role PUT through mocked HTTP.' );
 	TC_Billing_Store::sync_result( (int) $job['id'], 'done' ); $fresh_roles( $uid );
 	$assert( true === TC_Discord::can_access( $post, $uid ) && 'done' === TC_Billing_Store::sync_state( $uid, 'test' )['status'], 'Verified payment plus the canonical Discord role opens paid access.' );
+	if ( getenv( 'TC_BILLING_RENDER' ) ) { $rendered_fixtures['account-paid'] = TC_Billing::render_account( $uid ); }
 	$live_order = $must( TC_Billing_Store::create_order( $uid, $ids['user'], 'stripe', 'live', 'lifetime' ) );
 	$assert( $error_is( TC_Billing::perform( array( '_wpnonce' => wp_create_nonce( 'tc_billing_action' ), 'operation' => 'refresh', 'order_id' => $live_order['id'] ) ), 'tc_billing_order' ), 'A member cannot manage an order from another billing mode through the Test controller.' );
 
@@ -292,6 +308,7 @@ try {
 	$assert( 'expired' === TC_Billing_Store::entitlement( $expiry['source'] )['status'] && ! empty( $expiry_job['id'] ) && count( $role_writes() ) === $before_writes, 'The actual legacy-maintenance worker expires grant-only Monthly access and leaves durable sync work while role writes are disabled.' );
 	$assert( 'active' === TC_Billing_Store::entitlement( $live_expiry['source'] )['status'] && array() === TC_Billing_Store::sync_state( $expiry_uid, 'live' ) && array() === TC_Billing_Store::active( $expiry_uid, 'live' ), 'Test maintenance neither activates nor processes the other mode’s expired grant.' );
 	$assert( ! str_contains( wp_json_encode( TC_Billing_Store::diagnostics( 100 ) ), 'PRIVATE_WEBHOOK_BODY' ) && ! str_contains( wp_json_encode( TC_Billing_Store::diagnostics( 100 ) ), 'PRIVATE_UPSTREAM_RESPONSE' ), 'Operational diagnostics contain neither webhook bodies nor upstream error text.' );
+	if ( getenv( 'TC_BILLING_RENDER' ) ) { WP_CLI::line( 'TC_BILLING_FIXTURES:' . wp_json_encode( $rendered_fixtures ) ); }
 	WP_CLI::success( "Billing facade integration: $checks assertions; real WordPress services, synthetic credentials, all provider and Discord HTTP intercepted." );
 } finally {
 	remove_filter( 'pre_http_request', $http, 1 ); remove_filter( 'option_home', $https );

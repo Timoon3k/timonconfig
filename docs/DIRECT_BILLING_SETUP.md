@@ -72,7 +72,7 @@ Existing OAuth remains responsible for account identity and current role checks 
 
 In billing Test configuration enter Guild ID, VIP Monthly Role ID and VIP Lifetime Role ID. They must match **Discord membership** OAuth settings for that same guild; VIP roles must be distinct from each other and Free/Staff/Owner. Invite the staging application's bot with **Manage Roles** and `applications.commands` scope. Put the bot's highest role strictly above both VIP roles. Never give it Administrator just to bypass hierarchy issues. Explicitly enable role synchronization only for the controlled test guild.
 
-The worker uses exact VIP-role `PUT` / `DELETE` requests and a retry queue. It never replaces a member's full role list and never changes Free, Staff, Owner or verification protections. Existing roles with no ownership marker remain external and require manual review; they are not automatically adopted or removed. Independent paid/grant/legacy access is considered together. Inspect administrator diagnostics after each scenario.
+The worker uses exact VIP-role `PUT` / `DELETE` requests and a retry queue. It never replaces a member's full role list and never changes Free, Staff, Owner or verification protections. Existing roles with no ownership marker remain external and require manual review; they are not automatically adopted or removed, even when a matching purchase is active. A remote role write followed by a failed database marker write is an explicit error; retry never manufactures ownership. Independent paid/grant/legacy access is considered together. Inspect administrator diagnostics after each scenario.
 
 For slash commands, set the application's Interactions Endpoint URL to:
 `https://<staging-host>/wp-json/timonconfigs/v1/billing/discord/interactions`.
@@ -85,7 +85,7 @@ The endpoint validates Discord's Ed25519 signature and timestamp. Register guild
 {"name":"link","description":"Link your Discord account on TimonConfigs","type":1}
 ```
 
-Each line above is an independent JSON request, not a single JSON document. Responses are ephemeral. `/buy` defaults to Monthly or accepts the explicit plan choice; it issues a ten-minute actor-bound website intent, then still requires the same Discord OAuth identity, website nonce and payment consent. The other commands link to the authenticated account page; `/membership` currently opens account details rather than exposing payment data inside Discord. After OAuth, users return to the checkout link; there is no automatic purchase on login. An always-running gateway bot server is unnecessary: WordPress HTTPS endpoints, Discord REST and reliable server cron handle this implementation.
+Each line above is an independent JSON request, not a single JSON document. Responses are ephemeral. `/buy` defaults to Monthly or accepts the explicit plan choice; it issues a ten-minute actor-bound website intent, then still requires the same Discord OAuth identity, website nonce and payment consent. `/membership` privately reports the signed actor’s current ledger package (clearly marked in Test), or asks an unlinked actor to sign in; it also links to the account page for current Discord-role checks. `/manage` and `/link` open the authenticated account flow. After OAuth, users return to the checkout link; there is no automatic purchase on login. An always-running gateway bot server is unnecessary: WordPress HTTPS endpoints, Discord REST and reliable server cron handle this implementation.
 
 ## 6. Hostinger cron, caching and diagnostics
 

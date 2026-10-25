@@ -25,6 +25,9 @@
 }
 .tc-billing-card > :first-child { margin-top: 0; }
 .tc-billing-card > :last-child { margin-bottom: 0; }
+.tc-billing-checkout { max-width: 760px; padding: clamp(20px, 4vw, 44px); border: 1px solid var(--billing-line); border-radius: 14px; background: radial-gradient(ellipse at top right, #ff850d0e, transparent 70%), #0b1219; }
+.tc-billing-checkout h1 { font-size: clamp(34px, 5vw, 52px); }
+.tc-billing-card + h3 { margin-top: 28px; }
 .tc-billing dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 16px; margin: 20px 0; }
 .tc-billing dl > div { min-width: 0; padding: 14px; border: 1px solid var(--billing-line); border-radius: 8px; background: #0a1118; }
 .tc-billing dt { color: #aabac6; font-size: 12px; }

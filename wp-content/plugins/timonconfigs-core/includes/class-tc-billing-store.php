@@ -341,9 +341,11 @@ final class TC_Billing_Store {
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $table WHERE provider = %s AND mode = %s AND event_id = %s", $provider, $mode, $descriptor['id'] ), ARRAY_A ) ?? self::error( 'billing_event_missing' );
 	}
 
-	public static function due_events( int $limit = 10 ): array {
+	public static function due_events( int $limit = 10, ?string $mode = null ): array {
 		global $wpdb;
-		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'events' ) . " WHERE status IN ('pending','error') AND next_attempt <= %s ORDER BY next_attempt ASC, id ASC LIMIT %d", self::now(), self::limit( $limit ) ), ARRAY_A );
+		if ( null !== $mode && ! self::mode( $mode ) ) { return array(); }
+		$filter = null === $mode ? '' : $wpdb->prepare( ' AND mode = %s', $mode );
+		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'events' ) . " WHERE status IN ('pending','error') AND next_attempt <= %s$filter ORDER BY next_attempt ASC, id ASC LIMIT %d", self::now(), self::limit( $limit ) ), ARRAY_A );
 	}
 	public static function event( int $id ): ?array {
 		global $wpdb;
@@ -396,9 +398,11 @@ final class TC_Billing_Store {
 		return false !== $wpdb->query( $wpdb->prepare( "INSERT INTO $table (user_id,mode,status,attempts,generation,next_attempt,last_error,created_at,updated_at) VALUES (%d,%s,'pending',0,1,%s,'',%s,%s) ON DUPLICATE KEY UPDATE status = 'pending', generation = generation + 1, next_attempt = VALUES(next_attempt), last_error = '', updated_at = VALUES(updated_at)", $uid, $mode, self::now(), self::now(), self::now() ) );
 	}
 	public static function enqueue_sync( int $uid, string $mode ): void { self::write_sync( $uid, $mode ); }
-	public static function due_syncs( int $limit = 10 ): array {
+	public static function due_syncs( int $limit = 10, ?string $mode = null ): array {
 		global $wpdb;
-		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'sync_jobs' ) . " WHERE status IN ('pending','error') AND next_attempt <= %s ORDER BY next_attempt ASC, id ASC LIMIT %d", self::now(), self::limit( $limit ) ), ARRAY_A );
+		if ( null !== $mode && ! self::mode( $mode ) ) { return array(); }
+		$filter = null === $mode ? '' : $wpdb->prepare( ' AND mode = %s', $mode );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'sync_jobs' ) . " WHERE status IN ('pending','error') AND next_attempt <= %s$filter ORDER BY next_attempt ASC, id ASC LIMIT %d", self::now(), self::limit( $limit ) ), ARRAY_A );
 		foreach ( $rows as $row ) { self::$sync_generations[ (int) $row['id'] ] = (int) $row['generation']; }
 		return $rows;
 	}
@@ -431,9 +435,11 @@ final class TC_Billing_Store {
 		return false === $result ? self::error( 'billing_role_write_failed' ) : true;
 	}
 
-	public static function due_reconcile( int $limit = 10 ): array {
+	public static function due_reconcile( int $limit = 10, ?string $mode = null ): array {
 		global $wpdb;
-		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'orders' ) . ' WHERE next_check_at <= %s AND (checkout_id IS NOT NULL OR subscription_id IS NOT NULL OR payment_id IS NOT NULL) ORDER BY next_check_at ASC, id ASC LIMIT %d', self::now(), self::limit( $limit ) ), ARRAY_A );
+		if ( null !== $mode && ! self::mode( $mode ) ) { return array(); }
+		$filter = null === $mode ? '' : $wpdb->prepare( ' AND mode = %s', $mode );
+		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'orders' ) . " WHERE next_check_at <= %s AND (checkout_id IS NOT NULL OR subscription_id IS NOT NULL OR payment_id IS NOT NULL)$filter ORDER BY next_check_at ASC, id ASC LIMIT %d", self::now(), self::limit( $limit ) ), ARRAY_A );
 	}
 	public static function mark_reconciled( string $order_id, int $retry_after = 3600 ): void {
 		global $wpdb;

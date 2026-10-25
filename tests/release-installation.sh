@@ -114,6 +114,19 @@ $expect( is_plugin_active( 'timonconfigs-core/timonconfigs-core.php' ), 'the pac
 $expect( 'timonconfigs' === get_stylesheet(), 'the packaged theme is activated' );
 $expect( getenv( 'TC_EXPECTED_THEME_VERSION' ) === wp_get_theme()->get( 'Version' ), 'installed theme version matches its ZIP' );
 $expect( getenv( 'TC_EXPECTED_CORE_VERSION' ) === TIMONCONFIGS_CORE_VERSION, 'installed plugin version matches its ZIP' );
+foreach ( array( 'Store', 'Stripe', 'PayPal', 'Discord', 'UI' ) as $billing_class ) {
+	$expect( class_exists( 'TC_Billing_' . $billing_class ), 'packaged billing class is available: ' . $billing_class );
+}
+$expect( class_exists( 'TC_Billing' ), 'packaged billing controller is available' );
+$billing_config = TC_Billing::config();
+$expect( 'legacy' === $billing_config['routing'] && 'test' === $billing_config['mode'] && ! $billing_config['role_sync_enabled'] && ! $billing_config['paypal_enabled'], 'fresh billing preserves legacy routing and disables role writes and PayPal' );
+$expect( ! TC_Billing::direct_enabled() && ! TC_Billing::mode_allowed( 'live' ), 'installing ZIPs cannot activate direct sales or Live mode' );
+$expect( ! TC_Billing::provider_ready( 'stripe', 'test' ) && ! TC_Billing::provider_ready( 'paypal', 'test' ), 'fresh packages contain no payment credentials' );
+global $wpdb;
+foreach ( array( 'orders', 'entitlements', 'events', 'sync_jobs', 'owned_roles', 'leases' ) as $billing_table ) {
+	$installed_table = $wpdb->get_row( $wpdb->prepare( 'SHOW TABLE STATUS WHERE Name = %s', $wpdb->prefix . 'tc_billing_' . $billing_table ), ARRAY_A );
+	$expect( is_array( $installed_table ) && 'innodb' === strtolower( $installed_table['Engine'] ), 'packaged billing creates a transactional InnoDB table: ' . $billing_table );
+}
 $expect( true === WP_HTTP_BLOCK_EXTERNAL, 'WordPress external HTTP requests are disabled' );
 $expect( class_exists( 'TC_Owner_Editor' ) && class_exists( 'TC_Config_Content' ), 'Owner and protected editorial modules are packaged and loaded' );
 $expect( current_user_can( 'edit_tc_configs' ) && current_user_can( 'publish_tc_configs' ), 'administrator retains explicit config editor fallback' );

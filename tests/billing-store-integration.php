@@ -250,6 +250,27 @@ try {
 	$assert( 1 === count( $remaining ) && $lifetime_grant['source'] === $remaining[0]['source'], 'Expiring Monthly sources preserves the independent unlimited Lifetime grant.' );
 	$assert( 0 === $must( TC_Billing_Store::expire_entitlements( 'test' ) ) && $expiry_state['generation'] === TC_Billing_Store::sync_state( $grant_uid, 'test' )['generation'], 'Repeating expiry does not enqueue another job for already expired sources.' );
 	$assert( TC_Billing_Store::maintenance_needed( 'test' ) && TC_Billing_Store::maintenance_needed( 'live' ) && ! TC_Billing_Store::maintenance_needed( 'invalid' ), 'Maintenance discovers persisted coverage in each exact billing mode.' );
+	// Mode must be filtered before LIMIT; abandoned Test work must not starve Live.
+	for ( $index = 0; $index < 5; ++$index ) {
+		$stale_test = $make_order( $uid );
+		$must( TC_Billing_Store::update_order( $stale_test['id'], array( 'subscription_id' => 'sub_' . $tag . '_stale_' . $index ) ) );
+		$wpdb->update( $tables['orders'], array( 'next_check_at' => '2000-01-01 00:00:00' ), array( 'id' => $stale_test['id'] ) );
+		$stale_event = $make_event( $stale_test, 'stale_' . $index );
+		$wpdb->update( $tables['events'], array( 'next_attempt' => '2000-01-01 00:00:00' ), array( 'id' => $stale_event['id'] ) );
+	}
+	$due_live = $make_order( $uid, 'live' );
+	$must( TC_Billing_Store::update_order( $due_live['id'], array( 'subscription_id' => 'sub_' . $tag . '_due_live' ) ) );
+	$wpdb->update( $tables['orders'], array( 'next_check_at' => '2001-01-01 00:00:00' ), array( 'id' => $due_live['id'] ) );
+	$due_live_event = $make_event( $due_live, 'due_live' );
+	$wpdb->update( $tables['events'], array( 'next_attempt' => '2001-01-01 00:00:00' ), array( 'id' => $due_live_event['id'] ) );
+	$assert( $due_live['id'] === ( TC_Billing_Store::due_reconcile( 1, 'live' )[0]['id'] ?? '' ), 'Five older Test orders cannot starve a due Live reconciliation.' );
+	$assert( (int) $due_live_event['id'] === (int) ( TC_Billing_Store::due_events( 1, 'live' )[0]['id'] ?? 0 ), 'Event workers select the current mode before applying their limit.' );
+	TC_Billing_Store::enqueue_sync( $uid, 'test' ); TC_Billing_Store::enqueue_sync( $uid, 'live' );
+	$wpdb->update( $tables['sync_jobs'], array( 'next_attempt' => '2000-01-01 00:00:00' ), array( 'user_id' => $uid, 'mode' => 'test' ) );
+	$wpdb->update( $tables['sync_jobs'], array( 'next_attempt' => '2001-01-01 00:00:00' ), array( 'user_id' => $uid, 'mode' => 'live' ) );
+	$due_live_sync = TC_Billing_Store::due_syncs( 1, 'live' );
+	$assert( 1 === count( $due_live_sync ) && $uid === (int) $due_live_sync[0]['user_id'] && 'live' === $due_live_sync[0]['mode'], 'Role workers do not spend their bounded batch on the other mode.' );
+	$assert( array() === TC_Billing_Store::due_reconcile( 1, 'invalid' ) && array() === TC_Billing_Store::due_events( 1, 'invalid' ) && array() === TC_Billing_Store::due_syncs( 1, 'invalid' ), 'Worker reads reject invalid billing modes.' );
 	$assert( 0 === $network_calls, 'All store operations complete without any remote HTTP.' );
 	WP_CLI::success( "Billing store integration: $checks assertions; durable transaction/outbox rollback, source isolation, deduplication, retry and CAS lease checks." );
 } finally {

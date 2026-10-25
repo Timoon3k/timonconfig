@@ -13,7 +13,7 @@ final class TC_Billing_UI {
 		$product = TC_Billing::plan( $plan ); if ( ! in_array( $plan, array( 'monthly', 'lifetime' ), true ) || ! $product ) { return '<p>Choose a membership from Pricing.</p>'; }
 		$identity = TC_Billing::identity(); $config = TC_Billing::config();
 		ob_start();
-		echo '<section class="tc-billing"><p class="tc-eyebrow">TIMONCONFIGS MEMBERSHIP</p><h1>' . esc_html( $product['name'] ) . '</h1><p>' . esc_html( TC_Billing::display_price( $plan ) ) . ( 'monthly' === $plan ? ' / month. Renews automatically until canceled.' : ' one time. No monthly renewal.' ) . '</p>';
+		echo '<section class="tc-billing tc-billing-checkout"><p class="tc-eyebrow">TIMONCONFIGS MEMBERSHIP</p><h1>' . esc_html( $product['name'] ) . '</h1><p>' . esc_html( TC_Billing::display_price( $plan ) ) . ( 'monthly' === $plan ? ' / month. Renews automatically until canceled.' : ' one time. No monthly renewal.' ) . '</p>';
 		if ( 'test' === $config['mode'] ) { echo '<p class="tc-billing-notice" role="status">Test checkout — use test payment details only. This purchase does not confirm a live membership.</p>'; }
 		if ( is_wp_error( $identity ) ) {
 			echo '<p>Continue with Discord to securely link this purchase to your member account.</p><a class="tc-button" href="' . esc_url( TC_Discord::login_url() ) . '">Continue with Discord</a><p>After signing in, return to this membership checkout.</p></section>';
@@ -40,10 +40,13 @@ final class TC_Billing_UI {
 		if ( 'test' === $mode ) { echo '<p class="tc-billing-notice" role="status">Test environment. Test orders are separate from live purchases.</p>'; }
 		$feedback = get_transient( 'tc_billing_feedback_' . $uid );
 		if ( is_string( $feedback ) && '' !== $feedback ) { delete_transient( 'tc_billing_feedback_' . $uid ); echo '<p class="tc-billing-notice" role="status">' . esc_html( $feedback ) . '</p>'; }
-		if ( isset( $_GET['tc_billing_return'] ) ) { echo '<p class="tc-billing-notice" role="status">We are waiting for verified provider confirmation. Returning here does not activate membership.</p>'; }
+		if ( isset( $_GET['tc_billing_return'] ) ) { echo '<p class="tc-billing-notice" role="status">Payment return received. Your verified billing status is shown below. Returning here does not activate membership.</p>'; }
 		$sync = TC_Billing_Store::sync_state( $uid, $mode );
-		echo '<p>Discord sync: <strong class="tc-billing-status">' . esc_html( $sync['status'] ?? 'No pending payment updates' ) . '</strong></p>';
+		$sync_label = array( 'done' => 'Up to date', 'pending' => 'Pending', 'error' => 'Retry pending' );
+		echo '<p>Discord sync: <strong class="tc-billing-status" data-status="' . esc_attr( $sync['status'] ?? '' ) . '">' . esc_html( $sync_label[ $sync['status'] ?? '' ] ?? 'No pending payment updates' ) . '</strong></p>';
+		$has_lifetime = false;
 		foreach ( $entitlements as $source ) {
+			$has_lifetime = $has_lifetime || ( 'lifetime' === $source['plan'] && 'active' === $source['status'] );
 			echo '<article class="tc-billing-card"><h3>' . esc_html( TC_Billing::plan( $source['plan'] )['name'] ?? 'Membership' ) . '</h3><dl><div><dt>Provider</dt><dd>' . esc_html( ucfirst( $source['provider'] ) ) . '</dd></div><div><dt>Payment access</dt><dd>' . esc_html( ( 'active' === $source['status'] && 'monthly' === $source['plan'] && ! empty( $source['valid_until'] ) && $source['valid_until'] <= gmdate( 'Y-m-d H:i:s' ) ? 'expired' : $source['status'] ) ) . '</dd></div><div><dt>Paid access until</dt><dd>' . esc_html( 'lifetime' === $source['plan'] && 'active' === $source['status'] ? 'Lifetime license — no monthly expiry' : self::date( $source['valid_until'] ?? null ) ) . '</dd></div><div><dt>Next payment</dt><dd>' . esc_html( ! empty( $source['cancel_at_period_end'] ) ? 'Auto-renewal canceled' : self::date( $source['next_payment_at'] ?? null ) ) . '</dd></div></dl></article>';
 		}
 		if ( ! $entitlements ) { echo '<p>No verified direct purchase yet. Your current Discord roles still determine library access.</p>'; }
@@ -66,7 +69,7 @@ final class TC_Billing_UI {
 			}
 			self::start( 'refresh', array( 'order_id' => $order['id'] ) ); echo '<button class="tc-button tc-button--ghost" type="submit">Refresh payment status</button></form></article>';
 		}
-		echo '<div class="tc-billing-actions"><a class="tc-button" href="' . esc_url( TC_Checkout::get_checkout_url( 'lifetime' ) ) . '">Upgrade to Lifetime</a><a href="' . esc_url( home_url( '/contact/' ) ) . '">Membership support</a></div><p>Existing Upgrade.chat purchases remain managed in <a href="https://upgrade.chat/" rel="noopener noreferrer">your Upgrade.chat account</a>. A new purchase does not cancel another provider’s subscription.</p></section>';
+		echo '<div class="tc-billing-actions">' . ( $has_lifetime ? '' : '<a class="tc-button" href="' . esc_url( TC_Checkout::get_checkout_url( 'lifetime' ) ) . '">Upgrade to Lifetime</a>' ) . '<a href="' . esc_url( home_url( '/contact/' ) ) . '">Membership support</a></div><p>Existing Upgrade.chat purchases remain managed in <a href="https://upgrade.chat/" rel="noopener noreferrer">your Upgrade.chat account</a>. A new purchase does not cancel another provider’s subscription.</p></section>';
 		return (string) ob_get_clean();
 	}
 	public static function admin(): void {

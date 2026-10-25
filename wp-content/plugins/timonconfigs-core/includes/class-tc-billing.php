@@ -108,7 +108,7 @@ final class TC_Billing {
 				if ( is_wp_error( $verified ) ) { return $verified; }
 				if ( ( $verified['plan'] ?? '' ) !== $plan || ( $verified['mode'] ?? '' ) !== $mode ) { return self::error( 'tc_billing_intent', 'This purchase link does not match the selected membership.' ); }
 			}
-			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $identity['user_id'], static function () use ( $identity, $plan, $provider, $mode ): array|WP_Error {
+			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $identity['user_id'], static function () use ( $identity, $plan, $provider, $mode, $status ): array|WP_Error {
 				if ( 'monthly' === $plan ) {
 					$recurring = TC_Billing_Store::unresolved_recurring( $identity['user_id'], $mode );
 					if ( is_wp_error( $recurring ) ) { return $recurring; }
@@ -118,6 +118,10 @@ final class TC_Billing {
 				$active = TC_Billing_Store::active( $identity['user_id'], $mode ); if ( is_wp_error( $active ) ) { return $active; }
 				foreach ( $active as $entitlement ) {
 					if ( 'monthly' === $plan || 'lifetime' === $entitlement['plan'] ) { return self::error( 'tc_billing_duplicate', 'You already have covered access. Manage your existing subscription before starting another.' ); }
+				}
+				$covered_role = 'lifetime' === $status['state'] || ( 'monthly' === $plan && 'monthly' === $status['state'] );
+				if ( $covered_role && '1' !== get_user_meta( $identity['user_id'], '_tc_billing_legacy_reviewed_' . $mode, true ) ) {
+					return self::error( 'tc_billing_legacy_review', 'Your Discord account already has paid access. Contact support to review the existing purchase before starting another. Monthly members may separately upgrade to Lifetime.' );
 				}
 				$order = null;
 				foreach ( TC_Billing_Store::orders_for_user( $identity['user_id'], $mode ) as $pending ) {
@@ -251,7 +255,7 @@ final class TC_Billing {
 				$expired = TC_Billing_Store::expire_entitlements( $mode );
 				update_option( 'timonconfigs_billing_worker_error', is_wp_error( $expired ) ? sanitize_key( $expired->get_error_code() ) : '', false );
 			}
-			foreach ( TC_Billing_Store::due_reconcile( 5 ) as $order ) {
+			foreach ( TC_Billing_Store::due_reconcile( 5, $mode ) as $order ) {
 				if ( $order['mode'] !== self::config()['mode'] || ! self::mode_allowed( $order['mode'] ) ) { continue; }
 				self::queue_reconcile( $order ); TC_Billing_Store::enqueue_sync( (int) $order['user_id'], $order['mode'] );
 				$interval = 3600;
@@ -262,8 +266,8 @@ final class TC_Billing {
 				}
 				TC_Billing_Store::mark_reconciled( $order['id'], $interval );
 			}
-			foreach ( TC_Billing_Store::due_events( 5 ) as $event ) { self::process_event( $event ); }
-			foreach ( TC_Billing_Store::due_syncs( 5 ) as $job ) {
+			foreach ( TC_Billing_Store::due_events( 5, $mode ) as $event ) { self::process_event( $event ); }
+			foreach ( TC_Billing_Store::due_syncs( 5, $mode ) as $job ) {
 				$result = TC_Billing_Discord::sync( $job );
 				TC_Billing_Store::sync_result( (int) $job['id'], true === $result ? 'done' : 'error', is_wp_error( $result ) ? sanitize_key( $result->get_error_code() ) : '', is_wp_error( $result ) ? self::retry( $job, $result ) : 60 );
 			}
