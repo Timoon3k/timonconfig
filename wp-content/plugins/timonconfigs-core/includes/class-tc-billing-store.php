@@ -251,7 +251,10 @@ final class TC_Billing_Store {
 	public static function maintenance_needed( string $mode ): bool {
 		global $wpdb;
 		if ( ! self::mode( $mode ) ) { return false; }
-		foreach ( array( 'orders', 'entitlements', 'events', 'sync_jobs' ) as $name ) { if ( $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM ' . self::table( $name ) . ' WHERE mode=%s LIMIT 1', $mode ) ) ) { return true; } }
+		foreach ( array( 'orders', 'entitlements', 'events', 'sync_jobs' ) as $name ) {
+			$exists = $wpdb->get_var( $wpdb->prepare( 'SELECT 1 FROM ' . self::table( $name ) . ' WHERE mode=%s LIMIT 1', $mode ) );
+			if ( '' !== $wpdb->last_error || $exists ) { return true; }
+		}
 		return false;
 	}
 	/** Also expires grant-only memberships, independently of provider orders. */

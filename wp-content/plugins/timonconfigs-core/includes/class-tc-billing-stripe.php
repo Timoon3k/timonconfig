@@ -12,6 +12,21 @@ final class TC_Billing_Stripe {
 	private const VERSION = '2024-06-20';
 	private const TOLERANCE = 300;
 
+	/** Read-only setup lookup; the administrator controller owns capability and nonce checks. */
+	public static function inspect_setup_price( string $price_id, string $plan, string $mode ): array|WP_Error {
+		if ( ! in_array( $plan, array( 'monthly', 'lifetime' ), true ) || ! in_array( $mode, array( 'test', 'live' ), true ) || ! self::id( $price_id, 'price_' ) ) { return self::error( 'stripe_setup_price' ); }
+		$price = self::fetch( 'prices', $price_id, 'price_', $mode, array(), true );
+		if ( is_wp_error( $price ) ) { return $price; }
+		$product_id = self::object_id( $price['product'] ?? '' );
+		if ( ! self::id( $product_id, 'prod_' ) || true !== ( $price['active'] ?? false ) || ! empty( $price['recurring']['trial_period_days'] ) ) { return self::error( 'stripe_setup_price' ); }
+		$valid = self::validate_price( $price, array( 'plan' => $plan, 'mode' => $mode ), $price_id, $product_id );
+		if ( is_wp_error( $valid ) ) { return $valid; }
+		$product = self::fetch( 'products', $product_id, 'prod_', $mode, array(), true );
+		if ( is_wp_error( $product ) ) { return $product; }
+		if ( true !== ( $product['active'] ?? false ) ) { return self::error( 'stripe_configured_product' ); }
+		return array( 'price_id' => $price_id, 'product_id' => $product_id );
+	}
+
 	public static function create_checkout( array $order ): array|WP_Error {
 		$order = self::stored_order( $order );
 		if ( is_wp_error( $order ) ) { return $order; }
@@ -312,8 +327,9 @@ final class TC_Billing_Stripe {
 		return $price;
 	}
 
-	private static function validate_price( mixed $price, array $order, string $id ): bool|WP_Error {
-		if ( ! is_array( $price ) || ! self::matches_mode( $price, $order['mode'] ) || ( $price['id'] ?? '' ) !== $id || self::object_id( $price['product'] ?? '' ) !== TC_Billing::setting( 'stripe_' . $order['plan'] . '_product_id', $order['mode'] ) || ( $price['currency'] ?? '' ) !== 'eur' || ( $price['unit_amount'] ?? null ) !== ( 'monthly' === $order['plan'] ? 2999 : 8000 ) || ( $price['billing_scheme'] ?? '' ) !== 'per_unit' || ! empty( $price['transform_quantity'] ) || ! empty( $price['custom_unit_amount'] ) ) { return self::error( 'stripe_price_mismatch' ); }
+	private static function validate_price( mixed $price, array $order, string $id, ?string $expected_product = null ): bool|WP_Error {
+		$expected_product = $expected_product ?? TC_Billing::setting( 'stripe_' . $order['plan'] . '_product_id', $order['mode'] );
+		if ( ! is_array( $price ) || ! self::matches_mode( $price, $order['mode'] ) || ( $price['id'] ?? '' ) !== $id || self::object_id( $price['product'] ?? '' ) !== $expected_product || ( $price['currency'] ?? '' ) !== 'eur' || ( $price['unit_amount'] ?? null ) !== ( 'monthly' === $order['plan'] ? 2999 : 8000 ) || ( $price['billing_scheme'] ?? '' ) !== 'per_unit' || ! empty( $price['transform_quantity'] ) || ! empty( $price['custom_unit_amount'] ) ) { return self::error( 'stripe_price_mismatch' ); }
 		if ( 'monthly' === $order['plan'] ) {
 			if ( 'recurring' !== ( $price['type'] ?? '' ) || 'month' !== ( $price['recurring']['interval'] ?? '' ) || 1 !== ( $price['recurring']['interval_count'] ?? null ) || 'licensed' !== ( $price['recurring']['usage_type'] ?? '' ) ) { return self::error( 'stripe_price_interval' ); }
 		} elseif ( 'one_time' !== ( $price['type'] ?? '' ) || ! empty( $price['recurring'] ) ) { return self::error( 'stripe_price_interval' ); }
@@ -375,16 +391,18 @@ final class TC_Billing_Stripe {
 		return array( 'source' => 'stripe:' . $order['mode'] . ':' . $source, 'user_id' => (int) $order['user_id'], 'discord_id' => (string) $order['discord_id'], 'provider' => 'stripe', 'mode' => $order['mode'], 'plan' => $order['plan'], 'external_id' => $external, 'order_id' => $order['id'], 'customer_id' => $customer, 'payment_id' => $payment );
 	}
 
-	private static function fetch( string $collection, string $id, string $prefix, string $mode, array $args = array() ): array|WP_Error {
+	private static function fetch( string $collection, string $id, string $prefix, string $mode, array $args = array(), bool $setup_read = false ): array|WP_Error {
 		if ( ! self::id( $id, $prefix ) ) { return self::error( 'stripe_external_id' ); }
-		$result = self::api( 'GET', $collection . '/' . rawurlencode( $id ), $mode, $args );
+		$result = self::api( 'GET', $collection . '/' . rawurlencode( $id ), $mode, $args, '', $setup_read );
 		if ( is_wp_error( $result ) ) { return $result; }
 		if ( ( $result['id'] ?? '' ) !== $id || ! self::matches_mode( $result, $mode ) ) { return self::error( 'stripe_object_binding' ); }
 		return $result;
 	}
 
-	private static function api( string $method, string $path, string $mode, array $params = array(), string $key = '' ): array|WP_Error {
-		if ( ! TC_Billing::mode_allowed( $mode ) || ! in_array( $mode, array( 'test', 'live' ), true ) || ! preg_match( '~^[a-z_]+(?:/[a-zA-Z0-9_]+){0,2}$~D', $path ) ) { return self::error( 'stripe_request' ); }
+	private static function api( string $method, string $path, string $mode, array $params = array(), string $key = '', bool $setup_read = false ): array|WP_Error {
+		// Only setup inspection may precede activation; never use this exception for a write.
+		$inspection = $setup_read && 'GET' === $method && 1 === preg_match( '~^(?:prices/price_|products/prod_)[A-Za-z0-9_]+$~D', $path );
+		if ( ( $setup_read && ! $inspection ) || ( ! $inspection && ! TC_Billing::mode_allowed( $mode ) ) || ! in_array( $mode, array( 'test', 'live' ), true ) || ! preg_match( '~^[a-z_]+(?:/[a-zA-Z0-9_]+){0,2}$~D', $path ) ) { return self::error( 'stripe_request' ); }
 		$secret = TC_Billing::secret( 'STRIPE_SECRET_KEY', $mode );
 		if ( ! preg_match( '/^(?:sk|rk)_' . $mode . '_[a-zA-Z0-9]+$/D', $secret ) ) { return self::error( 'stripe_key_mode' ); }
 		$headers = array( 'Authorization' => 'Bearer ' . $secret, 'Stripe-Version' => self::VERSION, 'Content-Type' => 'application/x-www-form-urlencoded' );

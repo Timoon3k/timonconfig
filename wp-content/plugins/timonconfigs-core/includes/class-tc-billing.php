@@ -5,6 +5,7 @@ defined( 'ABSPATH' ) || exit;
 final class TC_Billing {
 	public static function init(): void {
 		TC_Billing_Store::init();
+		TC_Billing_Secrets::init();
 		add_filter( 'cron_schedules', static function ( array $schedules ): array { $schedules['tc_billing_five_minutes'] = array( 'interval' => 300, 'display' => 'TimonConfigs billing queue' ); return $schedules; } );
 		add_action( 'init', array( __CLASS__, 'schedule' ) );
 		add_action( 'tc_billing_tick', array( __CLASS__, 'tick' ) );
@@ -18,16 +19,23 @@ final class TC_Billing {
 
 	public static function config(): array {
 		$value = get_option( 'timonconfigs_billing', array() );
-		$config = array_merge( array( 'mode' => 'test', 'routing' => 'disabled', 'stripe_test_confirmed' => false, 'migration_confirmed' => false, 'legal_confirmed' => false, 'paypal_enabled' => false, 'role_sync_enabled' => false ), is_array( $value ) ? $value : array() );
+		$config = array_merge( array( 'mode' => 'test', 'routing' => 'disabled', 'stripe_test_confirmed' => false, 'migration_confirmed' => false, 'legal_confirmed' => false, 'paypal_enabled' => false, 'role_sync_enabled' => false, 'live_pilot_enabled' => false, 'pilot_real_charges_confirmed' => false, 'pilot_discord_id' => '' ), is_array( $value ) ? $value : array() );
 		// Retired routing values never reactivate a former checkout provider.
-		$config['routing'] = 'direct' === $config['routing'] ? 'direct' : 'disabled';
+		$config['routing'] = in_array( $config['routing'], array( 'direct', 'pilot' ), true ) ? $config['routing'] : 'disabled';
 		return $config;
 	}
-	public static function setting( string $key, string $mode ): string { $value = self::config()[ $mode . '_' . $key ] ?? ''; return in_array( $mode, array( 'test', 'live' ), true ) && is_string( $value ) ? $value : ''; }
+	public static function setting( string $key, string $mode ): string {
+		if ( ! in_array( $mode, array( 'test', 'live' ), true ) ) { return ''; }
+		$value = self::config()[ $mode . '_' . $key ] ?? '';
+		if ( '' === $value && 'live' === $mode && self::pilot_active() ) {
+			$map = array( 'discord_guild_id' => 'guild_id', 'discord_monthly_role_id' => 'monthly_role', 'discord_lifetime_role_id' => 'lifetime_role' );
+			if ( isset( $map[ $key ] ) ) { $oauth = get_option( 'timonconfigs_discord', array() ); $value = is_array( $oauth ) ? ( $oauth[ $map[ $key ] ] ?? '' ) : ''; }
+		}
+		return is_string( $value ) ? $value : '';
+	}
 	public static function secret( string $name, string $mode ): string {
 		if ( ! in_array( $mode, array( 'test', 'live' ), true ) || ! in_array( $name, array( 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'DISCORD_BOT_TOKEN' ), true ) ) { return ''; }
-		$key = 'TIMONCONFIGS_BILLING_' . strtoupper( $mode ) . '_' . $name;
-		return defined( $key ) && is_string( constant( $key ) ) ? trim( constant( $key ) ) : '';
+		return TC_Billing_Secrets::get( $name, $mode );
 	}
 	public static function plan( string $plan ): array {
 		return match ( $plan ) {
@@ -47,34 +55,67 @@ final class TC_Billing {
 			return in_array( wp_get_environment_type(), array( 'local', 'development', 'staging' ), true ) || in_array( wp_parse_url( home_url(), PHP_URL_HOST ), array( 'localhost', '127.0.0.1' ), true );
 		}
 		$config = self::config();
-		return 'live' === $mode && defined( 'TIMONCONFIGS_BILLING_LIVE_APPROVED' ) && true === TIMONCONFIGS_BILLING_LIVE_APPROVED && ! empty( $config['stripe_test_confirmed'] ) && ! empty( $config['migration_confirmed'] ) && ! empty( $config['legal_confirmed'] ) && 'https' === wp_parse_url( home_url(), PHP_URL_SCHEME );
+		return 'live' === $mode && 'https' === wp_parse_url( home_url(), PHP_URL_SCHEME ) && ( self::public_live_approved( $config ) || self::pilot_active( $config ) );
 	}
-	public static function direct_enabled(): bool { $config = self::config(); return 'direct' === $config['routing'] && self::mode_allowed( $config['mode'] ); }
+	private static function public_live_approved( array $config ): bool { return defined( 'TIMONCONFIGS_BILLING_LIVE_APPROVED' ) && true === TIMONCONFIGS_BILLING_LIVE_APPROVED && ! empty( $config['stripe_test_confirmed'] ) && ! empty( $config['migration_confirmed'] ) && ! empty( $config['legal_confirmed'] ); }
+	public static function pilot_active( ?array $config = null ): bool {
+		$config ??= self::config();
+		return ! empty( $config['live_pilot_enabled'] ) && ! empty( $config['pilot_real_charges_confirmed'] ) && is_string( $config['pilot_discord_id'] ?? null ) && 1 === preg_match( '/^[1-9][0-9]{16,19}$/D', $config['pilot_discord_id'] );
+	}
+	public static function direct_enabled(): bool {
+		$config = self::config();
+		if ( ! self::mode_allowed( $config['mode'] ) ) { return false; }
+		if ( 'pilot' === $config['routing'] ) { return 'live' === $config['mode'] && self::pilot_active( $config ); }
+		return 'direct' === $config['routing'] && ( 'test' === $config['mode'] || ( ! self::pilot_active( $config ) && self::public_live_approved( $config ) ) );
+	}
+	/** Signed Discord interactions may check an actor before website OAuth; POST still requires identity(). */
+	public static function actor_can_purchase( string $discord ): bool {
+		if ( ! self::direct_enabled() ) { return false; }
+		$config = self::config();
+		return 'pilot' !== $config['routing'] || ( 1 === preg_match( '/^[1-9][0-9]{16,19}$/D', $discord ) && hash_equals( $config['pilot_discord_id'], $discord ) );
+	}
+	public static function current_user_can_purchase(): bool { $identity = self::identity(); return ! is_wp_error( $identity ) && self::actor_can_purchase( $identity['discord_id'] ); }
 	public static function error( string $code, string $message ): WP_Error { return new WP_Error( $code, $message ); }
 	public static function adapter( string $provider ): string|WP_Error { return match ( $provider ) { 'stripe' => TC_Billing_Stripe::class, 'paypal' => TC_Billing_PayPal::class, default => self::error( 'tc_billing_provider', 'Choose a supported payment provider.' ) }; }
 	public static function provider_ready( string $provider, string $mode ): bool {
 		if ( ! self::mode_allowed( $mode ) ) { return false; }
 		$config = self::config();
-		if ( 'live' === $mode && ( empty( $config['role_sync_enabled'] ) || '' === self::secret( 'DISCORD_BOT_TOKEN', $mode ) || '' === self::setting( 'discord_guild_id', $mode ) || '' === self::setting( 'discord_monthly_role_id', $mode ) || '' === self::setting( 'discord_lifetime_role_id', $mode ) ) ) { return false; }
 		if ( 'stripe' === $provider ) { return '' !== self::secret( 'STRIPE_SECRET_KEY', $mode ) && '' !== self::secret( 'STRIPE_WEBHOOK_SECRET', $mode ); }
 		return 'paypal' === $provider && ! empty( $config['paypal_enabled'] ) && ! empty( $config['stripe_test_confirmed'] ) && '' !== self::secret( 'PAYPAL_CLIENT_ID', $mode ) && '' !== self::secret( 'PAYPAL_CLIENT_SECRET', $mode ) && '' !== self::setting( 'paypal_webhook_id', $mode );
+	}
+	public static function checkout_provider_ready( string $provider, string $mode, string $plan = '' ): bool {
+		if ( ! self::provider_ready( $provider, $mode ) ) { return false; }
+		if ( 'stripe' === $provider && in_array( $plan, array( 'monthly', 'lifetime' ), true ) && ( ! preg_match( '/^price_[A-Za-z0-9_]+$/D', self::setting( 'stripe_' . $plan . '_price_id', $mode ) ) || ! preg_match( '/^prod_[A-Za-z0-9_]+$/D', self::setting( 'stripe_' . $plan . '_product_id', $mode ) ) ) ) { return false; }
+		$config = self::config();
+		return 'test' === $mode || ( ! empty( $config['role_sync_enabled'] ) && '' !== self::secret( 'DISCORD_BOT_TOKEN', $mode ) && '' !== self::setting( 'discord_guild_id', $mode ) && '' !== self::setting( 'discord_monthly_role_id', $mode ) && '' !== self::setting( 'discord_lifetime_role_id', $mode ) );
 	}
 	public static function public_keys(): array { return array( 'stripe_monthly_price_id', 'stripe_monthly_product_id', 'stripe_lifetime_price_id', 'stripe_lifetime_product_id', 'paypal_monthly_plan_id', 'paypal_monthly_product_id', 'paypal_webhook_id', 'discord_guild_id', 'discord_monthly_role_id', 'discord_lifetime_role_id' ); }
 	public static function sanitize( mixed $input ): array {
 		$old = self::config();
 		if ( ! current_user_can( 'manage_options' ) || ! is_array( $input ) ) { return $old; }
-		$result = array( 'mode' => in_array( $input['mode'] ?? '', array( 'test', 'live' ), true ) ? $input['mode'] : 'test', 'routing' => 'direct' === ( $input['routing'] ?? '' ) ? 'direct' : 'disabled' );
-		foreach ( array( 'stripe_test_confirmed', 'migration_confirmed', 'legal_confirmed', 'paypal_enabled', 'role_sync_enabled' ) as $flag ) { $result[ $flag ] = in_array( $input[ $flag ] ?? null, array( true, 1, '1' ), true ); }
+		if ( 'live' === ( $input['mode'] ?? '' ) && ! TC_Billing_Secrets::secure_transport() ) { add_settings_error( 'tc_billing', 'live_https', 'Live configuration requires a secure HTTPS administrator session.' ); return $old; }
+		$result = array( 'mode' => in_array( $input['mode'] ?? '', array( 'test', 'live' ), true ) ? $input['mode'] : 'test', 'routing' => in_array( $input['routing'] ?? '', array( 'direct', 'pilot' ), true ) ? $input['routing'] : 'disabled' );
+		foreach ( array( 'stripe_test_confirmed', 'migration_confirmed', 'legal_confirmed', 'paypal_enabled', 'role_sync_enabled', 'live_pilot_enabled', 'pilot_real_charges_confirmed' ) as $flag ) { $result[ $flag ] = in_array( $input[ $flag ] ?? null, array( true, 1, '1' ), true ); }
+		$result['pilot_discord_id'] = is_string( $input['pilot_discord_id'] ?? null ) && preg_match( '/^[1-9][0-9]{16,19}$/D', $input['pilot_discord_id'] ) ? $input['pilot_discord_id'] : '';
 		foreach ( array( 'test', 'live' ) as $mode ) {
 			foreach ( self::public_keys() as $key ) {
 				$value = $input[ $mode . '_' . $key ] ?? '';
 				$result[ $mode . '_' . $key ] = is_string( $value ) && preg_match( '/^[A-Za-z0-9_-]{0,180}$/D', $value ) ? $value : '';
 			}
 		}
-		if ( 'live' === $result['mode'] && ( ! defined( 'TIMONCONFIGS_BILLING_LIVE_APPROVED' ) || true !== TIMONCONFIGS_BILLING_LIVE_APPROVED || ! $result['stripe_test_confirmed'] || ! $result['migration_confirmed'] || ! $result['legal_confirmed'] ) ) {
-			$result['mode'] = 'test'; $result['routing'] = 'disabled';
-			add_settings_error( 'tc_billing', 'live_disabled', 'Live remains locked until verified test results, approved migration and server-side approval are configured.' );
+		if ( 'live' === $old['mode'] && TC_Billing_Store::maintenance_needed( 'live' ) ) {
+			if ( 'live' !== $result['mode'] || ( ! self::public_live_approved( $result ) && ! self::pilot_active( $result ) ) ) {
+				$result['mode'] = 'live'; $result['routing'] = 'disabled';
+				foreach ( array( 'stripe_test_confirmed', 'migration_confirmed', 'legal_confirmed', 'live_pilot_enabled', 'pilot_real_charges_confirmed', 'pilot_discord_id' ) as $preserved ) { $result[ $preserved ] = $old[ $preserved ]; }
+				add_settings_error( 'tc_billing', 'live_maintenance', 'Live records still need payment reconciliation. New purchases were paused; keep Live selected to manage existing payments.' );
+			}
 		}
+		if ( 'live' === $result['mode'] && ! self::public_live_approved( $result ) && ( ! self::pilot_active( $result ) || ! TC_Billing_Secrets::secure_transport() ) ) {
+			$result['mode'] = 'test'; $result['routing'] = 'disabled';
+			add_settings_error( 'tc_billing', 'live_disabled', 'Choose a confirmed single-account Live pilot over HTTPS, or complete public Live approval.' );
+		}
+		if ( 'pilot' === $result['routing'] && ( 'live' !== $result['mode'] || ! self::pilot_active( $result ) ) ) { $result['routing'] = 'disabled'; }
+		if ( 'live' === $result['mode'] && 'direct' === $result['routing'] && ( self::pilot_active( $result ) || ! self::public_live_approved( $result ) ) ) { $result['routing'] = self::pilot_active( $result ) ? 'pilot' : 'disabled'; }
 		return $result;
 	}
 	/** OAuth identity, never an email match or browser-supplied user ID. */
@@ -98,8 +139,9 @@ final class TC_Billing {
 		$operation = self::scalar( $data, 'operation' );
 		if ( 'checkout' === $operation ) {
 			if ( ! self::direct_enabled() ) { return self::error( 'tc_billing_disabled', 'New direct purchases have not been enabled.' ); }
+			if ( ! self::actor_can_purchase( $identity['discord_id'] ) ) { return self::error( 'tc_billing_pilot', 'This Live pilot is limited to its invited Discord account.' ); }
 			$provider = self::scalar( $data, 'provider' ); $plan = self::scalar( $data, 'plan' );
-			if ( ! in_array( $plan, array( 'monthly', 'lifetime' ), true ) || ! self::provider_ready( $provider, $mode ) ) { return self::error( 'tc_billing_unconfigured', 'This payment option is not available yet.' ); }
+			if ( ! in_array( $plan, array( 'monthly', 'lifetime' ), true ) || ! self::checkout_provider_ready( $provider, $mode, $plan ) ) { return self::error( 'tc_billing_unconfigured', 'This payment option is not available yet.' ); }
 			if ( '1' !== self::scalar( $data, 'consent' ) ) { return self::error( 'tc_billing_consent', 'Review and accept the price, license and renewal terms before continuing.' ); }
 			$status = TC_Discord::status( $identity['user_id'] );
 			if ( ! in_array( $status['state'] ?? '', array( 'free', 'monthly', 'lifetime' ), true ) || ( $status['discord_id'] ?? '' ) !== $identity['discord_id'] ) { return self::error( 'tc_billing_verification', 'Complete Free Member verification in Discord before purchasing.' ); }
@@ -110,6 +152,7 @@ final class TC_Billing {
 				if ( ( $verified['plan'] ?? '' ) !== $plan || ( $verified['mode'] ?? '' ) !== $mode ) { return self::error( 'tc_billing_intent', 'This purchase link does not match the selected membership.' ); }
 			}
 			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $identity['user_id'], static function () use ( $identity, $plan, $provider, $mode, $status ): array|WP_Error {
+				if ( self::config()['mode'] !== $mode || ! self::actor_can_purchase( $identity['discord_id'] ) ) { return self::error( 'tc_billing_pilot', 'Checkout access changed. Reload the page before continuing.' ); }
 				if ( 'monthly' === $plan ) {
 					$recurring = TC_Billing_Store::unresolved_recurring( $identity['user_id'], $mode );
 					if ( is_wp_error( $recurring ) ) { return $recurring; }
@@ -187,6 +230,17 @@ final class TC_Billing {
 		if ( ! current_user_can( 'manage_options' ) || ! wp_verify_nonce( self::scalar( $data, '_wpnonce' ), 'tc_billing_admin' ) ) { return self::error( 'tc_billing_forbidden', 'Administrator authorization is required.' ); }
 		$operation = self::scalar( $data, 'operation' ); $uid = absint( $data['user_id'] ?? 0 ); $mode = self::scalar( $data, 'mode' );
 		if ( ! in_array( $mode, array( 'test', 'live' ), true ) ) { return self::error( 'tc_billing_mode', 'Choose Test or Live.' ); }
+		if ( 'stripe_setup' === $operation ) {
+			if ( ! TC_Billing_Secrets::secure_transport() ) { return self::error( 'tc_billing_https', 'Secure HTTPS setup is required.' ); }
+			$monthly = TC_Billing_Stripe::inspect_setup_price( self::scalar( $data, 'monthly_price_id' ), 'monthly', $mode );
+			if ( is_wp_error( $monthly ) ) { return $monthly; }
+			$lifetime = TC_Billing_Stripe::inspect_setup_price( self::scalar( $data, 'lifetime_price_id' ), 'lifetime', $mode );
+			if ( is_wp_error( $lifetime ) ) { return $lifetime; }
+			$config = self::config();
+			foreach ( array( 'monthly' => $monthly, 'lifetime' => $lifetime ) as $plan => $ids ) { foreach ( array( 'price_id', 'product_id' ) as $kind ) { $config[ $mode . '_stripe_' . $plan . '_' . $kind ] = $ids[ $kind ]; } }
+			if ( ! update_option( 'timonconfigs_billing', $config, false ) && get_option( 'timonconfigs_billing' ) !== $config ) { return self::error( 'tc_billing_storage', 'The verified price IDs could not be saved. Try again.' ); }
+			return true;
+		}
 		if ( 'retry_event' === $operation ) {
 			$event = TC_Billing_Store::event( absint( $data['id'] ?? 0 ) );
 			if ( ! $event || $event['mode'] !== $mode || 'done' === $event['status'] ) { return self::error( 'tc_billing_event', 'Choose an unprocessed event.' ); }

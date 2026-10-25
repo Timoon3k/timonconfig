@@ -292,4 +292,58 @@ $tc_rate_error = TC_Billing_Stripe::reconcile( $tc_event );
 $tc_assert( is_wp_error( $tc_rate_error ) && 'stripe_rate_limited' === $tc_rate_error->get_error_code() && 120 === $tc_rate_error->get_error_data()['retry_after'], 'Rate limits preserve a bounded retry delay without leaking provider bodies.' );
 $tc_assert( is_wp_error( TC_Billing_Stripe::reconcile( array_replace( $tc_event, array( 'type' => 'customer.created', 'object_id' => 'cus_ignored' ) ) ) ), 'Unsupported event processing is a safe explicit ignore result.' );
 
+// Setup derives products from actual Stripe prices without changing saved configuration.
+$tc_setup_settings = TC_Billing::$settings; $tc_setup_secrets = TC_Billing::$secrets;
+TC_Billing::$settings = array();
+$tc_setup_routes = array(
+	'GET prices/price_monthly' => $tc_price,
+	'GET products/prod_monthly' => array( 'id' => 'prod_monthly', 'livemode' => false, 'active' => true ),
+	'GET prices/price_lifetime' => $tc_life_price,
+	'GET products/prod_lifetime' => array( 'id' => 'prod_lifetime', 'livemode' => false, 'active' => true ),
+);
+$tc_routes = $tc_setup_routes; $tc_setup_before = count( $tc_http_calls );
+$tc_assert( array( 'price_id' => 'price_monthly', 'product_id' => 'prod_monthly' ) === TC_Billing_Stripe::inspect_setup_price( 'price_monthly', 'monthly', 'test' ), 'Setup derives the active Monthly product without preconfigured product IDs.' );
+$tc_assert( array( 'price_id' => 'price_lifetime', 'product_id' => 'prod_lifetime' ) === TC_Billing_Stripe::inspect_setup_price( 'price_lifetime', 'lifetime', 'test' ), 'Setup derives the active one-time Lifetime product.' );
+$tc_assert( array() === TC_Billing::$settings && 4 === count( $tc_http_calls ) - $tc_setup_before, 'Read-only price inspection does not save settings or create orders.' );
+foreach ( array( array( 'owner', 'test', 'price_monthly' ), array( 'monthly', 'invalid', 'price_monthly' ), array( 'monthly', 'test', 'cs_other' ), array( 'monthly', 'test', '../price_bad' ) ) as [ $tc_plan, $tc_mode, $tc_id ] ) {
+	$tc_before = count( $tc_http_calls );
+	$tc_assert( is_wp_error( TC_Billing_Stripe::inspect_setup_price( $tc_id, $tc_plan, $tc_mode ) ) && $tc_before === count( $tc_http_calls ), 'Unknown setup plan/mode/price cannot issue HTTP.' );
+}
+foreach ( array( 'unit_amount' => 3000, 'currency' => 'usd', 'active' => false, 'id' => 'price_other', 'product' => '', 'billing_scheme' => 'tiered', 'transform_quantity' => array( 'divide_by' => 2 ), 'custom_unit_amount' => array( 'enabled' => true ) ) as $tc_key => $tc_bad ) {
+	$tc_routes = $tc_setup_routes; $tc_routes['GET prices/price_monthly'][ $tc_key ] = $tc_bad;
+	$tc_assert( is_wp_error( TC_Billing_Stripe::inspect_setup_price( 'price_monthly', 'monthly', 'test' ) ), 'Setup rejects an unsafe canonical price: ' . $tc_key );
+}
+foreach ( array( 'interval' => 'year', 'interval_count' => 2, 'usage_type' => 'metered', 'trial_period_days' => 7 ) as $tc_key => $tc_bad ) {
+	$tc_routes = $tc_setup_routes; $tc_routes['GET prices/price_monthly']['recurring'][ $tc_key ] = $tc_bad;
+	$tc_assert( is_wp_error( TC_Billing_Stripe::inspect_setup_price( 'price_monthly', 'monthly', 'test' ) ), 'Setup rejects nonstandard recurring terms: ' . $tc_key );
+}
+$tc_routes = $tc_setup_routes; $tc_routes['GET products/prod_monthly']['active'] = false;
+$tc_assert( is_wp_error( TC_Billing_Stripe::inspect_setup_price( 'price_monthly', 'monthly', 'test' ) ), 'An inactive canonical product is not accepted for setup.' );
+$tc_routes = $tc_setup_routes; $tc_routes['GET products/prod_monthly']['id'] = 'prod_other';
+$tc_assert( is_wp_error( TC_Billing_Stripe::inspect_setup_price( 'price_monthly', 'monthly', 'test' ) ), 'A different returned canonical product cannot be substituted.' );
+$tc_routes = $tc_setup_routes; $tc_routes['GET prices/price_lifetime']['recurring'] = array( 'interval' => 'month' );
+$tc_assert( is_wp_error( TC_Billing_Stripe::inspect_setup_price( 'price_lifetime', 'lifetime', 'test' ) ), 'Lifetime inspection rejects a recurring price.' );
+$tc_routes = $tc_setup_routes; $tc_routes['GET prices/price_monthly']['livemode'] = true;
+$tc_assert( is_wp_error( TC_Billing_Stripe::inspect_setup_price( 'price_monthly', 'monthly', 'test' ) ), 'Setup cannot mix Test and Live price objects.' );
+
+// An administrator may inspect the catalogue before Live activation, but cannot use
+// this narrow exception to read customers/contracts or perform any provider write.
+$tc_routes = $tc_setup_routes;
+$tc_routes['GET prices/price_monthly']['livemode'] = true;
+$tc_routes['GET products/prod_monthly']['livemode'] = true;
+TC_Billing::$secrets['STRIPE_SECRET_KEY'] = 'sk_live_fixtureOnly';
+$tc_assert( ! TC_Billing::mode_allowed( 'live' ) && array( 'price_id' => 'price_monthly', 'product_id' => 'prod_monthly' ) === TC_Billing_Stripe::inspect_setup_price( 'price_monthly', 'monthly', 'live' ), 'Explicit setup inspection works before Live activation with the correct Live key and objects.' );
+$tc_api = new ReflectionMethod( TC_Billing_Stripe::class, 'api' );
+foreach ( array( array( 'POST', 'checkout/sessions' ), array( 'POST', 'products' ), array( 'DELETE', 'products/prod_monthly' ), array( 'GET', 'customers/cus_other' ), array( 'GET', 'subscriptions/sub_other' ), array( 'GET', 'payment_intents/pi_other' ) ) as [ $tc_method, $tc_path ] ) {
+	$tc_before = count( $tc_http_calls );
+	$tc_assert( is_wp_error( $tc_api->invoke( null, $tc_method, $tc_path, 'live', array(), '', true ) ) && $tc_before === count( $tc_http_calls ), 'Setup exception rejects non-catalogue reads and every write before HTTP.' );
+}
+$tc_before = count( $tc_http_calls );
+$tc_assert( is_wp_error( $tc_api->invoke( null, 'GET', 'prices/price_monthly', 'live' ) ) && $tc_before === count( $tc_http_calls ), 'Ordinary provider operations retain the existing Live activation gate.' );
+TC_Billing::$secrets['STRIPE_SECRET_KEY'] = 'sk_test_fixtureOnly';
+$tc_before = count( $tc_http_calls );
+$tc_assert( is_wp_error( TC_Billing_Stripe::inspect_setup_price( 'price_monthly', 'monthly', 'live' ) ) && $tc_before === count( $tc_http_calls ), 'Live setup rejects a Test secret key before HTTP.' );
+$tc_assert( count( array_filter( array_slice( $tc_http_calls, $tc_setup_before ), static fn( array $call ): bool => 'GET' !== $call[1]['method'] ) ) === 0, 'Every setup request is a pinned GET; no charge, product, price or subscription is created.' );
+TC_Billing::$settings = $tc_setup_settings; TC_Billing::$secrets = $tc_setup_secrets;
+
 file_put_contents( 'php://stdout', sprintf( "Stripe isolated integration: %d assertions passed; all HTTP mocked, no database or payment.\n", $tc_checks ) );

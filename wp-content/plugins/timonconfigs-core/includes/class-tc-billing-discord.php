@@ -295,6 +295,7 @@ final class TC_Billing_Discord {
             return self::response( $text[ $command ] . '<' . home_url( '/account/' ) . '>' );
         }
         if ( ! TC_Billing::direct_enabled() ) { return self::error( 'disabled', 3600 ); }
+        if ( ! TC_Billing::actor_can_purchase( $actor ) ) { return self::response( 'This Live pilot is limited to its invited Discord account. You can browse memberships at <' . home_url( '/pricing/' ) . '>' ); }
         $plan = 'monthly';
         if ( $options ) {
             $option = 1 === count( $options ) ? reset( $options ) : null;
@@ -316,7 +317,7 @@ final class TC_Billing_Discord {
         return TC_Billing_Store::locked( 'discord-intent:' . $hash, static function () use ( $hash, $discord ): array|WP_Error {
             $key = 'tc_billing_intent_' . $hash;
             $intent = get_transient( $key );
-            if ( ! is_array( $intent ) || ! is_string( $intent['discord_id'] ?? null ) || ! hash_equals( $intent['discord_id'], $discord ) || ! is_int( $intent['expires'] ?? null ) || $intent['expires'] <= time() || ! in_array( $intent['plan'] ?? '', array( 'monthly', 'lifetime' ), true ) || ! is_string( $intent['mode'] ?? null ) || $intent['mode'] !== ( TC_Billing::config()['mode'] ?? '' ) || ! TC_Billing::direct_enabled() ) { return self::error( 'intent' ); }
+            if ( ! is_array( $intent ) || ! is_string( $intent['discord_id'] ?? null ) || ! hash_equals( $intent['discord_id'], $discord ) || ! is_int( $intent['expires'] ?? null ) || $intent['expires'] <= time() || ! in_array( $intent['plan'] ?? '', array( 'monthly', 'lifetime' ), true ) || ! is_string( $intent['mode'] ?? null ) || $intent['mode'] !== ( TC_Billing::config()['mode'] ?? '' ) || ! TC_Billing::actor_can_purchase( $discord ) ) { return self::error( 'intent' ); }
             $config = self::configuration( $intent['mode'], false );
             if ( is_wp_error( $config ) || ( $intent['guild_id'] ?? '' ) !== $config['guild_id'] ) { return self::error( 'intent' ); }
             if ( ! delete_transient( $key ) ) { return self::error( 'intent' ); }

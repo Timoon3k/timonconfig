@@ -2,7 +2,7 @@
 /**
  * Plugin Name: TimonConfigs Core
  * Description: TimonConfigs private configuration library, Discord membership and website billing and protected membership access.
- * Version: 0.9.1
+ * Version: 0.9.2
  * Author: TimonConfigs
  * Text Domain: timonconfigs-core
  * Requires at least: 6.5
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_CORE_VERSION', '0.9.1' );
+define( 'TIMONCONFIGS_CORE_VERSION', '0.9.2' );
 define( 'TIMONCONFIGS_CORE_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-tc-checkout.php';
@@ -20,6 +20,7 @@ require_once __DIR__ . '/includes/class-tc-private-files.php';
 require_once __DIR__ . '/includes/class-tc-discord.php';
 require_once __DIR__ . '/includes/class-tc-downloads.php';
 require_once __DIR__ . '/includes/class-tc-member-area.php';
+require_once __DIR__ . '/includes/class-tc-billing-secrets.php';
 require_once __DIR__ . '/includes/class-tc-billing-store.php';
 require_once __DIR__ . '/includes/class-tc-billing-stripe.php';
 require_once __DIR__ . '/includes/class-tc-billing-paypal.php';
