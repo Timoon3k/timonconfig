@@ -1,5 +1,13 @@
 # Direct billing — implementation report
 
+## Current update — public Live purchases (2026-10-26)
+
+Core **0.9.3** / theme **0.11.1**, based on published `main` `7688fc5`. The owner's latest request supersedes the one-account pilot: an explicit HTTPS administrator approval enables public purchases and configured Discord login for ordinary members. New accounts stay subscribers; protected membership files and approved Owner controls retain server authorization. Pausing new purchases preserves customer sign-in and Live contract maintenance. Earlier private-pilot scope below is historical.
+
+Code `fb2142e` is published on GitHub main. **595 PHP assertions** passed: public checkout29, public OAuth27, pilot44, OAuth127, return53, facade87, Discord delivery93, checkout28, presentation38, downloads69. **24 responsive views +2 local checkout routes +6 public pages**, lint73 PHP files/JS and **97 fresh ZIP installation checks** passed. Core21/theme89 files match source; manifest `artifacts/public-live-093-release-manifest.json`. Focused Astra Medium review identified an old-pilot maintenance transition; it is fixed with two regression assertions and re-reviewed without remaining findings. External provider and Discord calls are mocked; no real charge, remote role mutation, secret entry or Hostinger activation has occurred. Setup: [PUBLIC_LIVE_CHECKOUT_0.9.3.md](PUBLIC_LIVE_CHECKOUT_0.9.3.md).
+
+---
+
 ## Current update — simpler checkout and restricted Live pilot (2026-10-26)
 
 Core **0.9.2** / theme **0.11.1**, code `9527129` published to GitHub `main` after explicit owner authorization for real Live payments restricted to their own Discord account. No merchant credentials were entered, no real transaction or role change was performed, and Hostinger installation/activation is unverified. Earlier staging-only wording is historical within this restricted pilot scope; public Live still has separate approval gates.

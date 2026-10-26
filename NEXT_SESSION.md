@@ -1,3 +1,15 @@
+# Następna sesja — publiczne zakupy Live, 2026-10-26
+
+1. Kontynuuj obecny projekt, aktualny GitHub `main` z kodem `fb2142e` i etap Core 0.9.3 / motyw 0.11.1. Sprawdź końcowy commit oraz wyniki na początku `PROGRESS.md`; nie nadpisuj istniejącej pracy.
+2. Najnowsze polecenie właściciela dopuszcza zakupy dla wszystkich klientów. Przeczytaj `docs/PUBLIC_LIVE_CHECKOUT_0.9.3.md`: Mode Live + Public website checkout + Enable public Live payments for all verified Discord members. Wcześniejsze ograniczenie do jednego Discord ID jest historyczne; nie przywracaj go publicznym klientom.
+3. Zweryfikuj zwykłego klienta: OAuth → wybrany checkout → przycisk Stripe/PayPal → podpisany webhook → właściwa rola → chronione pobranie. Klient nie wymaga Ownera; Free Member nadal wynika z istniejącej weryfikacji Discord. PayPal wymaga ukończonego Stripe acceptance oraz własnych poświadczeń, webhooka i planu Monthly.
+4. Gdy wstrzymujesz nowe zakupy, zachowaj Live/publiczny dostęp kont i działającą obsługę umów. Nie kasuj praw, nie anuluj starych subskrypcji i nie wyłączaj cron/cache exclusions. Publiczne zatwierdzenie nie jest automatycznym potwierdzeniem testów lub przeglądu prawnego.
+5. Zaliczone: 595 asercji PHP, 24 widoki, 2 checkouty, 6 stron, 97 kontroli instalacji ZIP i lint73. Kod `fb2142e` jest na GitHub main; repozytorium zachowano bez reset/clean. Nie wykonano rzeczywistej płatności ani aktywacji na Hostingerze; push GitHub nie jest dowodem aktualizacji WordPressa.
+
+---
+
+## Historyczne przekazania poniżej — aktualne polecenie powyżej ma pierwszeństwo
+
 # Następna sesja — prosty checkout / ograniczony Live, 2026-10-26
 
 1. Kontynuuj aktualny GitHub `main`: kod `9527129`, checkpoint panelu `5acad52`, Core 0.9.2 / motyw 0.11.1. Push fast-forward potwierdzono zdalnym refem; nie nadpisuj istniejącej pracy. Pełne wyniki są na początku `PROGRESS.md`.

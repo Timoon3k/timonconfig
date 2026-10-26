@@ -1,5 +1,7 @@
 # Direct billing — configuration and controlled rollout
 
+**2026-10-26 · Core 0.9.3:** the owner now requests purchases for every verified Discord member, superseding the earlier one-account restriction. Follow [public Live checkout setup](PUBLIC_LIVE_CHECKOUT_0.9.3.md): choose Live, Public website checkout and explicitly enable public Live payments in the HTTPS administrator dashboard. No Owner role or invited user ID is required; public approval also supersedes old OAuth pilot restrictions. No acceptance/legal flags are fabricated. The earlier pilot and staging guides below remain historical/operational references, not a requirement to keep public customers allowlisted. Actual hosting activation and real provider acceptance remain unverified.
+
 **2026-10-26 · Core 0.9.2:** the owner explicitly chose a restricted real Live pilot for their own Discord account. Use [the shorter Live pilot setup](SIMPLER_LIVE_CHECKOUT_0.9.2.md) for that authorized scope: encrypted dashboard credentials, two Stripe Price IDs and login returning directly to checkout. The staging-first instructions below remain the broader acceptance guide; they do not prohibit this restricted pilot or authorize a public launch. Payment-button consent replaces the earlier website checkbox; it does not itself waive consumer withdrawal rights.
 
 2026-10-25 · Core 0.9.1 / theme 0.11.1 · Seller country: Poland · Checkout currency: EUR. This release is for local/staging review. It has not been enabled on production or validated against real Stripe Test, PayPal Sandbox or Discord accounts.
