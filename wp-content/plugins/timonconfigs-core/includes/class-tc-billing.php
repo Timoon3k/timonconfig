@@ -19,15 +19,16 @@ final class TC_Billing {
 
 	public static function config(): array {
 		$value = get_option( 'timonconfigs_billing', array() );
-		$config = array_merge( array( 'mode' => 'test', 'routing' => 'disabled', 'stripe_test_confirmed' => false, 'migration_confirmed' => false, 'legal_confirmed' => false, 'paypal_enabled' => false, 'role_sync_enabled' => false, 'live_pilot_enabled' => false, 'pilot_real_charges_confirmed' => false, 'pilot_discord_id' => '' ), is_array( $value ) ? $value : array() );
+		$config = array_merge( array( 'mode' => 'test', 'routing' => 'disabled', 'public_live_enabled' => false, 'stripe_test_confirmed' => false, 'migration_confirmed' => false, 'legal_confirmed' => false, 'paypal_enabled' => false, 'role_sync_enabled' => false, 'live_pilot_enabled' => false, 'pilot_real_charges_confirmed' => false, 'pilot_discord_id' => '' ), is_array( $value ) ? $value : array() );
 		// Retired routing values never reactivate a former checkout provider.
 		$config['routing'] = in_array( $config['routing'], array( 'direct', 'pilot' ), true ) ? $config['routing'] : 'disabled';
+		$config['public_live_enabled'] = in_array( $config['public_live_enabled'], array( true, 1, '1' ), true );
 		return $config;
 	}
 	public static function setting( string $key, string $mode ): string {
 		if ( ! in_array( $mode, array( 'test', 'live' ), true ) ) { return ''; }
 		$value = self::config()[ $mode . '_' . $key ] ?? '';
-		if ( '' === $value && 'live' === $mode && self::pilot_active() ) {
+		if ( '' === $value && 'live' === $mode && ( self::pilot_active() || self::public_live_approved( self::config() ) ) ) {
 			$map = array( 'discord_guild_id' => 'guild_id', 'discord_monthly_role_id' => 'monthly_role', 'discord_lifetime_role_id' => 'lifetime_role' );
 			if ( isset( $map[ $key ] ) ) { $oauth = get_option( 'timonconfigs_discord', array() ); $value = is_array( $oauth ) ? ( $oauth[ $map[ $key ] ] ?? '' ) : ''; }
 		}
@@ -57,7 +58,16 @@ final class TC_Billing {
 		$config = self::config();
 		return 'live' === $mode && 'https' === wp_parse_url( home_url(), PHP_URL_SCHEME ) && ( self::public_live_approved( $config ) || self::pilot_active( $config ) );
 	}
-	private static function public_live_approved( array $config ): bool { return defined( 'TIMONCONFIGS_BILLING_LIVE_APPROVED' ) && true === TIMONCONFIGS_BILLING_LIVE_APPROVED && ! empty( $config['stripe_test_confirmed'] ) && ! empty( $config['migration_confirmed'] ) && ! empty( $config['legal_confirmed'] ); }
+	private static function public_live_approved( array $config ): bool {
+		// Explicit administrator approval can now be recorded in the dashboard.
+		// It is distinct from claiming that acceptance or legal reviews took place.
+		return ! empty( $config['public_live_enabled'] ) || ( defined( 'TIMONCONFIGS_BILLING_LIVE_APPROVED' ) && true === TIMONCONFIGS_BILLING_LIVE_APPROVED && ! empty( $config['stripe_test_confirmed'] ) && ! empty( $config['migration_confirmed'] ) && ! empty( $config['legal_confirmed'] ) );
+	}
+	/** Keep customer sign-in available when new purchases are paused. */
+	public static function public_accounts_enabled(): bool {
+		$config = self::config();
+		return 'live' === $config['mode'] && 'https' === wp_parse_url( home_url(), PHP_URL_SCHEME ) && self::public_live_approved( $config );
+	}
 	public static function pilot_active( ?array $config = null ): bool {
 		$config ??= self::config();
 		return ! empty( $config['live_pilot_enabled'] ) && ! empty( $config['pilot_real_charges_confirmed'] ) && is_string( $config['pilot_discord_id'] ?? null ) && 1 === preg_match( '/^[1-9][0-9]{16,19}$/D', $config['pilot_discord_id'] );
@@ -66,11 +76,11 @@ final class TC_Billing {
 		$config = self::config();
 		if ( ! self::mode_allowed( $config['mode'] ) ) { return false; }
 		if ( 'pilot' === $config['routing'] ) { return 'live' === $config['mode'] && self::pilot_active( $config ); }
-		return 'direct' === $config['routing'] && ( 'test' === $config['mode'] || ( ! self::pilot_active( $config ) && self::public_live_approved( $config ) ) );
+		return 'direct' === $config['routing'] && ( 'test' === $config['mode'] || self::public_live_approved( $config ) );
 	}
 	/** Signed Discord interactions may check an actor before website OAuth; POST still requires identity(). */
 	public static function actor_can_purchase( string $discord ): bool {
-		if ( ! self::direct_enabled() ) { return false; }
+		if ( ! self::direct_enabled() || 1 !== preg_match( '/^[1-9][0-9]{16,19}$/D', $discord ) ) { return false; }
 		$config = self::config();
 		return 'pilot' !== $config['routing'] || ( 1 === preg_match( '/^[1-9][0-9]{16,19}$/D', $discord ) && hash_equals( $config['pilot_discord_id'], $discord ) );
 	}
@@ -117,7 +127,7 @@ final class TC_Billing {
 		if ( ! current_user_can( 'manage_options' ) || ! is_array( $input ) ) { return $old; }
 		if ( ( 'live' === $old['mode'] || 'live' === ( $input['mode'] ?? '' ) ) && ! TC_Billing_Secrets::secure_transport() ) { add_settings_error( 'tc_billing', 'live_https', 'Live configuration requires a secure HTTPS administrator session.' ); return $old; }
 		$result = array( 'mode' => in_array( $input['mode'] ?? '', array( 'test', 'live' ), true ) ? $input['mode'] : 'test', 'routing' => in_array( $input['routing'] ?? '', array( 'direct', 'pilot' ), true ) ? $input['routing'] : 'disabled' );
-		foreach ( array( 'stripe_test_confirmed', 'migration_confirmed', 'legal_confirmed', 'paypal_enabled', 'role_sync_enabled', 'live_pilot_enabled', 'pilot_real_charges_confirmed' ) as $flag ) { $result[ $flag ] = in_array( $input[ $flag ] ?? null, array( true, 1, '1' ), true ); }
+		foreach ( array( 'public_live_enabled', 'stripe_test_confirmed', 'migration_confirmed', 'legal_confirmed', 'paypal_enabled', 'role_sync_enabled', 'live_pilot_enabled', 'pilot_real_charges_confirmed' ) as $flag ) { $result[ $flag ] = in_array( $input[ $flag ] ?? null, array( true, 1, '1' ), true ); }
 		$result['pilot_discord_id'] = is_string( $input['pilot_discord_id'] ?? null ) && preg_match( '/^[1-9][0-9]{16,19}$/D', $input['pilot_discord_id'] ) ? $input['pilot_discord_id'] : '';
 		foreach ( array( 'test', 'live' ) as $mode ) {
 			foreach ( self::public_keys() as $key ) {
@@ -126,18 +136,18 @@ final class TC_Billing {
 			}
 		}
 		if ( 'live' === $old['mode'] && TC_Billing_Store::maintenance_needed( 'live' ) ) {
-			if ( 'live' !== $result['mode'] || ( ! self::public_live_approved( $result ) && ! self::pilot_active( $result ) ) ) {
+			if ( 'live' !== $result['mode'] || ( ! self::public_live_approved( $result ) && ( self::public_live_approved( $old ) || ! self::pilot_active( $result ) ) ) ) {
 				$result['mode'] = 'live'; $result['routing'] = 'disabled';
-				foreach ( array( 'stripe_test_confirmed', 'migration_confirmed', 'legal_confirmed', 'live_pilot_enabled', 'pilot_real_charges_confirmed', 'pilot_discord_id' ) as $preserved ) { $result[ $preserved ] = $old[ $preserved ]; }
-				add_settings_error( 'tc_billing', 'live_maintenance', 'Live records still need payment reconciliation. New purchases were paused; keep Live selected to manage existing payments.' );
+				foreach ( array( 'public_live_enabled', 'stripe_test_confirmed', 'migration_confirmed', 'legal_confirmed', 'live_pilot_enabled', 'pilot_real_charges_confirmed', 'pilot_discord_id' ) as $preserved ) { $result[ $preserved ] = $old[ $preserved ]; }
+				add_settings_error( 'tc_billing', 'live_maintenance', 'Live records still need payment reconciliation and customer sign-in. New purchases were paused; Live account access was preserved to manage existing payments.' );
 			}
 		}
 		if ( 'live' === $result['mode'] && ! self::public_live_approved( $result ) && ( ! self::pilot_active( $result ) || ! TC_Billing_Secrets::secure_transport() ) ) {
 			$result['mode'] = 'test'; $result['routing'] = 'disabled';
-			add_settings_error( 'tc_billing', 'live_disabled', 'Choose a confirmed single-account Live pilot over HTTPS, or complete public Live approval.' );
+			add_settings_error( 'tc_billing', 'live_disabled', 'Enable public Live payments or a confirmed restricted pilot in this HTTPS dashboard.' );
 		}
 		if ( 'pilot' === $result['routing'] && ( 'live' !== $result['mode'] || ! self::pilot_active( $result ) ) ) { $result['routing'] = 'disabled'; }
-		if ( 'live' === $result['mode'] && 'direct' === $result['routing'] && ( self::pilot_active( $result ) || ! self::public_live_approved( $result ) ) ) { $result['routing'] = self::pilot_active( $result ) ? 'pilot' : 'disabled'; }
+		if ( 'live' === $result['mode'] && 'direct' === $result['routing'] && ! self::public_live_approved( $result ) ) { $result['routing'] = self::pilot_active( $result ) ? 'pilot' : 'disabled'; }
 		return $result;
 	}
 	/** OAuth identity, never an email match or browser-supplied user ID. */

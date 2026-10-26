@@ -10,6 +10,14 @@ const root = path.resolve(__dirname, '..');
   assert.ok(line, 'Run billing-integration.php with TC_BILLING_RENDER=1 first.');
   const fixtures = JSON.parse(line.slice('TC_BILLING_FIXTURES:'.length));
   assert.equal(Object.keys(fixtures).length, 4);
+  if (process.env.TC_BILLING_PUBLIC_LOG) {
+    const publicLog = await readFile(path.resolve(root, process.env.TC_BILLING_PUBLIC_LOG), 'utf8');
+    const publicLine = publicLog.split('\n').find(value => value.startsWith('TC_BILLING_PUBLIC_FIXTURES:'));
+    assert.ok(publicLine, 'Run public Live integration with TC_BILLING_RENDER=1 first.');
+    const publicFixtures = JSON.parse(publicLine.slice('TC_BILLING_PUBLIC_FIXTURES:'.length));
+    assert.deepEqual(Object.keys(publicFixtures).sort(), ['checkout-public-lifetime', 'checkout-public-monthly']);
+    Object.assign(fixtures, publicFixtures);
+  }
   const styles = (await Promise.all(['main', 'premium', 'member', 'billing'].map(name => readFile(path.join(root, `wp-content/themes/timonconfigs/assets/css/${name}.css`), 'utf8')))).join('\n');
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
   const report = { passed: false, views: [], errors: [] };
@@ -22,7 +30,12 @@ const root = path.resolve(__dirname, '..');
         await page.setContent(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><base href="http://127.0.0.1:8080/wp-content/themes/timonconfigs/assets/css/"><style>${styles}</style></head><body class="tc-site"><main id="main"><div class="tc-shell tc-entry"><div class="tc-entry__content">${html}</div></div></main></body></html>`, { waitUntil: 'networkidle' });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `No document overflow at ${state}/${width}`);
         assert.equal(await page.locator('.tc-billing').count(), 1);
-        assert.match(await page.locator('.tc-billing-notice').first().innerText(), state === 'checkout-disabled' ? /not available yet/ : /Test/i);
+        if (state.startsWith('checkout-public-')) {
+          assert.doesNotMatch(await page.locator('.tc-billing').innerText(), /Restricted Live pilot|invited Discord account/);
+          assert.equal(await page.locator('input[name="user_id"]').count(), 0, 'Public checkout binds the actual logged-in customer on the server');
+        } else {
+          assert.match(await page.locator('.tc-billing-notice').first().innerText(), state === 'checkout-disabled' ? /not available yet/ : /Test/i);
+        }
         assert.doesNotMatch(await page.locator('body').innerText(), /Fatal error|Warning:|sk_test_|whsec_/);
         if (state === 'checkout-disabled') {
           assert.equal(await page.locator('h1').count(), 1);

@@ -10,6 +10,7 @@ on:
       - 'tests/owner-editor-integration.php'
       - 'tests/discord-integration.php'
       - 'tests/discord-checkout-return-integration.php'
+      - 'tests/discord-public-checkout-integration.php'
       - 'tests/private-files-integration.php'
       - 'tests/text-upload-integration.php'
       - 'tests/owner-verification-integration.php'
@@ -93,6 +94,10 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-secrets-integration.php
       - name: Single-account Live pilot and immediately available payment buttons
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-live-pilot-integration.php
+      - name: Public Live purchases for ordinary Discord members
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-public-live-integration.php
+      - name: Public Discord sign-in preserves member and Owner permissions
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/discord-public-checkout-integration.php
       - name: Tear down disposable WordPress
         if: always()
         run: docker compose -f docker-compose.local.yml down -v --remove-orphans

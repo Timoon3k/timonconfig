@@ -32,16 +32,21 @@ final class TC_Discord {
         foreach ( $ids as $id ) { if ( ! self::snowflake( $id ) ) { return array(); } }
         return array_values( array_unique( $ids ) );
     }
+    /** Public billing approval covers member login even while new sales are paused. */
+    private static function public_accounts(): bool {
+        return class_exists( 'TC_Billing' ) && method_exists( 'TC_Billing', 'public_accounts_enabled' ) && TC_Billing::public_accounts_enabled();
+    }
     private static function identity_allowed( mixed $id ): bool {
         $s = self::settings();
-        return self::snowflake( $id ) && ( empty( $s['pilot_enabled'] ) || in_array( $id, self::pilot_ids( $s['pilot_ids'] ?? '' ), true ) );
+        return self::snowflake( $id ) && ( self::public_accounts() || empty( $s['pilot_enabled'] ) || in_array( $id, self::pilot_ids( $s['pilot_ids'] ?? '' ), true ) );
     }
     public static function is_ready(): bool {
         $s = self::settings();
         $testing = in_array( wp_get_environment_type(), array( 'local', 'development', 'staging' ), true );
         $pilot = ! empty( $s['pilot_enabled'] );
-        if ( $pilot && ! self::pilot_ids( $s['pilot_ids'] ?? '' ) ) { return false; }
-        if ( empty( $s['enabled'] ) || ( ! $testing && ! $pilot && empty( $s['staging_confirmed'] ) ) || ! is_string( $s['client_secret'] ) || '' === $s['client_secret'] || 'https' !== wp_parse_url( home_url( '/' ), PHP_URL_SCHEME ) || ! function_exists( 'openssl_encrypt' ) ) { return false; }
+        $public = self::public_accounts();
+        if ( ! $public && $pilot && ! self::pilot_ids( $s['pilot_ids'] ?? '' ) ) { return false; }
+        if ( empty( $s['enabled'] ) || ( ! $testing && ! $pilot && ! $public && empty( $s['staging_confirmed'] ) ) || ! is_string( $s['client_secret'] ) || '' === $s['client_secret'] || 'https' !== wp_parse_url( home_url( '/' ), PHP_URL_SCHEME ) || ! function_exists( 'openssl_encrypt' ) ) { return false; }
         foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role' ) as $k ) { if ( ! self::snowflake( $s[ $k ] ?? null ) ) { return false; } }
         $role_ids = array( $s['free_role'], $s['monthly_role'], $s['lifetime_role'] );
         foreach ( array( 'staff_role', 'owner_role' ) as $key ) {
@@ -74,10 +79,10 @@ final class TC_Discord {
         if ( is_array( $failure ) ) {
             echo '<div class="notice notice-warning"><p><strong>Last Discord verification failure (UTC)</strong>: ' . esc_html( (string) ( $failure['time'] ?? '' ) ) . ' — Stage: ' . esc_html( (string) ( $failure['stage'] ?? '' ) ) . '; Reason: ' . esc_html( (string) ( $failure['reason'] ?? '' ) ) . '; HTTP: ' . esc_html( (string) ( $failure['http'] ?? 0 ) ) . '</p><p>Only the most recent failed sign-in or membership verification is shown, for up to 24 hours. HTTP 0 means no HTTP status was recorded. No credentials or provider response bodies are stored.</p></div>';
         }
-        echo '<div class="wrap"><h1>Discord membership</h1><p>Disabled until configured. Public production access requires confirmed real staging account tests. Alternatively, enable the restricted pilot for up to 10 specified Discord user IDs; this does not confirm staging tests or grant VIP roles. Set WP_ENVIRONMENT_TYPE to staging on an isolated HTTPS staging site to run those tests before production confirmation. Scope: identify guilds.members.read. No role writes. Free accepts all verified plans; Monthly accepts Monthly or Lifetime; Lifetime accepts Lifetime only. Role cache expires after 60 seconds; API errors deny access.</p><p>Register this exact callback: <code>' . esc_html( home_url( '/?tc_discord_callback=1' ) ) . '</code></p><form method="post" action="options.php">';
+        echo '<div class="wrap"><h1>Discord membership</h1><p>Disabled until configured. Public production access can be approved in TimonConfigs billing for real customer purchases; this allows any Discord account to sign in and overrides the restricted pilot list below. It does not grant Free, VIP, Staff or Owner access. Otherwise, confirm real staging account tests or enable the restricted pilot for up to 10 specified Discord user IDs. Scope: identify guilds.members.read. No role writes. Free accepts all verified plans; Monthly accepts Monthly or Lifetime; Lifetime accepts Lifetime only. Role cache expires after 60 seconds; API errors deny access.</p><p>Register this exact callback: <code>' . esc_html( home_url( '/?tc_discord_callback=1' ) ) . '</code></p><form method="post" action="options.php">';
         settings_fields( 'tc_discord' );
         foreach ( array( 'enabled' => 'Enable OAuth', 'pilot_enabled' => 'Restricted pilot: only the listed Discord users may sign in and access member files', 'staging_confirmed' => 'I confirmed IDs, policy and real account tests on isolated staging', 'pkce' => 'Send PKCE S256 (enable only after Discord application support is verified; not live verified by this code)' ) as $k => $label ) { echo '<p><label><input type="checkbox" name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="1" ' . checked( ! empty( $s[ $k ] ), true, false ) . '> ' . esc_html( $label ) . '</label></p>'; }
-        echo '<p><label>Pilot Discord user IDs (one per line, maximum 10)<br><textarea name="' . esc_attr( self::OPTION . '[pilot_ids]' ) . '" rows="4" cols="30">' . esc_textarea( $s['pilot_ids'] ?? '' ) . '</textarea></label></p><p>The pilot requires Enable OAuth and a valid allowlist. Use a private browser window signed out of WordPress. Other Discord users are denied after identity verification, before a WordPress account is created. Removing an ID also blocks its existing member access. Disabling the pilot does not approve public production access.</p>';
+        echo '<p><label>Pilot Discord user IDs (one per line, maximum 10)<br><textarea name="' . esc_attr( self::OPTION . '[pilot_ids]' ) . '" rows="4" cols="30">' . esc_textarea( $s['pilot_ids'] ?? '' ) . '</textarea></label></p><p>The pilot requires Enable OAuth and a valid allowlist. Use a private browser window signed out of WordPress. When public billing access is not approved, other Discord users are denied before account creation and removing an ID also blocks its existing member access. Approved public billing access overrides this pilot list, including when new checkout routing is paused so existing customers can still manage their purchases. Disabling the pilot alone does not approve public production access.</p>';
         foreach ( array( 'client_id', 'guild_id', 'free_role', 'monthly_role', 'lifetime_role', 'staff_role', 'owner_role' ) as $k ) { echo '<p><label>' . esc_html( ucwords( str_replace( '_', ' ', $k ) ) ) . ' <input name="' . esc_attr( self::OPTION . '[' . $k . ']' ) . '" value="' . esc_attr( $s[ $k ] ?? '' ) . '" pattern="[0-9]{17,20}"></label></p>'; }
         echo '<p><label>Approved Owner Discord user IDs (one per line, maximum 10)<br><textarea name="' . esc_attr( self::OPTION . '[owner_ids]' ) . '" rows="4" cols="30">' . esc_textarea( $s['owner_ids'] ?? '' ) . '</textarea></label></p><p>Staff and Owner roles are optional and must use distinct role IDs. Badges show only these configured roles verified by Discord; arbitrary guild role names are not fetched. Frontend config management requires an approved Owner Discord user ID, its unique WordPress binding and an active WordPress login created through Discord OAuth2. It does not require a live Discord Owner role check on each edit or upload. Staff and Owner badges do not grant paid downloads, administrator access or additional Discord permissions. Pilot access remains a separate restriction.</p>';
         echo '<p>Client secret: ' . ( empty( $s['client_secret'] ) ? 'Not configured' : 'Configured (redacted)' ) . '</p><p><input type="password" autocomplete="new-password" name="' . esc_attr( self::OPTION ) . '[client_secret]" value="" aria-label="Replace client secret"></p><label><input type="checkbox" name="' . esc_attr( self::OPTION ) . '[clear_secret]" value="1">Clear stored secret (wp-config constant takes precedence)</label>';
@@ -97,7 +102,7 @@ final class TC_Discord {
         return false === $plain ? '' : $plain;
     }
     /** Safe UI-only hint; does not grant or remove any member access. */
-    public static function is_pilot_enabled(): bool { return ! empty( self::settings()['pilot_enabled'] ); }
+    public static function is_pilot_enabled(): bool { return ! self::public_accounts() && ! empty( self::settings()['pilot_enabled'] ); }
     /** The effective waiting period for a fresh role check (not a bypass). */
     public static function retry_after( int $uid = 0 ): int {
         $uid = $uid ?: get_current_user_id();
