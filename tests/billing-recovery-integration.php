@@ -167,7 +167,7 @@ try {
     $wrong_mode = $recover; $wrong_mode['stripe_session_id'] = 'cs_live_fakeRecovery';
     $assert( $error_is( TC_Billing::admin_perform( $wrong_mode ), 'stripe_checkout_recovery_id' ) && $writes() === $before, 'No Stripe Test/Live cross-link is allowed.' );
     $sessions[ $orphan['id'] ]['metadata']['tc_discord_id'] = $ids['other'];
-    $assert( $error_is( TC_Billing::admin_perform( $recover ), 'stripe_checkout_binding' ) || $error_is( TC_Billing::admin_perform( $recover ), 'stripe_identity_binding' ), 'Session with mismatched immutable Discord ownership cannot be recovered.' );
+    $assert( $error_is( TC_Billing::admin_perform( $recover ), 'stripe_checkout_binding' ), 'Session with mismatched immutable Discord ownership cannot be recovered.' );
     $assert( empty( TC_Billing_Store::order( $uncertain[0]['id'] )['checkout_id'] ) && $writes() === $before, 'Wrong-owner proof cannot change the order or touch financial state.' );
     $sessions[ $orphan['id'] ] = $orphan;
     $sessions[ $orphan['id'] ]['status'] = 'complete'; $sessions[ $orphan['id'] ]['payment_status'] = 'paid';
