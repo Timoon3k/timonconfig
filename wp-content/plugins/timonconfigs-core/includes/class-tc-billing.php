@@ -309,6 +309,9 @@ final class TC_Billing {
 			if ( ! $current || $current['provider'] !== 'stripe' || $current['mode'] !== $mode ||
 				$current['user_id'] !== $seed['user_id'] || $current['discord_id'] !== $seed['discord_id'] ||
 				self::config()['mode'] !== $mode ) { return self::error( 'tc_billing_order', 'The order changed. Reload its details before recovery.' ); }
+			if ( ! is_string( $session_id ) || ! preg_match( '/^cs_' . preg_quote( $mode, '/' ) . '_[A-Za-z0-9_]+$/D', $session_id ) ) {
+				return self::error( 'stripe_checkout_recovery_id', 'Enter a Checkout Session ID from the selected Stripe environment.' );
+			}
 			if ( ! TC_Billing_Store::stripe_session_unclaimed( $mode, $session_id ) ) {
 				return self::error( 'tc_billing_session_claimed', 'This Stripe session is already assigned to an order, or its reference cannot be verified.' );
 			}
