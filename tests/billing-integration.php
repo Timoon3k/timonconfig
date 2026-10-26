@@ -188,6 +188,14 @@ try {
 	try { TC_Billing::handle(); } catch ( RuntimeException $error ) { if ( 'fixture_wp_die' !== $error->getMessage() ) { throw $error; } }
 	finally { remove_filter( 'wp_die_handler', $die ); }
 	$assert( 405 === $die_status && array() === TC_Billing_Store::active( $uid, 'test' ), 'The actual billing controller rejects GET even with a valid form nonce.' );
+	$retry_redirect = array(); $capture_redirect = static function ( string $url, int $status ) use ( &$retry_redirect ): string { $retry_redirect = array( $url, $status ); throw new RuntimeException( 'fixture_checkout_retry_redirect' ); };
+	add_filter( 'wp_redirect', $capture_redirect, -999, 2 ); $_SERVER['REQUEST_METHOD'] = 'POST'; $_POST = array_merge( $payload(), array( '_wpnonce' => 'expired', 'redirect_to' => 'https://untrusted.example/' ) );
+	$before_requests = count( $requests );
+	try { TC_Billing::handle(); } catch ( RuntimeException $error ) { if ( 'fixture_checkout_retry_redirect' !== $error->getMessage() ) { throw $error; } }
+	finally { remove_filter( 'wp_redirect', $capture_redirect, -999 ); }
+	$assert( array( TC_Checkout::get_checkout_url( 'lifetime' ), 303 ) === $retry_redirect && $before_requests === count( $requests ), 'A rejected checkout POST stays on the selected local checkout without contacting a provider or trusting a submitted return URL.' );
+	$retry_html = TC_Billing_UI::checkout( 'lifetime' );
+	$assert( str_contains( $retry_html, 'Your billing session expired' ) && false === get_transient( 'tc_billing_feedback_' . $uid ), 'Checkout renders safe retry feedback once instead of sending the member through their account page.' );
 	$assert( 400 === $deliver( 'forged', $session_id, 'checkout.session.completed', false )->get_status() && null === $stored_event( 'forged' ), 'A forged webhook signature never enters the durable inbox.' );
 	$before_requests = count( $requests );
 	$assert( 200 === $deliver( 'processing', $session_id )->get_status(), 'A signed notification is accepted by the public webhook controller.' );
@@ -226,7 +234,7 @@ try {
 	$assert( $pending[0]['id'] === $retry['order_id'] && $checkout_posts[1]['key'] === $checkout_posts[2]['key'] && '' !== $checkout_posts[2]['key'], 'A network retry reuses both the persisted order and provider idempotency key.' );
 	$post_count = count( $checkout_posts ); $resumed = $must( TC_Billing::perform( $payload( 'monthly' ) ) );
 	$assert( $resumed['order_id'] === $retry['order_id'] && $post_count === count( $checkout_posts ), 'An existing monthly session resumes without creating another subscription.' );
-	$confirmed = $billing; $confirmed['stripe_test_confirmed'] = true; $confirmed['paypal_enabled'] = true; update_option( 'timonconfigs_billing', $confirmed, false );
+	$confirmed = $billing; $confirmed['stripe_test_confirmed'] = true; $confirmed['paypal_enabled'] = true; $confirmed['test_paypal_monthly_plan_id'] = 'P-' . $tag; $confirmed['test_paypal_monthly_product_id'] = 'PROD-' . $tag; update_option( 'timonconfigs_billing', $confirmed, false );
 	$without_paypal_webhook = $confirmed; $without_paypal_webhook['test_paypal_webhook_id'] = ''; update_option( 'timonconfigs_billing', $without_paypal_webhook, false );
 	$assert( ! TC_Billing::provider_ready( 'paypal', 'test' ), 'PayPal readiness requires the configured verification webhook ID even after Stripe confirmation.' );
 	update_option( 'timonconfigs_billing', $confirmed, false );

@@ -40,13 +40,13 @@ $http = static function ( $pre, $args, $url ) use ( &$requests, &$member_roles, 
         return array( 'response' => array( 'code' => 204 ), 'headers' => array(), 'body' => '' );
     }
     if ( '/users/@me' === $path ) { $body = array( 'id' => $ids['bot'], 'bot' => true ); }
-    elseif ( '/guilds/' . $ids['guild'] === $path ) { $body = array( 'id' => $ids['guild'], 'owner_id' => $ids['guild_owner'] ); }
+    elseif ( '/guilds/' . $ids['guild'] === $path ) { $body = array( 'id' => $ids['guild'], 'owner_id' => str_starts_with( $fault, 'guild-owner' ) ? $ids['user'] : $ids['guild_owner'] ); }
     elseif ( '/guilds/' . $ids['guild'] . '/roles' === $path ) {
         $body = array();
         foreach ( array( 'guild' => 0, 'free' => 1, 'monthly' => 3, 'lifetime' => 4, 'staff' => 10, 'owner' => 30, 'bot_role' => 20 ) as $key => $position ) {
             $permissions = 'bot_role' === $key && 'permissions' !== $fault ? '268435456' : '0';
             // Large bitfields must not lose Manage Roles through an overflowing integer cast.
-            if ( 'bot_role' === $key && 'large-permissions' === $fault ) { $permissions = '18446744073977987072'; }
+            if ( 'bot_role' === $key && str_contains( $fault, 'large-permissions' ) ) { $permissions = '18446744073977987072'; }
             $body[] = array( 'id' => $ids[ $key ], 'position' => 'hierarchy' === $fault && 'monthly' === $key ? 20 : $position, 'permissions' => $permissions, 'managed' => 'bot_role' === $key || ( 'managed' === $fault && 'monthly' === $key ) );
         }
     }
@@ -89,6 +89,7 @@ try {
     };
     update_option( 'timonconfigs_discord', $oauth, false ); update_option( 'timonconfigs_billing', array_merge( $billing, array( 'role_sync_enabled' => 0 ) ), false );
     $assert( is_wp_error( TC_Billing_Discord::sync( $job ) ) && ! $requests, 'Role sync defaults disabled and performs no HTTP.' );
+    $assert( is_wp_error( TC_Billing_Discord::preflight( 'test', $uid ) ) && ! $requests, 'Checkout preflight refuses disabled delivery without HTTP.' );
     update_option( 'timonconfigs_billing', $billing, false );
     $assert( TC_Billing::mode_allowed( 'test' ) && TC_Billing::direct_enabled(), 'Disposable local test mode is configured.' );
     $assert( is_wp_error( TC_Billing_Discord::sync( array_merge( $job, array( 'mode' => 'live' ) ) ) ) && ! $requests, 'Test settings do not permit live role automation.' );
@@ -104,9 +105,17 @@ try {
     update_option( '_tc_discord_binding_' . $ids['user'], $uids['other'], false );
     $assert( is_wp_error( TC_Billing_Discord::sync( $job ) ) && ! $requests, 'Conflicting OAuth binding prevents HTTP and writes.' );
     update_option( '_tc_discord_binding_' . $ids['user'], $uid, false );
+    $fault = 'guild-owner';
+    $assert( true === TC_Billing_Discord::preflight( 'test', $uid ) && 5 === count( $requests ) && ! $writes() && ! TC_Billing_Store::owned_roles( $uid, 'test' ), 'Guild owner passes five canonical GETs without role writes, purchases, or ownership markers.' );
+    $requests = array();
     $source( 'monthly', 'monthly' );
-    foreach ( array( 'permissions', 'hierarchy', 'managed', 'wrong-member' ) as $fault ) { $assert( is_wp_error( TC_Billing_Discord::sync( $job ) ) && ! $writes(), 'Canonical validation prevents writes: ' . $fault ); }
+    foreach ( array( 'permissions', 'hierarchy', 'managed', 'wrong-member' ) as $fault ) {
+        $assert( is_wp_error( TC_Billing_Discord::preflight( 'test', $uid ) ) && ! $writes(), 'Checkout preflight rejects unavailable VIP delivery: ' . $fault );
+        $assert( is_wp_error( TC_Billing_Discord::sync( $job ) ) && ! $writes(), 'Canonical validation prevents writes: ' . $fault );
+    }
     $fault = 'disable-on-member';
+    $assert( is_wp_error( TC_Billing_Discord::preflight( 'test', $uid ) ) && ! $writes(), 'Disabling delivery during checkout preflight blocks checkout after canonical reads.' );
+    update_option( 'timonconfigs_billing', $billing, false );
     $assert( is_wp_error( TC_Billing_Discord::sync( $job ) ) && ! $writes(), 'Disabling automation while canonical HTTP is in flight prevents the later PUT.' );
     update_option( 'timonconfigs_billing', $billing, false );
     $fault = 'switch-mode-on-member';
@@ -116,8 +125,8 @@ try {
     $assert( is_wp_error( $error ) && 60 === $error->get_error_data()['retry_after'] && ! str_contains( wp_json_encode( $error ), 'upstream-secret' ), 'Network failure has a safe delayed retry.' );
     $fault = 'write-429'; $error = TC_Billing_Discord::sync( $job );
     $assert( is_wp_error( $error ) && 13 === $error->get_error_data()['retry_after'] && ! TC_Billing_Store::owned_roles( $uid, 'test' ), '429 respects the larger fractional retry delay and never marks a failed add owned.' );
-    $fault = 'large-permissions'; $requests = array();
-    $assert( true === TC_Billing_Discord::sync( $job ) && array( $ids['monthly'] ) === $member_roles && 1 === count( $writes() ), 'A valid Monthly source adds only Monthly, with large permission bitfields.' );
+    $fault = 'guild-owner-large-permissions'; $requests = array();
+    $assert( true === TC_Billing_Discord::sync( $job ) && array( $ids['monthly'] ) === $member_roles && 1 === count( $writes() ), 'A valid Monthly source adds only Monthly to the guild owner, with large permission bitfields and protected Owner hierarchy unchanged.' );
     $assert( array( array( 'guild_id' => $ids['guild'], 'role_id' => $ids['monthly'] ) ) === TC_Billing_Store::owned_roles( $uid, 'test' ), 'Only our successful actual add records ownership.' );
     $fault = ''; $requests = array();
     $assert( true === TC_Billing_Discord::sync( $job ) && ! $writes(), 'Already-present owned role does not cause another PUT.' );

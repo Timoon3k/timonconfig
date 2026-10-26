@@ -139,6 +139,61 @@ final class TC_Billing_Discord {
         return $discord === self::bound_discord( $uid ) ? true : self::error( 'binding', 3600 );
     }
 
+    /** Canonical GET-only check shared by checkout and the role outbox. */
+    private static function inspect_member( array $config, int $uid, string $mode, string $discord ): array|WP_Error {
+        $guild = $config['guild_id'];
+        $bot = self::request( $mode, '/users/@me' );
+        if ( is_wp_error( $bot ) ) { return $bot; }
+        if ( ! self::snowflake( $bot['id'] ?? null ) || true !== ( $bot['bot'] ?? false ) ) { return self::error( 'invalid_response' ); }
+        $guild_data = self::request( $mode, '/guilds/' . $guild );
+        if ( is_wp_error( $guild_data ) ) { return $guild_data; }
+        if ( ( $guild_data['id'] ?? '' ) !== $guild || ! self::snowflake( $guild_data['owner_id'] ?? null ) ) { return self::error( 'invalid_response' ); }
+        $list = self::request( $mode, '/guilds/' . $guild . '/roles' );
+        if ( is_wp_error( $list ) ) { return $list; }
+        $roles = array();
+        foreach ( $list as $role ) {
+            if ( ! is_array( $role ) || ! self::snowflake( $role['id'] ?? null ) || isset( $roles[ $role['id'] ] ) || ! is_int( $role['position'] ?? null ) || $role['position'] < 0 || ! is_string( $role['permissions'] ?? null ) || ! preg_match( '/^[0-9]{1,32}$/D', $role['permissions'] ) || ! is_bool( $role['managed'] ?? null ) ) { return self::error( 'invalid_response' ); }
+            $roles[ $role['id'] ] = $role;
+        }
+        if ( ! isset( $roles[ $guild ] ) ) { return self::error( 'invalid_response' ); }
+        $bot_member = self::request( $mode, '/guilds/' . $guild . '/members/' . $bot['id'] );
+        if ( is_wp_error( $bot_member ) ) { return $bot_member; }
+        $bot_roles = self::member_roles( $bot_member, $bot['id'], $roles, $guild );
+        if ( is_wp_error( $bot_roles ) ) { return $bot_roles; }
+        $bot_roles[ $guild ] = true;
+        $manage = false; $highest = -1;
+        foreach ( array_keys( $bot_roles ) as $role ) {
+            $manage = $manage || self::permission( $roles[ $role ]['permissions'], 28 ) || self::permission( $roles[ $role ]['permissions'], 3 );
+            $highest = max( $highest, $roles[ $role ]['position'] );
+        }
+        if ( ! $manage ) { return self::error( 'permissions', 3600 ); }
+        foreach ( array( 'monthly', 'lifetime' ) as $plan ) {
+            $role = $roles[ $config[ $plan ] ] ?? null;
+            if ( ! is_array( $role ) || $role['managed'] || $role['position'] >= $highest ) { return self::error( 'hierarchy', 3600 ); }
+        }
+        $member = self::request( $mode, '/guilds/' . $guild . '/members/' . $discord );
+        if ( is_wp_error( $member ) ) { return $member; }
+        $present = self::member_roles( $member, $discord, $roles, $guild );
+        if ( is_wp_error( $present ) ) { return $present; }
+        if ( $discord !== self::bound_discord( $uid ) ) { return self::error( 'binding', 3600 ); }
+        // Exact VIP-role endpoints depend on the VIP hierarchy, not the member's
+        // highest role or server ownership. Never attempt moderation or role replacement.
+        $allowed = self::write_allowed( $uid, $mode, $discord, $config );
+        return is_wp_error( $allowed ) ? $allowed : $present;
+    }
+
+    /** Refuse a new checkout before creating an order if VIP delivery is unavailable. */
+    public static function preflight( string $mode, int $uid ): bool|WP_Error {
+        $settings = TC_Billing::config();
+        if ( empty( $settings['role_sync_enabled'] ) || ( $settings['mode'] ?? '' ) !== $mode ) { return self::error( 'disabled', 3600 ); }
+        $config = self::configuration( $mode, true );
+        if ( is_wp_error( $config ) ) { return $config; }
+        $discord = self::bound_discord( $uid );
+        if ( is_wp_error( $discord ) ) { return $discord; }
+        $present = self::inspect_member( $config, $uid, $mode, $discord );
+        return is_wp_error( $present ) ? $present : true;
+    }
+
     /** Execute one outbox job. Root records success/retry; all role requests are exact PUT/DELETE. */
     public static function sync( array $job ): bool|WP_Error {
         $uid = (int) ( $job['user_id'] ?? 0 );
@@ -152,41 +207,8 @@ final class TC_Billing_Discord {
             $discord = self::bound_discord( $uid );
             if ( is_wp_error( $discord ) ) { return $discord; }
             $guild = $config['guild_id'];
-            $bot = self::request( $mode, '/users/@me' );
-            if ( is_wp_error( $bot ) ) { return $bot; }
-            if ( ! self::snowflake( $bot['id'] ?? null ) || true !== ( $bot['bot'] ?? false ) ) { return self::error( 'invalid_response' ); }
-            $guild_data = self::request( $mode, '/guilds/' . $guild );
-            if ( is_wp_error( $guild_data ) ) { return $guild_data; }
-            if ( ( $guild_data['id'] ?? '' ) !== $guild || ! self::snowflake( $guild_data['owner_id'] ?? null ) ) { return self::error( 'invalid_response' ); }
-            if ( $guild_data['owner_id'] === $discord ) { return self::error( 'hierarchy', 3600 ); }
-            $list = self::request( $mode, '/guilds/' . $guild . '/roles' );
-            if ( is_wp_error( $list ) ) { return $list; }
-            $roles = array();
-            foreach ( $list as $role ) {
-                if ( ! is_array( $role ) || ! self::snowflake( $role['id'] ?? null ) || isset( $roles[ $role['id'] ] ) || ! is_int( $role['position'] ?? null ) || $role['position'] < 0 || ! is_string( $role['permissions'] ?? null ) || ! preg_match( '/^[0-9]{1,32}$/D', $role['permissions'] ) || ! is_bool( $role['managed'] ?? null ) ) { return self::error( 'invalid_response' ); }
-                $roles[ $role['id'] ] = $role;
-            }
-            if ( ! isset( $roles[ $guild ] ) ) { return self::error( 'invalid_response' ); }
-            $bot_member = self::request( $mode, '/guilds/' . $guild . '/members/' . $bot['id'] );
-            if ( is_wp_error( $bot_member ) ) { return $bot_member; }
-            $bot_roles = self::member_roles( $bot_member, $bot['id'], $roles, $guild );
-            if ( is_wp_error( $bot_roles ) ) { return $bot_roles; }
-            $bot_roles[ $guild ] = true;
-            $manage = false; $highest = -1;
-            foreach ( array_keys( $bot_roles ) as $role ) {
-                $manage = $manage || self::permission( $roles[ $role ]['permissions'], 28 ) || self::permission( $roles[ $role ]['permissions'], 3 );
-                $highest = max( $highest, $roles[ $role ]['position'] );
-            }
-            if ( ! $manage ) { return self::error( 'permissions', 3600 ); }
-            foreach ( array( 'monthly', 'lifetime' ) as $plan ) {
-                $role = $roles[ $config[ $plan ] ] ?? null;
-                if ( ! is_array( $role ) || $role['managed'] || $role['position'] >= $highest ) { return self::error( 'hierarchy', 3600 ); }
-            }
-            $member = self::request( $mode, '/guilds/' . $guild . '/members/' . $discord );
-            if ( is_wp_error( $member ) ) { return $member; }
-            $present = self::member_roles( $member, $discord, $roles, $guild );
+            $present = self::inspect_member( $config, $uid, $mode, $discord );
             if ( is_wp_error( $present ) ) { return $present; }
-            if ( $discord !== self::bound_discord( $uid ) ) { return self::error( 'binding', 3600 ); }
             $desired = self::desired( $uid, $mode, $discord );
             if ( is_wp_error( $desired ) ) { return $desired; }
             $owned = array();

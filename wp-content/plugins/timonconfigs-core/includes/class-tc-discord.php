@@ -104,7 +104,24 @@ final class TC_Discord {
         if ( ! $uid ) { return 0; }
         return max( 0, (int) get_user_meta( $uid, '_tc_discord_attempt', true ) + 10 - time(), (int) get_user_meta( $uid, '_tc_discord_retry_until', true ) - time() );
     }
-    public static function login_url(): string { return self::is_ready() ? home_url( '/?tc_discord_start=1' ) : home_url( '/account/' ); }
+    /** Only the two local membership checkouts can resume after OAuth. */
+    private static function checkout_return( mixed $url ): string {
+        if ( ! is_string( $url ) || strlen( $url ) > 2048 ) { return ''; }
+        foreach ( array( 'monthly', 'lifetime' ) as $plan ) {
+            $base = home_url( '/checkout/' . $plan . '/' );
+            if ( $url === $base ) { return $base; }
+            if ( str_starts_with( $url, $base . '?' ) && preg_match( '/^tc_billing_intent=([a-f0-9]{64})$/D', substr( $url, strlen( $base ) + 1 ), $match ) ) {
+                return add_query_arg( 'tc_billing_intent', $match[1], $base );
+            }
+        }
+        return '';
+    }
+    public static function login_url( string $return_url = '' ): string {
+        if ( ! self::is_ready() ) { return home_url( '/account/' ); }
+        $url = home_url( '/?tc_discord_start=1' );
+        $return_url = self::checkout_return( $return_url );
+        return '' !== $return_url ? add_query_arg( 'tc_discord_return', $return_url, $url ) : $url;
+    }
     public static function logout_url(): string { return add_query_arg( '_wpnonce', wp_create_nonce( 'tc_discord_logout' ), home_url( '/?tc_discord_logout=1' ) ); }
     public static function refresh_url(): string { return add_query_arg( '_wpnonce', wp_create_nonce( 'tc_discord_refresh' ), home_url( '/?tc_discord_refresh=1' ) ); }
     private static function error( string $stage = 'verification', string $reason = 'unavailable', int $http = 0 ): WP_Error { return new WP_Error( 'tc_discord_unavailable', 'Discord verification is unavailable. Please reconnect or try again shortly.', array( 'stage' => $stage, 'reason' => $reason, 'http' => $http ) ); }
@@ -130,11 +147,11 @@ final class TC_Discord {
         wp_cache_delete( $key, 'options' );
         return 1 === $deleted ? maybe_unserialize( $raw ) : false;
     }
-    private static function create_state(): array {
+    private static function create_state( string $return_url = '' ): array {
         $state = bin2hex( random_bytes( 32 ) ); $cookie = bin2hex( random_bytes( 32 ) );
         $verifier = rtrim( strtr( base64_encode( random_bytes( 48 ) ), '+/', '-_' ), '=' );
         $s = self::settings();
-        $data = array( 'cookie' => hash( 'sha256', $cookie ), 'expires' => time() + 300, 'uid' => get_current_user_id(), 'session' => hash( 'sha256', wp_get_session_token() ), 'verifier' => ! empty( $s['pkce'] ) ? $verifier : '' );
+        $data = array( 'cookie' => hash( 'sha256', $cookie ), 'expires' => time() + 300, 'uid' => get_current_user_id(), 'session' => hash( 'sha256', wp_get_session_token() ), 'verifier' => ! empty( $s['pkce'] ) ? $verifier : '', 'return_to' => self::checkout_return( $return_url ) );
         $key = '_tc_oauth_' . hash( 'sha256', $state );
         add_option( $key, self::encrypt( wp_json_encode( $data ) ), '', false );
         wp_schedule_single_event( time() + 360, 'tc_discord_clean_state', array( $key ) );
@@ -210,7 +227,10 @@ final class TC_Discord {
             wp_safe_redirect( home_url( '/account/' ) ); exit;
         }
         if ( ! self::is_ready() || ! is_ssl() ) { wp_die( 'Discord sign-in is not configured.', '', array( 'response' => 503 ) ); }
-        if ( isset( $_GET['tc_discord_start'] ) ) { $state = self::create_state(); self::cookie( $state['cookie'], time() + 300 ); wp_redirect( $state['url'] ); exit; }
+        if ( isset( $_GET['tc_discord_start'] ) ) {
+            $return_url = is_string( $_GET['tc_discord_return'] ?? null ) ? wp_unslash( $_GET['tc_discord_return'] ) : '';
+            $state = self::create_state( $return_url ); self::cookie( $state['cookie'], time() + 300 ); wp_redirect( $state['url'] ); exit;
+        }
         $state = self::validate_state( is_string( $_GET['state'] ?? null ) ? $_GET['state'] : '', is_string( $_COOKIE[ self::COOKIE ] ?? null ) ? $_COOKIE[ self::COOKIE ] : '' );
         self::cookie( '', time() - 3600 );
         if ( is_wp_error( $state ) || ! is_string( $_GET['code'] ?? null ) || strlen( $_GET['code'] ) > 2048 ) { wp_die( 'Sign-in expired. Please try again.', '', array( 'response' => 403 ) ); }
@@ -237,7 +257,9 @@ final class TC_Discord {
         $avatar = $identity['avatar'] ?? '';
         update_user_meta( $uid, '_tc_discord_avatar', is_string( $avatar ) && preg_match( '/^(a_)?[a-f0-9]{32}$/D', $avatar ) ? 'https://cdn.discordapp.com/avatars/' . $identity['id'] . '/' . $avatar . '.png?size=128' : '' );
         wp_clear_auth_cookie(); wp_set_current_user( $uid ); wp_set_auth_cookie( $uid, false, true );
-        wp_safe_redirect( home_url( '/account/' ) ); exit;
+        // The callback never trusts a return URL from its own query string.
+        // Checkout still requires its authenticated POST; signing in cannot charge.
+        wp_safe_redirect( self::checkout_return( $state['return_to'] ?? '' ) ?: home_url( '/account/' ) ); exit;
     }
     /** Logout invalidates local tokens first, even when remote revocation fails. */
     public static function revoke( int $uid ): void {

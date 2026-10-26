@@ -114,7 +114,7 @@ $expect( is_plugin_active( 'timonconfigs-core/timonconfigs-core.php' ), 'the pac
 $expect( 'timonconfigs' === get_stylesheet(), 'the packaged theme is activated' );
 $expect( getenv( 'TC_EXPECTED_THEME_VERSION' ) === wp_get_theme()->get( 'Version' ), 'installed theme version matches its ZIP' );
 $expect( getenv( 'TC_EXPECTED_CORE_VERSION' ) === TIMONCONFIGS_CORE_VERSION, 'installed plugin version matches its ZIP' );
-foreach ( array( 'Store', 'Stripe', 'PayPal', 'Discord', 'UI' ) as $billing_class ) {
+foreach ( array( 'Secrets', 'Store', 'Stripe', 'PayPal', 'Discord', 'UI' ) as $billing_class ) {
 	$expect( class_exists( 'TC_Billing_' . $billing_class ), 'packaged billing class is available: ' . $billing_class );
 }
 $expect( class_exists( 'TC_Billing' ), 'packaged billing controller is available' );

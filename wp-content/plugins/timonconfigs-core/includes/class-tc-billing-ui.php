@@ -12,27 +12,47 @@ final class TC_Billing_UI {
 	public static function checkout( string $plan ): string {
 		$product = TC_Billing::plan( $plan ); if ( ! in_array( $plan, array( 'monthly', 'lifetime' ), true ) || ! $product ) { return '<p>Choose a membership from Pricing.</p>'; }
 		$identity = TC_Billing::identity(); $config = TC_Billing::config();
+		$intent = isset( $_GET['tc_billing_intent'] ) && is_string( $_GET['tc_billing_intent'] ) && preg_match( '/^[a-f0-9]{64}$/D', $_GET['tc_billing_intent'] ) ? $_GET['tc_billing_intent'] : '';
 		ob_start();
 		echo '<section class="tc-billing tc-billing-checkout"><p class="tc-eyebrow">TIMONCONFIGS MEMBERSHIP</p><h1>' . esc_html( $product['name'] ) . '</h1><p>' . esc_html( TC_Billing::display_price( $plan ) ) . ( 'monthly' === $plan ? ' / month. Renews automatically until canceled.' : ' one time. No monthly renewal.' ) . '</p>';
+		if ( is_user_logged_in() ) {
+			$feedback_key = 'tc_billing_feedback_' . get_current_user_id(); $feedback = get_transient( $feedback_key );
+			if ( is_string( $feedback ) && '' !== $feedback ) { delete_transient( $feedback_key ); echo '<p class="tc-billing-notice" role="status">' . esc_html( $feedback ) . '</p>'; }
+		}
 		if ( ! TC_Billing::direct_enabled() ) {
-			echo '<p class="tc-billing-notice" role="status">Online checkout is not available yet. No payment can be made from this page.</p><p>For help, open a support ticket in our Discord server. Payments are completed on this website after checkout is enabled.</p><a class="tc-button tc-button--ghost" href="' . esc_url( home_url( '/contact/' ) ) . '">Get membership support</a> <a href="' . esc_url( home_url( '/pricing/' ) ) . '">Back to memberships</a></section>';
+			echo '<p class="tc-billing-notice" role="status">Online checkout is not available yet. No payment can be made from this page.</p><p>For help, open a support ticket in our Discord server. Payments are completed on this website after checkout is enabled.</p><a class="tc-button tc-button--ghost" href="' . esc_url( home_url( '/contact/' ) ) . '">Get membership support</a> <a href="' . esc_url( home_url( '/pricing/' ) ) . '">Back to memberships</a>';
+			if ( current_user_can( 'manage_options' ) ) { echo '<p class="tc-billing-notice">Administrator: checkout is disabled or its Live approval is incomplete. <a href="' . esc_url( admin_url( 'options-general.php?page=tc-billing' ) ) . '">Open billing settings</a> to review the environment, routing and pilot account.</p>'; }
+			echo '</section>';
 			return (string) ob_get_clean();
 		}
 		if ( 'test' === $config['mode'] ) { echo '<p class="tc-billing-notice" role="status">Test checkout — use test payment details only. This purchase does not confirm a live membership.</p>'; }
 		if ( 'pilot' === $config['routing'] ) { echo '<p class="tc-billing-notice" role="status">Restricted Live pilot. Payments are real: €29.99 per month or €80 once. Provider fees apply.</p>'; }
 		if ( is_wp_error( $identity ) ) {
-			echo '<p>Continue with Discord to securely link this purchase to your member account.</p><a class="tc-button" href="' . esc_url( TC_Discord::login_url() ) . '">Continue with Discord</a><p>After signing in, return to this membership checkout.</p></section>';
+			$return_url = TC_Checkout::get_checkout_url( $plan ); if ( '' !== $intent ) { $return_url = add_query_arg( 'tc_billing_intent', $intent, $return_url ); }
+			echo '<p>Sign in once to link this purchase to your Discord account. You will return here to choose a payment method.</p><a class="tc-button" href="' . esc_url( TC_Discord::login_url( $return_url ) ) . '">Continue with Discord</a></section>';
 			return (string) ob_get_clean();
 		}
 		if ( ! TC_Billing::current_user_can_purchase() ) { echo '<p class="tc-billing-notice" role="status">This Live pilot is limited to its invited Discord account.</p><a href="' . esc_url( home_url( '/pricing/' ) ) . '">Back to memberships</a></section>'; return (string) ob_get_clean(); }
 		echo '<p>Purchase for Discord account <strong>' . esc_html( $identity['discord_id'] ) . '</strong>.</p>';
-		$intent = isset( $_GET['tc_billing_intent'] ) && is_string( $_GET['tc_billing_intent'] ) && preg_match( '/^[a-f0-9]{64}$/D', $_GET['tc_billing_intent'] ) ? $_GET['tc_billing_intent'] : '';
-		foreach ( array( 'stripe' => 'Continue with Stripe', 'paypal' => 'Continue with PayPal' ) as $provider => $label ) {
+		$available = array();
+		foreach ( array( 'stripe' => 'Pay with Stripe', 'paypal' => 'Pay with PayPal' ) as $provider => $label ) {
 			if ( ! TC_Billing::checkout_provider_ready( $provider, $config['mode'], $plan ) ) { continue; }
-			self::start( 'checkout', array( 'plan' => $plan, 'provider' => $provider, 'intent' => $intent ) );
-			echo '<label><input type="checkbox" name="consent" value="1" required><span>' . ( 'monthly' === $plan ? 'I authorize recurring monthly payments of €29.99 until I cancel auto-renewal.' : 'I agree to a one-time €80 purchase under the Lifetime license terms.' ) . ' I have reviewed the <a href="' . esc_url( home_url( '/terms-of-service/' ) ) . '">Terms</a>, <a href="' . esc_url( home_url( '/refund-policy/' ) ) . '">Refund Policy</a> and <a href="' . esc_url( home_url( '/privacy-policy/' ) ) . '">Privacy Policy</a>.</span></label><button class="tc-button" type="submit">' . esc_html( $label ) . '</button></form>';
+			$available[ $provider ] = $label;
 		}
-		if ( ! TC_Billing::provider_ready( 'stripe', $config['mode'] ) ) { echo '<p class="tc-billing-notice">Payment setup is not complete. Contact support before purchasing.</p>'; }
+		if ( $available ) {
+			echo '<h2>Choose your payment method</h2><p id="tc-payment-terms">By clicking a payment button, you agree to the <a href="' . esc_url( home_url( '/terms-of-service/' ) ) . '">Terms</a> and <a href="' . esc_url( home_url( '/refund-policy/' ) ) . '">Refund Policy</a> and acknowledge the <a href="' . esc_url( home_url( '/privacy-policy/' ) ) . '">Privacy Policy</a>. ' . ( 'monthly' === $plan ? 'You authorize €29.99 every month until you cancel auto-renewal.' : 'You choose a one-time €80 purchase under the Lifetime license terms.' ) . ' You will review and complete payment securely with your selected provider.</p><div class="tc-billing-actions">';
+			foreach ( $available as $provider => $label ) {
+				self::start( 'checkout', array( 'plan' => $plan, 'provider' => $provider, 'intent' => $intent, 'consent' => '1' ) );
+				echo '<button class="tc-button" type="submit" aria-describedby="tc-payment-terms">' . esc_html( $label ) . '</button></form>';
+			}
+			echo '</div>';
+		} else {
+			echo '<p class="tc-billing-notice" role="status">Payment methods are temporarily unavailable. Contact support before purchasing.</p>';
+		}
+		if ( current_user_can( 'manage_options' ) ) {
+			$issues = array(); foreach ( array( 'stripe', 'paypal' ) as $provider ) { foreach ( TC_Billing::checkout_setup_issues( $provider, $config['mode'], $plan ) as $issue ) { $issues[] = ucfirst( $provider ) . ': ' . $issue; } }
+			if ( $issues ) { echo '<details class="tc-billing-notice"><summary>Administrator: payment setup</summary><ul>'; foreach ( $issues as $issue ) { echo '<li>' . esc_html( $issue ) . '</li>'; } echo '</ul><a href="' . esc_url( admin_url( 'options-general.php?page=tc-billing' ) ) . '">Open billing settings</a></details>'; }
+		}
 		echo '<p>Card and wallet availability is determined by the payment provider. Buying Lifetime does not cancel an existing subscription; manage its renewal separately. Access opens after verified payment and Discord synchronization.</p><a href="' . esc_url( home_url( '/pricing/' ) ) . '">Back to memberships</a></section>';
 		return (string) ob_get_clean();
 	}

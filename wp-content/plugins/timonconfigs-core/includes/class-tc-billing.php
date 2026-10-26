@@ -84,16 +84,38 @@ final class TC_Billing {
 		return 'paypal' === $provider && ! empty( $config['paypal_enabled'] ) && ! empty( $config['stripe_test_confirmed'] ) && '' !== self::secret( 'PAYPAL_CLIENT_ID', $mode ) && '' !== self::secret( 'PAYPAL_CLIENT_SECRET', $mode ) && '' !== self::setting( 'paypal_webhook_id', $mode );
 	}
 	public static function checkout_provider_ready( string $provider, string $mode, string $plan = '' ): bool {
-		if ( ! self::provider_ready( $provider, $mode ) ) { return false; }
-		if ( 'stripe' === $provider && in_array( $plan, array( 'monthly', 'lifetime' ), true ) && ( ! preg_match( '/^price_[A-Za-z0-9_]+$/D', self::setting( 'stripe_' . $plan . '_price_id', $mode ) ) || ! preg_match( '/^prod_[A-Za-z0-9_]+$/D', self::setting( 'stripe_' . $plan . '_product_id', $mode ) ) ) ) { return false; }
-		$config = self::config();
-		return 'test' === $mode || ( ! empty( $config['role_sync_enabled'] ) && '' !== self::secret( 'DISCORD_BOT_TOKEN', $mode ) && '' !== self::setting( 'discord_guild_id', $mode ) && '' !== self::setting( 'discord_monthly_role_id', $mode ) && '' !== self::setting( 'discord_lifetime_role_id', $mode ) );
+		return array() === self::checkout_setup_issues( $provider, $mode, $plan );
+	}
+	/** Read-only local diagnostics. No credentials, provider requests or payment creation. */
+	public static function checkout_setup_issues( string $provider, string $mode, string $plan = '' ): array {
+		if ( ! in_array( $provider, array( 'stripe', 'paypal' ), true ) || ! in_array( $mode, array( 'test', 'live' ), true ) ) { return array( 'Unsupported provider or environment.' ); }
+		$config = self::config(); $issues = array();
+		if ( ! self::mode_allowed( $mode ) ) { $issues[] = 'This payment environment is not enabled.'; }
+		$keys = 'stripe' === $provider ? array( 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET' ) : array( 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET' );
+		foreach ( $keys as $key ) { if ( '' === self::secret( $key, $mode ) ) { $issues[] = str_replace( '_', ' ', $key ) . ' is missing or unreadable.'; } }
+		if ( 'stripe' === $provider && in_array( $plan, array( 'monthly', 'lifetime' ), true ) ) {
+			foreach ( array( 'price_id' => 'price_', 'product_id' => 'prod_' ) as $kind => $prefix ) {
+				if ( ! preg_match( '/^' . $prefix . '[A-Za-z0-9_]+$/D', self::setting( 'stripe_' . $plan . '_' . $kind, $mode ) ) ) { $issues[] = 'Stripe ' . $plan . ' ' . str_replace( '_', ' ', $kind ) . ' is missing or invalid.'; }
+			}
+		}
+		if ( 'paypal' === $provider ) {
+			if ( empty( $config['paypal_enabled'] ) ) { $issues[] = 'PayPal has not been enabled.'; }
+			if ( empty( $config['stripe_test_confirmed'] ) ) { $issues[] = 'Confirm completed Stripe acceptance before enabling PayPal.'; }
+			if ( '' === self::setting( 'paypal_webhook_id', $mode ) ) { $issues[] = 'PayPal webhook ID is missing.'; }
+			if ( 'monthly' === $plan ) { foreach ( array( 'paypal_monthly_plan_id', 'paypal_monthly_product_id' ) as $key ) { if ( '' === self::setting( $key, $mode ) ) { $issues[] = str_replace( '_', ' ', $key ) . ' is missing.'; } } }
+		}
+		if ( 'live' === $mode ) {
+			if ( empty( $config['role_sync_enabled'] ) ) { $issues[] = 'Discord VIP role synchronization is disabled.'; }
+			if ( '' === self::secret( 'DISCORD_BOT_TOKEN', $mode ) ) { $issues[] = 'Discord Bot token is missing or unreadable.'; }
+			foreach ( array( 'discord_guild_id', 'discord_monthly_role_id', 'discord_lifetime_role_id' ) as $key ) { if ( '' === self::setting( $key, $mode ) ) { $issues[] = str_replace( '_', ' ', $key ) . ' is missing.'; } }
+		}
+		return $issues;
 	}
 	public static function public_keys(): array { return array( 'stripe_monthly_price_id', 'stripe_monthly_product_id', 'stripe_lifetime_price_id', 'stripe_lifetime_product_id', 'paypal_monthly_plan_id', 'paypal_monthly_product_id', 'paypal_webhook_id', 'discord_guild_id', 'discord_monthly_role_id', 'discord_lifetime_role_id' ); }
 	public static function sanitize( mixed $input ): array {
 		$old = self::config();
 		if ( ! current_user_can( 'manage_options' ) || ! is_array( $input ) ) { return $old; }
-		if ( 'live' === ( $input['mode'] ?? '' ) && ! TC_Billing_Secrets::secure_transport() ) { add_settings_error( 'tc_billing', 'live_https', 'Live configuration requires a secure HTTPS administrator session.' ); return $old; }
+		if ( ( 'live' === $old['mode'] || 'live' === ( $input['mode'] ?? '' ) ) && ! TC_Billing_Secrets::secure_transport() ) { add_settings_error( 'tc_billing', 'live_https', 'Live configuration requires a secure HTTPS administrator session.' ); return $old; }
 		$result = array( 'mode' => in_array( $input['mode'] ?? '', array( 'test', 'live' ), true ) ? $input['mode'] : 'test', 'routing' => in_array( $input['routing'] ?? '', array( 'direct', 'pilot' ), true ) ? $input['routing'] : 'disabled' );
 		foreach ( array( 'stripe_test_confirmed', 'migration_confirmed', 'legal_confirmed', 'paypal_enabled', 'role_sync_enabled', 'live_pilot_enabled', 'pilot_real_charges_confirmed' ) as $flag ) { $result[ $flag ] = in_array( $input[ $flag ] ?? null, array( true, 1, '1' ), true ); }
 		$result['pilot_discord_id'] = is_string( $input['pilot_discord_id'] ?? null ) && preg_match( '/^[1-9][0-9]{16,19}$/D', $input['pilot_discord_id'] ) ? $input['pilot_discord_id'] : '';
@@ -175,9 +197,11 @@ final class TC_Billing {
 					if ( $order['provider'] !== $provider ) { return self::error( 'tc_billing_pending', 'An unfinished checkout already exists with another provider. Contact support before creating another payment.' ); }
 					if ( empty( $order['checkout_id'] ) && empty( $order['subscription_id'] ) && strtotime( $order['created_at'] . ' UTC' ) <= time() - 600 ) { return self::error( 'tc_billing_pending', 'An earlier checkout has an uncertain provider response. Contact support to reconcile it before retrying payment.' ); }
 				}
+				if ( 'live' === $mode ) { $delivery = TC_Billing_Discord::preflight( $mode, $identity['user_id'] ); if ( is_wp_error( $delivery ) ) { return $delivery; } }
+				if ( self::config()['mode'] !== $mode || ! self::actor_can_purchase( $identity['discord_id'] ) || ! self::checkout_provider_ready( $provider, $mode, $plan ) ) { return self::error( 'tc_billing_pilot', 'Checkout access changed. Reload the page before continuing.' ); }
 				if ( null === $order ) { $order = TC_Billing_Store::create_order( $identity['user_id'], $identity['discord_id'], $provider, $mode, $plan ); }
 				if ( is_wp_error( $order ) ) { return $order; }
-				$consent = TC_Billing_Store::update_order( $order['id'], array( 'consent_at' => gmdate( 'Y-m-d H:i:s' ), 'consent_version' => '2026-10-25-v1' ) );
+				$consent = TC_Billing_Store::update_order( $order['id'], array( 'consent_at' => gmdate( 'Y-m-d H:i:s' ), 'consent_version' => '2026-10-26-button-v2' ) );
 				if ( is_wp_error( $consent ) ) { return $consent; }
 				$adapter = self::adapter( $provider ); $checkout = $adapter::create_checkout( $order );
 				if ( is_wp_error( $checkout ) ) { return $checkout; }
@@ -220,7 +244,9 @@ final class TC_Billing {
 		if ( is_wp_error( $result ) ) {
 			if ( ! is_user_logged_in() ) { wp_die( esc_html( $result->get_error_message() ), '', array( 'response' => 403 ) ); }
 			set_transient( 'tc_billing_feedback_' . get_current_user_id(), $result->get_error_message(), 120 );
-			wp_safe_redirect( home_url( '/account/' ), 303 ); exit;
+			$data = wp_unslash( $_POST ); $plan = self::scalar( $data, 'plan' );
+			$retry_url = 'checkout' === self::scalar( $data, 'operation' ) && in_array( $plan, array( 'monthly', 'lifetime' ), true ) ? TC_Checkout::get_checkout_url( $plan ) : home_url( '/account/' );
+			wp_safe_redirect( $retry_url, 303 ); exit;
 		}
 		if ( isset( $result['redirect'] ) ) { wp_redirect( $result['redirect'], 303, 'TimonConfigs billing' ); exit; } // Provider URLs were strictly validated by perform().
 		set_transient( 'tc_billing_feedback_' . get_current_user_id(), (string) ( $result['message'] ?? 'Billing request accepted.' ), 120 );
