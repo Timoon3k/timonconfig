@@ -331,7 +331,7 @@ final class TC_Billing {
 			$order = TC_Billing_Store::order( self::scalar( $data, 'order_id' ) );
 			if ( ! $order || $order['mode'] !== $mode || self::config()['mode'] !== $mode || ! self::provider_ready( $order['provider'], $mode ) ) { return self::error( 'tc_billing_order', 'Choose an order from the currently configured payment environment.' ); }
 			if ( 'order_refresh' !== $operation && '1' !== self::scalar( $data, 'confirm_order' ) ) { return self::error( 'tc_billing_confirm', 'Confirm the selected order action.' ); }
-			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $order['user_id'], static function () use ( $order, $operation, $mode ): bool|WP_Error {
+			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $order['user_id'], static function () use ( $order, $operation, $mode, $data ): bool|WP_Error {
 				$audit = array( 'order_id' => $order['id'], 'mode' => $mode, 'action' => $operation, 'target_user' => (int) $order['user_id'], 'at' => gmdate( 'Y-m-d H:i:s' ), 'status' => 'requested' );
 				$audit_id = add_user_meta( get_current_user_id(), '_tc_billing_order_audit', $audit );
 				if ( ! $audit_id ) { return self::error( 'tc_billing_audit', 'The administrator action could not be recorded. No provider action was started.' ); }
