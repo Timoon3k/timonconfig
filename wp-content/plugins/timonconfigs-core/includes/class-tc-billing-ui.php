@@ -20,7 +20,7 @@ final class TC_Billing_UI {
 		}
 		if ( 'test' === $config['mode'] ) { echo '<p class="tc-billing-notice" role="status">Test checkout — use test payment details only. This purchase does not confirm a live membership.</p>'; }
 		if ( is_wp_error( $identity ) ) {
-			echo '<p>Continue with Discord to securely link this purchase to your member account.</p><a class="tc-button" href="' . esc_url( TC_Discord::login_url() ) . '">Continue with Discord</a><p>After signing in, return to this membership checkout.</p></section>';
+			echo '<p>Continue with Discord to securely link this purchase to your member account.</p><a class="tc-button" href="' . esc_url( TC_Discord::login_url( $plan ) ) . '">Continue with Discord</a><p>After signing in, return to this membership checkout.</p></section>';
 			return (string) ob_get_clean();
 		}
 		echo '<p>Purchase for Discord account <strong>' . esc_html( $identity['discord_id'] ) . '</strong>.</p>';
@@ -28,8 +28,14 @@ final class TC_Billing_UI {
 		foreach ( array( 'stripe' => 'Continue with Stripe', 'paypal' => 'Continue with PayPal' ) as $provider => $label ) {
 			if ( ! TC_Billing::provider_ready( $provider, $config['mode'] ) ) { continue; }
 			self::start( 'checkout', array( 'plan' => $plan, 'provider' => $provider, 'intent' => $intent ) );
-			echo '<label><input type="checkbox" name="consent" value="1" required><span>' . ( 'monthly' === $plan ? 'I authorize recurring monthly payments of €29.99 until I cancel auto-renewal.' : 'I agree to a one-time €80 purchase under the Lifetime license terms.' ) . ' I have reviewed the <a href="' . esc_url( home_url( '/terms-of-service/' ) ) . '">Terms</a>, <a href="' . esc_url( home_url( '/refund-policy/' ) ) . '">Refund Policy</a> and <a href="' . esc_url( home_url( '/privacy-policy/' ) ) . '">Privacy Policy</a>.</span></label><button class="tc-button" type="submit">' . esc_html( $label ) . '</button></form>';
+			// The named submit button carries explicit paid-order acknowledgment (consent=1).
+			// The server still requires this value, a nonce and verified Discord identity.
+			$payment_label = 'monthly' === $plan ? 'Pay €29.99/month with ' . ucfirst( $provider ) : 'Pay €80 with ' . ucfirst( $provider );
+			echo '<button class="tc-button tc-billing-pay-button tc-billing-pay-button--' . esc_attr( $provider ) . '" type="submit" name="consent" value="1">' . esc_html( $payment_label ) . '</button></form>';
 		}
+		echo '<p class="tc-billing-terms">By choosing a payment method, you request a paid order subject to payment-provider confirmation. ' .
+			( 'monthly' === $plan ? 'VIP Monthly renews automatically at €29.99 every month until you cancel. ' : 'VIP Lifetime costs €80 once, with no monthly renewal. ' ) .
+			'Please review our <a href="' . esc_url( home_url( '/terms-of-service/' ) ) . '">Terms</a>, <a href="' . esc_url( home_url( '/refund-policy/' ) ) . '">Refund Policy</a> and <a href="' . esc_url( home_url( '/privacy-policy/' ) ) . '">Privacy Policy</a> before paying.</p>';
 		if ( ! TC_Billing::provider_ready( 'stripe', $config['mode'] ) ) { echo '<p class="tc-billing-notice">Payment setup is not complete. Contact support before purchasing.</p>'; }
 		echo '<p>Card and wallet availability is determined by the payment provider. Buying Lifetime does not cancel an existing subscription; manage its renewal separately. Access opens after verified payment and Discord synchronization.</p><a href="' . esc_url( home_url( '/pricing/' ) ) . '">Back to memberships</a></section>';
 		return (string) ob_get_clean();
