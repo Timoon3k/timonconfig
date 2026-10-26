@@ -39,6 +39,14 @@ $http = static function ( mixed $pre, array $args, string $url ) use ( &$request
             return $response( array( 'user' => array( 'id' => $ids[ $actor ] ), 'roles' => array( $ids['free'] ) ) );
         }
         if ( 'Bot synthetic-public-bot-token' !== $auth ) { throw new RuntimeException( 'Unexpected Discord credential blocked.' ); }
+        $failures = array(
+            'http401' => array( 401, '/users/@me' ),
+            'http403' => array( 403, '/guilds/' . $ids['guild'] ),
+            'http404' => array( 404, '/guilds/' . $ids['guild'] . '/members/' . $ids['c'] ),
+            'http500' => array( 500, '/guilds/' . $ids['guild'] ),
+        );
+        if ( isset( $failures[ $fault ] ) && $path === $failures[ $fault ][1] ) { return $response( array( 'message' => 'PRIVATE_DISCORD_BODY synthetic-public-bot-token' ), $failures[ $fault ][0] ); }
+        if ( 'bad-json' === $fault && '/guilds/' . $ids['guild'] . '/roles' === $path ) { $bad = $response( array() ); $bad['body'] = 'PRIVATE_DISCORD_BODY'; return $bad; }
         if ( '/users/@me' === $path ) { return $response( array( 'id' => $ids['bot'], 'bot' => true ) ); }
         if ( '/guilds/' . $ids['guild'] === $path ) { return $response( array( 'id' => $ids['guild'], 'owner_id' => $ids['owner'] ) ); }
         if ( '/guilds/' . $ids['guild'] . '/roles' === $path ) {
@@ -108,9 +116,14 @@ try {
     }
     $assert( 2 === $writes() && 2 === count( $sessions ), 'Two ordinary buyers create only their two intercepted independent checkout sessions.' );
     wp_set_current_user( $users['c'] );
-    foreach ( array( 'hierarchy', 'pause' ) as $failure ) {
+    foreach ( array( 'hierarchy', 'pause', 'http401', 'http403', 'http404', 'http500', 'bad-json' ) as $failure ) {
         $fault = $failure; $before = $writes(); $result = TC_Billing::perform( $purchase() );
         $assert( is_wp_error( $result ) && $before === $writes() && array() === TC_Billing_Store::orders_for_user( $users['c'], 'live' ), 'Live role delivery failure or in-flight sales pause stops an ordinary buyer before order creation: ' . $failure );
+        $expected = array( 'http401' => array( 401, 'bot_identity' ), 'http403' => array( 403, 'guild_access' ), 'http404' => array( 404, 'member_access' ), 'http500' => array( 500, 'guild_access' ), 'bad-json' => array( 200, 'server_roles' ) );
+        if ( isset( $expected[ $failure ] ) ) {
+            $data = $result->get_error_data(); $message = $result->get_error_message();
+            $assert( $data['http'] === $expected[ $failure ][0] && $data['stage'] === $expected[ $failure ][1] && str_contains( $message, 'HTTP ' . $data['http'] ) && str_contains( $message, $data['stage'] ) && ! str_contains( $message, 'PRIVATE_DISCORD_BODY' ) && ! str_contains( $message, 'synthetic-public-bot-token' ), 'Checkout preserves safe status/stage diagnostics while excluding upstream bodies and credentials: ' . $failure );
+        }
         update_option( 'timonconfigs_billing', $public, false );
     }
     $fault = ''; $paused = array_merge( $public, array( 'routing' => 'disabled' ) ); update_option( 'timonconfigs_billing', $paused, false );

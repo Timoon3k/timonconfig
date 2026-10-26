@@ -12,7 +12,7 @@ final class TC_Billing_Discord {
     private const API = 'https://discord.com/api/v10';
     private const INTENT_TTL = 600;
 
-    private static function error( string $reason, int $retry_after = 300, int $http = 0 ): WP_Error {
+    private static function error( string $reason, int $retry_after = 300, int $http = 0, string $stage = '' ): WP_Error {
         $messages = array(
             'disabled' => 'Discord billing automation is disabled.',
             'configuration' => 'Discord billing configuration needs administrator review.',
@@ -24,10 +24,20 @@ final class TC_Billing_Discord {
             'signature' => 'Discord interaction signature verification failed.',
             'interaction' => 'This Discord command is unavailable.',
             'intent' => 'The checkout link is invalid, expired, or belongs to another Discord account.',
-            'rate_limited' => 'Discord is rate limiting requests. The role update will retry.',
-            'network' => 'Discord is temporarily unavailable. The role update will retry.',
+            'rate_limited' => 'Discord is rate limiting requests. Please wait before trying again.',
+            'network' => 'Could not connect to Discord. Please try again shortly.',
+            'invalid_response' => 'Discord returned an unexpected response. Please retry or contact support.',
         );
-        return new WP_Error( 'tc_billing_discord_' . $reason, $messages[ $reason ] ?? 'Discord returned an unavailable or invalid response.', array( 'retry_after' => max( 1, min( 86400, $retry_after ) ), 'http' => $http ) );
+        $messages['http'] = match ( $http ) {
+            401 => 'Discord bot authentication failed. Please contact support to check the Bot token.',
+            403 => 'Discord denied access to the server or member. Please contact support to check the bot’s server access.',
+            404 => 'Discord could not find the server or member. Check that the bot and your account have joined the correct Discord server.',
+            default => $http >= 500 ? 'Discord is temporarily unavailable. Please try again shortly.' : 'Discord could not complete the verification. Please retry or contact support.',
+        };
+        $stage = in_array( $stage, array( 'bot_identity', 'guild_access', 'server_roles', 'bot_membership', 'member_access', 'vip_role_update' ), true ) ? $stage : '';
+        $message = $messages[ $reason ] ?? 'Discord returned an unavailable or invalid response.';
+        if ( '' !== $stage || $http > 0 ) { $message .= ' Reference: ' . ( '' !== $stage ? $stage : $reason ) . ( $http > 0 ? ' / HTTP ' . $http : '' ) . '.'; }
+        return new WP_Error( 'tc_billing_discord_' . $reason, $message, array( 'retry_after' => max( 1, min( 86400, $retry_after ) ), 'http' => $http, 'stage' => $stage ) );
     }
 
     private static function snowflake( mixed $id ): bool {
@@ -63,7 +73,7 @@ final class TC_Billing_Discord {
     }
 
     /** No arbitrary endpoints, redirects, response bodies or credentials escape this method. */
-    private static function request( string $mode, string $path, string $method = 'GET' ): array|bool|WP_Error {
+    private static function request( string $mode, string $path, string $method = 'GET', string $stage = '' ): array|bool|WP_Error {
         $token = TC_Billing::secret( 'DISCORD_BOT_TOKEN', $mode );
         if ( '' === $token || preg_match( '/[\r\n]/', $token ) || ! in_array( $method, array( 'GET', 'PUT', 'DELETE' ), true ) ) { return self::error( 'configuration', 3600 ); }
         $response = wp_remote_request( self::API . $path, array(
@@ -71,7 +81,7 @@ final class TC_Billing_Discord {
             'sslverify' => true, 'limit_response_size' => 262144,
             'headers' => array( 'Authorization' => 'Bot ' . $token, 'Accept' => 'application/json' ),
         ) );
-        if ( is_wp_error( $response ) ) { return self::error( 'network', 60 ); }
+        if ( is_wp_error( $response ) ) { return self::error( 'network', 60, 0, $stage ); }
         $http = (int) wp_remote_retrieve_response_code( $response );
         $data = json_decode( wp_remote_retrieve_body( $response ), true );
         if ( 429 === $http ) {
@@ -79,11 +89,11 @@ final class TC_Billing_Discord {
             $header = wp_remote_retrieve_header( $response, 'retry-after' );
             if ( is_numeric( $header ) && (float) $header > 0 ) { $delays[] = (float) $header; }
             if ( is_array( $data ) && is_numeric( $data['retry_after'] ?? null ) && (float) $data['retry_after'] > 0 ) { $delays[] = (float) $data['retry_after']; }
-            return self::error( 'rate_limited', (int) min( 86400, ceil( $delays ? max( $delays ) : 10 ) ), 429 );
+            return self::error( 'rate_limited', (int) min( 86400, ceil( $delays ? max( $delays ) : 10 ) ), 429, $stage );
         }
-        if ( 'GET' !== $method ) { return 204 === $http ? true : self::error( 'http', $http >= 500 ? 120 : 3600, $http ); }
-        if ( 200 !== $http ) { return self::error( 'http', $http >= 500 ? 120 : 3600, $http ); }
-        return is_array( $data ) ? $data : self::error( 'invalid_response', 300, $http );
+        if ( 'GET' !== $method ) { return 204 === $http ? true : self::error( 'http', $http >= 500 ? 120 : 3600, $http, $stage ); }
+        if ( 200 !== $http ) { return self::error( 'http', $http >= 500 ? 120 : 3600, $http, $stage ); }
+        return is_array( $data ) ? $data : self::error( 'invalid_response', 300, $http, $stage );
     }
 
     /** Inspect a bit in an arbitrarily large decimal permission string without integer casts. */
@@ -142,13 +152,13 @@ final class TC_Billing_Discord {
     /** Canonical GET-only check shared by checkout and the role outbox. */
     private static function inspect_member( array $config, int $uid, string $mode, string $discord ): array|WP_Error {
         $guild = $config['guild_id'];
-        $bot = self::request( $mode, '/users/@me' );
+        $bot = self::request( $mode, '/users/@me', 'GET', 'bot_identity' );
         if ( is_wp_error( $bot ) ) { return $bot; }
         if ( ! self::snowflake( $bot['id'] ?? null ) || true !== ( $bot['bot'] ?? false ) ) { return self::error( 'invalid_response' ); }
-        $guild_data = self::request( $mode, '/guilds/' . $guild );
+        $guild_data = self::request( $mode, '/guilds/' . $guild, 'GET', 'guild_access' );
         if ( is_wp_error( $guild_data ) ) { return $guild_data; }
         if ( ( $guild_data['id'] ?? '' ) !== $guild || ! self::snowflake( $guild_data['owner_id'] ?? null ) ) { return self::error( 'invalid_response' ); }
-        $list = self::request( $mode, '/guilds/' . $guild . '/roles' );
+        $list = self::request( $mode, '/guilds/' . $guild . '/roles', 'GET', 'server_roles' );
         if ( is_wp_error( $list ) ) { return $list; }
         $roles = array();
         foreach ( $list as $role ) {
@@ -156,7 +166,7 @@ final class TC_Billing_Discord {
             $roles[ $role['id'] ] = $role;
         }
         if ( ! isset( $roles[ $guild ] ) ) { return self::error( 'invalid_response' ); }
-        $bot_member = self::request( $mode, '/guilds/' . $guild . '/members/' . $bot['id'] );
+        $bot_member = self::request( $mode, '/guilds/' . $guild . '/members/' . $bot['id'], 'GET', 'bot_membership' );
         if ( is_wp_error( $bot_member ) ) { return $bot_member; }
         $bot_roles = self::member_roles( $bot_member, $bot['id'], $roles, $guild );
         if ( is_wp_error( $bot_roles ) ) { return $bot_roles; }
@@ -171,7 +181,7 @@ final class TC_Billing_Discord {
             $role = $roles[ $config[ $plan ] ] ?? null;
             if ( ! is_array( $role ) || $role['managed'] || $role['position'] >= $highest ) { return self::error( 'hierarchy', 3600 ); }
         }
-        $member = self::request( $mode, '/guilds/' . $guild . '/members/' . $discord );
+        $member = self::request( $mode, '/guilds/' . $guild . '/members/' . $discord, 'GET', 'member_access' );
         if ( is_wp_error( $member ) ) { return $member; }
         $present = self::member_roles( $member, $discord, $roles, $guild );
         if ( is_wp_error( $present ) ) { return $present; }
@@ -233,7 +243,7 @@ final class TC_Billing_Discord {
                     $fresh = self::desired( $uid, $mode, $discord );
                     if ( is_wp_error( $fresh ) ) { return $fresh; }
                     if ( ! $fresh[ $plan ] ) { continue; }
-                    $result = self::request( $mode, '/guilds/' . $guild . '/members/' . $discord . '/roles/' . $role, 'PUT' );
+                    $result = self::request( $mode, '/guilds/' . $guild . '/members/' . $discord . '/roles/' . $role, 'PUT', 'vip_role_update' );
                     if ( is_wp_error( $result ) ) { return $result; }
                     $saved = TC_Billing_Store::own_role( $uid, $mode, $guild, $role, true );
                     if ( is_wp_error( $saved ) ) { return $saved; }
@@ -254,7 +264,7 @@ final class TC_Billing_Discord {
                 if ( '1' !== get_user_meta( $uid, '_tc_billing_legacy_reviewed_' . $mode, true ) ) { $blocked = 'legacy_review'; continue; }
                 $allowed = self::write_allowed( $uid, $mode, $discord, $config );
                 if ( is_wp_error( $allowed ) ) { return $allowed; }
-                $result = self::request( $mode, '/guilds/' . $guild . '/members/' . $discord . '/roles/' . $role, 'DELETE' );
+                $result = self::request( $mode, '/guilds/' . $guild . '/members/' . $discord . '/roles/' . $role, 'DELETE', 'vip_role_update' );
                 if ( is_wp_error( $result ) ) { return $result; }
                 $saved = TC_Billing_Store::own_role( $uid, $mode, $guild, $role, false );
                 if ( is_wp_error( $saved ) ) { return $saved; }
