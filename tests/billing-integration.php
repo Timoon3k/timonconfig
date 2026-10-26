@@ -112,6 +112,11 @@ try {
 	$uid = $users['user']; $other_uid = $users['other'];
 	update_option( 'timonconfigs_discord', $oauth, false ); update_option( 'timonconfigs_billing', $billing, false ); wp_set_current_user( $uid );
 	$assert( TC_Discord::is_ready() && TC_Billing::mode_allowed( 'test' ) && TC_Billing::direct_enabled(), 'The isolated HTTPS localhost fixture is ready for direct Test checkout.' );
+	$assert( str_contains( TC_Discord::login_url( 'monthly' ), 'tc_checkout_plan=monthly' ) && str_contains( TC_Discord::login_url( 'lifetime' ), 'tc_checkout_plan=lifetime' ) && ! str_contains( TC_Discord::login_url( 'https://not-trusted.example/' ), 'tc_checkout_plan=' ), 'Only trusted plan names are included in the Discord OAuth checkout return.' );
+	$monthly_ui = TC_Billing_UI::checkout( 'monthly' ); $lifetime_ui = TC_Billing_UI::checkout( 'lifetime' );
+	$assert( str_contains( $monthly_ui, 'Pay €29.99/month with Stripe' ) && str_contains( $lifetime_ui, 'Pay €80 with Stripe' ), 'Both plans show explicit paid-order buttons in checkout.' );
+	$assert( str_contains( $monthly_ui, 'name="consent" value="1"' ) && ! str_contains( $monthly_ui, 'type="checkbox"' ) && str_contains( $monthly_ui, 'renews automatically' ) && str_contains( $monthly_ui, 'Terms' ), 'The named pay button acknowledges paid order without a required checkbox; recurring terms remain visible.' );
+
 	$assert( ! TC_Billing::mode_allowed( 'live' ) && ! TC_Billing::mode_allowed( 'invalid' ) && ! TC_Billing::provider_ready( 'stripe', 'live' ), 'No browser setting or test credential unlocks Live.' );
 	$live_settings = $billing; $live_settings['mode'] = 'live'; $live_settings['stripe_test_confirmed'] = true; $live_settings['migration_confirmed'] = true; update_option( 'timonconfigs_billing', $live_settings, false );
 	$assert( $error_is( TC_Billing::perform( $payload() ), 'tc_billing_disabled' ), 'A forged Live option remains blocked at the actual checkout service without server approval.' );

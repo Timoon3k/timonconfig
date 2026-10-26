@@ -104,7 +104,11 @@ final class TC_Discord {
         if ( ! $uid ) { return 0; }
         return max( 0, (int) get_user_meta( $uid, '_tc_discord_attempt', true ) + 10 - time(), (int) get_user_meta( $uid, '_tc_discord_retry_until', true ) - time() );
     }
-    public static function login_url(): string { return self::is_ready() ? home_url( '/?tc_discord_start=1' ) : home_url( '/account/' ); }
+    public static function login_url( string $checkout_plan = '' ): string {
+        if ( ! self::is_ready() ) { return home_url( '/account/' ); }
+        $url = home_url( '/?tc_discord_start=1' );
+        return in_array( $checkout_plan, array( 'monthly', 'lifetime' ), true ) ? add_query_arg( 'tc_checkout_plan', $checkout_plan, $url ) : $url;
+    }
     public static function logout_url(): string { return add_query_arg( '_wpnonce', wp_create_nonce( 'tc_discord_logout' ), home_url( '/?tc_discord_logout=1' ) ); }
     public static function refresh_url(): string { return add_query_arg( '_wpnonce', wp_create_nonce( 'tc_discord_refresh' ), home_url( '/?tc_discord_refresh=1' ) ); }
     private static function error( string $stage = 'verification', string $reason = 'unavailable', int $http = 0 ): WP_Error { return new WP_Error( 'tc_discord_unavailable', 'Discord verification is unavailable. Please reconnect or try again shortly.', array( 'stage' => $stage, 'reason' => $reason, 'http' => $http ) ); }
@@ -134,7 +138,7 @@ final class TC_Discord {
         $state = bin2hex( random_bytes( 32 ) ); $cookie = bin2hex( random_bytes( 32 ) );
         $verifier = rtrim( strtr( base64_encode( random_bytes( 48 ) ), '+/', '-_' ), '=' );
         $s = self::settings();
-        $data = array( 'cookie' => hash( 'sha256', $cookie ), 'expires' => time() + 300, 'uid' => get_current_user_id(), 'session' => hash( 'sha256', wp_get_session_token() ), 'verifier' => ! empty( $s['pkce'] ) ? $verifier : '' );
+        $data = array( 'cookie' => hash( 'sha256', $cookie ), 'expires' => time() + 300, 'uid' => get_current_user_id(), 'session' => hash( 'sha256', wp_get_session_token() ), 'verifier' => ! empty( $s['pkce'] ) ? $verifier : '', 'checkout_plan' => in_array( $_GET['tc_checkout_plan'] ?? '', array( 'monthly', 'lifetime' ), true ) ? $_GET['tc_checkout_plan'] : '' );
         $key = '_tc_oauth_' . hash( 'sha256', $state );
         add_option( $key, self::encrypt( wp_json_encode( $data ) ), '', false );
         wp_schedule_single_event( time() + 360, 'tc_discord_clean_state', array( $key ) );
@@ -237,7 +241,10 @@ final class TC_Discord {
         $avatar = $identity['avatar'] ?? '';
         update_user_meta( $uid, '_tc_discord_avatar', is_string( $avatar ) && preg_match( '/^(a_)?[a-f0-9]{32}$/D', $avatar ) ? 'https://cdn.discordapp.com/avatars/' . $identity['id'] . '/' . $avatar . '.png?size=128' : '' );
         wp_clear_auth_cookie(); wp_set_current_user( $uid ); wp_set_auth_cookie( $uid, false, true );
-        wp_safe_redirect( home_url( '/account/' ) ); exit;
+        // Only a whitelisted plan stored in the encrypted, single-use OAuth state can alter the return route.
+        $checkout_plan = is_string( $state['checkout_plan'] ?? null ) ? $state['checkout_plan'] : '';
+        $return_url = in_array( $checkout_plan, array( 'monthly', 'lifetime' ), true ) ? home_url( '/checkout/' . $checkout_plan . '/' ) : home_url( '/account/' );
+        wp_safe_redirect( $return_url ); exit;
     }
     /** Logout invalidates local tokens first, even when remote revocation fails. */
     public static function revoke( int $uid ): void {
