@@ -1,3 +1,11 @@
+# Następna sesja — odzyskiwanie checkoutu, 2026-10-26
+
+Kontynuuj aktualny GitHub main z kodem `4f051d4`, Core0.9.5/theme0.11.1; wyniki są na początku `PROGRESS.md`. Przeczytaj `docs/CHECKOUT_RECOVERY_0.9.5.md`. Zachowaj publiczne zakupy, granicę administratora WordPressa oraz dotychczasowe uprawnienia Ownera.
+
+Po aktualizacji faktycznego WordPressa sprawdź **TimonConfigs billing → Customer orders**: odświeżenie, zamknięcie nieopłaconej próby i anulowanie odnowień z zachowaniem opłaconego dostępu. Następnie ustal bezpieczny kod Stripe/HTTP/etap z ponownej próby. Stare brakujące referencje i otwarte PayPal wymagają weryfikacji u operatora, bez wymuszonego resetowania statusu. Nie wykonano realnego anulowania ani instalacji na Hostingerze; zaliczono857 asercji PHP, 32 widoki, 2 checkouty, 6 stron, lint73 i 97 kontroli instalacji ZIP. Kod jest na GitHub main, lecz instalacja na Hostingerze pozostaje niepotwierdzona.
+
+---
+
 # Następna sesja — Discord checkout diagnostics, 2026-10-26
 
 Aktualny kod `5c4e510`, Core0.9.4/theme0.11.1 jest na GitHub main. Zaliczone 263 asercje PHP i 97 kontroli instalacji ZIP; pozostałe wyniki 0.9.3 są historyczne i nie były powtarzane dla samej diagnostyki. Nie zmieniaj działającej logiki publicznych zakupów ani Ownera.

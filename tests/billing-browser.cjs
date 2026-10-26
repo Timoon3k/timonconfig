@@ -18,6 +18,14 @@ const root = path.resolve(__dirname, '..');
     assert.deepEqual(Object.keys(publicFixtures).sort(), ['checkout-public-lifetime', 'checkout-public-monthly']);
     Object.assign(fixtures, publicFixtures);
   }
+  if (process.env.TC_RECOVERY_LOG) {
+    const recoveryLog = await readFile(path.resolve(root, process.env.TC_RECOVERY_LOG), 'utf8');
+    const recoveryLine = recoveryLog.split('\n').find(value => value.startsWith('TC_RECOVERY_FIXTURES:'));
+    assert.ok(recoveryLine, 'Run billing recovery integration with TC_BILLING_RENDER=1 first.');
+    const recoveryFixtures = JSON.parse(recoveryLine.slice('TC_RECOVERY_FIXTURES:'.length));
+    assert.deepEqual(Object.keys(recoveryFixtures).sort(), ['account-pending', 'checkout-pending-monthly']);
+    Object.assign(fixtures, recoveryFixtures);
+  }
   const styles = (await Promise.all(['main', 'premium', 'member', 'billing'].map(name => readFile(path.join(root, `wp-content/themes/timonconfigs/assets/css/${name}.css`), 'utf8')))).join('\n');
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', headless: true, args: ['--no-sandbox'] });
   const report = { passed: false, views: [], errors: [] };
@@ -45,7 +53,7 @@ const root = path.resolve(__dirname, '..');
         } else if (state.startsWith('checkout-')) {
           assert.equal(await page.locator('h1').count(), 1);
           assert.match(await page.locator('.tc-billing').innerText(), state.endsWith('monthly') ? /€29\.99/ : /€80/);
-          const form = page.locator('form').first();
+          const form = page.locator('form:has(input[name="operation"][value="checkout"])').first();
           assert.equal(await form.getAttribute('method'), 'post');
           assert.equal(await form.evaluate(el => el.checkValidity()), true, 'Payment choices are immediately usable after login');
           assert.equal(await page.locator('.tc-billing-checkout input[type="checkbox"]').count(), 0);
@@ -57,12 +65,25 @@ const root = path.resolve(__dirname, '..');
           assert.equal(await button.getAttribute('aria-describedby'), 'tc-payment-terms');
           assert.match(await page.locator('#tc-payment-terms').innerText(), state.endsWith('monthly') ? /€29\.99 every month until you cancel/ : /one-time €80/);
           assert.equal(await form.locator('input[name="_wpnonce"]').count(), 1);
+        } else if (state === 'account-pending') {
+          assert.match(await page.locator('#tc-billing-heading').innerText(), /Payments/);
+          assert.equal(await page.locator('form:has(input[name="operation"][value="close_checkout"])').count(), 1);
+          assert.equal(await page.locator('input[name="user_id"]').count(), 0);
         } else {
           assert.match(await page.locator('#tc-billing-heading').innerText(), /Payments/);
           assert.equal(await page.locator('dl > div').count(), 4);
           assert.match(await page.locator('.tc-billing-table').innerText(), /VIP Lifetime/);
           assert.equal(await page.locator('.tc-billing-table-wrap').evaluate(el => el.getBoundingClientRect().right <= innerWidth), true, 'Order history scroll stays within its container');
           assert.equal(await page.locator('input[name="user_id"]').count(), 0, 'Account forms do not accept a target user ID');
+        }
+        if (state === 'checkout-pending-monthly' || state === 'account-pending') {
+          const closeForm = page.locator('form:has(input[name="operation"][value="close_checkout"])');
+          assert.equal(await closeForm.getAttribute('method'), 'post');
+          assert.equal(await closeForm.locator('input[name="_wpnonce"]').count(), 1);
+          assert.equal(await closeForm.locator('input[name="confirm_close"]').inputValue(), '1');
+          assert.equal(await closeForm.locator('input[name="order_id"]').count(), 1);
+          await closeForm.getByRole('button', { name: 'Close unpaid checkout', exact: true }).focus();
+          assert.equal(await closeForm.evaluate(el => el.getBoundingClientRect().right <= innerWidth), true);
         }
         if (width === 1440 || width === 390) await page.screenshot({ path: path.join(root, `artifacts/billing-${state}-${width}.png`), fullPage: true });
         report.views.push({ state, width });

@@ -1,5 +1,15 @@
 # Direct billing — implementation report
 
+## Current update — verified checkout recovery and order administration (2026-10-26)
+
+Core **0.9.5** / theme **0.11.1**, code `4f051d4` published on main. Customer recovery closes only canonically verified unpaid checkouts; compatible provider switching first closes the prior attempt. HTTPS nonce/capability-protected WordPress administrator actions search bounded customer orders, close unpaid checkout, refresh reconciliation or stop renewal while preserving prepaid access. Audit intent is persisted before provider operations. A Discord Owner publishing badge grants no billing administration.
+
+**857 PHP assertions passed:** Store143, recovery34, facade87, pilot44, public39, Discord93, checkout28, presentation38, downloads69, Stripe156, PayPal126. **32 responsive views +2 actual local checkout routes +6 public pages**, PHP source lint73/JS and **97 fresh ZIP installation checks** passed. Core21/theme89 files match source; manifest `artifacts/checkout-recovery-095-release-manifest.json`. Astra Medium reviewed the financial boundaries; subsequent expiry events are idempotent and expired local orders still offer renewal cancellation. All operator/Discord HTTP is mocked; no actual charge or customer cancellation was executed.
+
+Old no-reference attempts remain uncertain, not silently cleared. PayPal Monthly closure requires an already terminal subscription and verified empty complete payment history; PayPal Lifetime requires VOIDED without payment references. Fresh errors proven to precede any create-checkout request may safely release that new attempt. Network/after-POST ambiguity remains blocked. The original screenshot does not identify the real Stripe failure: safe reason/HTTP/stage diagnostics now preserve evidence without upstream messages or credentials. Hostinger installation and live provider acceptance remain unverified. Setup: [CHECKOUT_RECOVERY_0.9.5.md](CHECKOUT_RECOVERY_0.9.5.md).
+
+---
+
 ## Current update — public Live purchases (2026-10-26)
 
 Core **0.9.3** / theme **0.11.1**, based on published `main` `7688fc5`. The owner's latest request supersedes the one-account pilot: an explicit HTTPS administrator approval enables public purchases and configured Discord login for ordinary members. New accounts stay subscribers; protected membership files and approved Owner controls retain server authorization. Pausing new purchases preserves customer sign-in and Live contract maintenance. Earlier private-pilot scope below is historical.

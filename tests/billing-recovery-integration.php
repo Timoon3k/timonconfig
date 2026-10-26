@@ -8,7 +8,7 @@ define( 'TIMONCONFIGS_BILLING_TEST_STRIPE_WEBHOOK_SECRET', 'whsec_localRecoveryF
 define( 'TIMONCONFIGS_BILLING_TEST_PAYPAL_CLIENT_ID', 'synthetic-recovery-client' );
 define( 'TIMONCONFIGS_BILLING_TEST_PAYPAL_CLIENT_SECRET', 'synthetic-recovery-secret' );
 global $wpdb;
-$checks = 0; $users = array(); $requests = array(); $sessions = array(); $contracts = array(); $fault = ''; $switch_order = null; $paypal_creations = 0;
+$checks = 0; $users = array(); $requests = array(); $sessions = array(); $contracts = array(); $fault = ''; $switch_order = null; $paypal_creations = 0; $rendered = array();
 $tag = 'recovery_' . bin2hex( random_bytes( 6 ) ); $host = 'https://localhost:8080';
 $ids = array( 'close' => '980000000000000101', 'other' => '980000000000000102', 'badprice' => '980000000000000103', 'unknown' => '980000000000000104', 'race' => '980000000000000105', 'owner' => '980000000000000106', 'active' => '980000000000000107', 'application' => '980000000000000108', 'guild' => '980000000000000109', 'free' => '980000000000000110', 'monthly' => '980000000000000111', 'lifetime' => '980000000000000112', 'switch' => '980000000000000113' );
 foreach ( array( 'close', 'other', 'badprice', 'unknown', 'race', 'owner', 'active', 'switch' ) as $actor ) { if ( false !== get_option( '_tc_discord_binding_' . $ids[ $actor ] ) ) { throw new RuntimeException( 'Existing binding collision; refusing to replace an account.' ); } }
@@ -81,6 +81,8 @@ $writes = static function () use ( &$requests ): int { return count( array_filte
 $purchase = static fn( string $plan = 'monthly' ): array => array( '_wpnonce' => wp_create_nonce( 'tc_billing_action' ), 'operation' => 'checkout', 'plan' => $plan, 'provider' => 'stripe', 'consent' => '1' );
 $close = static fn( array $order ): array => array( '_wpnonce' => wp_create_nonce( 'tc_billing_action' ), 'operation' => 'close_checkout', 'order_id' => $order['id'], 'plan' => $order['plan'], 'confirm_close' => '1' );
 $admin = static fn( string $op, array $order ): array => array( '_wpnonce' => wp_create_nonce( 'tc_billing_admin' ), 'operation' => $op, 'mode' => $order['mode'], 'order_id' => $order['id'], 'confirm_order' => '1' );
+$forms_for = static function ( string $html, string $operation ): array { preg_match_all( '~<form\b[^>]*>.*?</form>~s', $html, $matches ); return array_values( array_filter( $matches[0], static fn( string $form ): bool => str_contains( $form, 'name="operation" value="' . $operation . '"' ) ) ); };
+$render_admin_orders = static function (): string { ob_start(); ( new ReflectionMethod( TC_Billing_UI::class, 'orders' ) )->invoke( null ); return (string) ob_get_clean(); };
 $make_order = static function ( string $actor, string $suffix, string $plan = 'monthly' ) use ( &$sessions, &$users, $ids, $session, $must ): array {
     $order = $must( TC_Billing_Store::create_order( $users[ $actor ], $ids[ $actor ], 'stripe', 'test', $plan ) ); $canonical = $session( $order, $suffix ); $sessions[ $canonical['id'] ] = $canonical;
     $must( TC_Billing_Store::update_order( $order['id'], array( 'checkout_id' => $canonical['id'], 'customer_id' => $canonical['customer'], 'status' => 'checkout' ) ) ); return TC_Billing_Store::order( $order['id'] );
@@ -95,7 +97,14 @@ try {
     update_option( 'timonconfigs_discord', $oauth, false ); update_option( 'timonconfigs_billing', $billing, false );
     $order = $make_order( 'close', 'self' ); wp_set_current_user( $users['other'] ); $before = count( $requests );
     $assert( is_wp_error( TC_Billing::perform( $close( $order ) ) ) && $before === count( $requests ) && 'checkout' === TC_Billing_Store::order( $order['id'] )['status'], 'A customer cannot close another customer’s unpaid checkout.' );
-    wp_set_current_user( $users['close'] ); $invalid = $close( $order ); $invalid['_wpnonce'] = 'invalid';
+    wp_set_current_user( $users['close'] );
+    $rendered['checkout-pending-monthly'] = TC_Billing_UI::checkout( 'monthly' ); $rendered['account-pending'] = TC_Billing_UI::account( $users['close'] );
+    $close_forms = $forms_for( $rendered['checkout-pending-monthly'], 'close_checkout' ); $payment_forms = $forms_for( $rendered['checkout-pending-monthly'], 'checkout' );
+    $assert( 1 === count( $close_forms ) && str_contains( $close_forms[0], 'name="order_id" value="' . $order['id'] . '"' ) && str_contains( $close_forms[0], 'name="_wpnonce" value="' . wp_create_nonce( 'tc_billing_action' ) . '"' ) && str_contains( $close_forms[0], 'name="confirm_close" value="1"' ) && $before === count( $requests ), 'Pending checkout exposes an own-order close action with the current member nonce without provider calls.' );
+    $assert( 1 === count( $payment_forms ) && str_contains( $payment_forms[0], 'Pay with Stripe' ) && str_contains( $payment_forms[0], 'type="hidden" name="consent" value="1"' ) && ! str_contains( $payment_forms[0], 'type="checkbox"' ), 'Adding a pending-checkout recovery form does not reintroduce a checkbox before payment.' );
+    $account_close = $forms_for( $rendered['account-pending'], 'close_checkout' );
+    $assert( 1 === count( $account_close ) && str_contains( $account_close[0], 'name="order_id" value="' . $order['id'] . '"' ) && ! str_contains( $rendered['account-pending'], 'Manage customer orders' ), 'Ordinary customer account renders only its own unpaid-close form and no financial administration link.' );
+    $invalid = $close( $order ); $invalid['_wpnonce'] = 'invalid';
     $assert( $error_is( TC_Billing::perform( $invalid ), 'tc_billing_nonce' ) && $before === count( $requests ), 'Invalid customer nonce is rejected before provider reads or writes.' );
     $unconfirmed = $close( $order ); $unconfirmed['confirm_close'] = '0';
     $assert( is_wp_error( TC_Billing::perform( $unconfirmed ) ) && $before === count( $requests ), 'Closing an unpaid checkout requires the deliberate confirmation action.' );
@@ -114,6 +123,7 @@ try {
 
     $managed = $make_order( 'other', 'managed' ); wp_set_current_user( $users['owner'] ); $before = count( $requests );
     $assert( TC_Discord::can_manage_configs_local() && ! current_user_can( 'manage_options' ), 'The synthetic Owner can publish configs but has no WordPress financial administration capability.' );
+    $assert( '' === $render_admin_orders() && ! str_contains( TC_Billing_UI::account( $users['owner'] ), 'Manage customer orders' ) && $before === count( $requests ), 'A config Owner cannot render the administrator order-management table or link.' );
     $assert( $error_is( TC_Billing::admin_perform( $admin( 'order_close', $managed ) ), 'tc_billing_forbidden' ) && $before === count( $requests ), 'Owner publishing permission cannot close another customer’s financial order.' );
     wp_set_current_user( $users['admin'] ); $bad_admin = $admin( 'order_close', $managed ); $bad_admin['_wpnonce'] = 'invalid';
     $assert( $error_is( TC_Billing::admin_perform( $bad_admin ), 'tc_billing_forbidden' ) && $before === count( $requests ), 'Administrative order management rejects an invalid nonce before remote activity.' );
@@ -152,8 +162,13 @@ try {
     $assert( ! is_wp_error( TC_Billing::admin_perform( $admin( 'order_cancel', $paid ) ) ) && true === $contracts[ $paid['subscription_id'] ]['cancel_at_period_end'], 'Administrator cancel-renewal uses the exact canonical provider contract.' );
     $access = $must( TC_Billing_Store::active( $users['active'], 'test' ) );
     $assert( 1 === count( $access ) && $until === $access[0]['valid_until'] && 'active' === TC_Billing_Store::order( $paid['id'] )['status'], 'Stopping future renewal preserves prepaid entitlement and leaves final financial status to reconciliation.' );
+    $must( TC_Billing_Store::update_order( $paid['id'], array( 'status' => 'expired', 'cancel_at_period_end' => 0 ) ) ); $_GET['tc_billing_search'] = $paid['id'];
+    $expired_html = $render_admin_orders(); $cancel_forms = $forms_for( $expired_html, 'order_cancel' );
+    $assert( 1 === count( $cancel_forms ) && str_contains( $cancel_forms[0], 'name="order_id" value="' . $paid['id'] . '"' ) && str_contains( $cancel_forms[0], 'name="confirm_order" value="1" required' ) && str_contains( $cancel_forms[0], 'name="_wpnonce" value="' . wp_create_nonce( 'tc_billing_admin' ) . '"' ), 'Expired local paid time does not hide the administrator cancel-renewal action for a subscription that may still renew.' );
+    $_GET = $old_get; $must( TC_Billing_Store::update_order( $paid['id'], array( 'status' => 'active' ) ) );
     $assert( ! str_contains( $bad->get_error_message(), 'PRIVATE_PROVIDER_RESPONSE' ) && ! str_contains( $network->get_error_message(), 'PRIVATE_PROVIDER_RESPONSE' ), 'Customer errors never expose raw provider response text.' );
     WP_CLI::success( "Billing recovery integration: $checks assertions; real local WordPress, all HTTP mocked, no actual payment or cancellation." );
+    if ( getenv( 'TC_BILLING_RENDER' ) ) { WP_CLI::line( 'TC_RECOVERY_FIXTURES:' . wp_json_encode( $rendered ) ); }
 } finally {
     remove_filter( 'pre_http_request', $http, 1 ); remove_filter( 'option_home', $https );
     foreach ( $users as $uid ) {
