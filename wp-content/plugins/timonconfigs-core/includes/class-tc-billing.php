@@ -157,6 +157,21 @@ final class TC_Billing {
 		return array( 'user_id' => $uid, 'discord_id' => $id );
 	}
 	private static function scalar( array $data, string $key ): string { return is_string( $data[ $key ] ?? null ) ? $data[ $key ] : ''; }
+	/** The caller holds the member checkout lease; canonical proof and commit share the provider lease. */
+	private static function close_unpaid( array $seed ): bool|WP_Error {
+		return TC_Billing_Store::locked( 'provider:' . $seed['provider'] . ':' . $seed['mode'], static function () use ( $seed ): bool|WP_Error {
+			$order = TC_Billing_Store::order( $seed['id'] );
+			if ( ! $order || $order['user_id'] !== $seed['user_id'] || $order['discord_id'] !== $seed['discord_id'] || $order['mode'] !== $seed['mode'] || $order['provider'] !== $seed['provider'] ) { return self::error( 'tc_billing_order', 'This order is no longer available.' ); }
+			if ( ! self::provider_ready( $order['provider'], $order['mode'] ) || self::config()['mode'] !== $order['mode'] ) { return self::error( 'tc_billing_unconfigured', 'Keep the original payment provider configured to verify this checkout before closing it.' ); }
+			if ( ! in_array( $order['status'], array( 'pending', 'checkout', 'canceled', 'cancelled' ), true ) || ! empty( $order['payment_id'] ) ) { return self::error( 'tc_billing_not_unpaid', 'This order may have been paid. Refresh its payment status; use cancellation of renewals for an active subscription.' ); }
+			if ( ! in_array( $order['status'], array( 'canceled', 'cancelled' ), true ) ) {
+				$adapter = self::adapter( $order['provider'] ); $closed = $adapter::close_checkout( $order );
+				if ( is_wp_error( $closed ) ) { if ( $order['checkout_id'] || $order['subscription_id'] || $order['payment_id'] ) { self::queue_reconcile( $order ); } return $closed; }
+				if ( true !== $closed ) { return self::error( 'tc_billing_pending', 'The original provider has not confirmed that this checkout is closed.' ); }
+			}
+			return TC_Billing_Store::close_unpaid_order( $order['id'] );
+		} );
+	}
 	public static function trusted_url( string $url, string $provider ): bool {
 		$host = strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) );
 		$hosts = 'stripe' === $provider ? array( 'checkout.stripe.com', 'billing.stripe.com' ) : array( 'www.paypal.com', 'www.sandbox.paypal.com', 'paypal.com', 'sandbox.paypal.com' );
@@ -185,6 +200,15 @@ final class TC_Billing {
 			}
 			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $identity['user_id'], static function () use ( $identity, $plan, $provider, $mode, $status ): array|WP_Error {
 				if ( self::config()['mode'] !== $mode || ! self::actor_can_purchase( $identity['discord_id'] ) ) { return self::error( 'tc_billing_pilot', 'Checkout access changed. Reload the page before continuing.' ); }
+				$attempts = TC_Billing_Store::checkout_attempts( $identity['user_id'], $mode, $plan );
+				if ( is_wp_error( $attempts ) ) { return $attempts; }
+				if ( count( $attempts ) > 1 ) { return self::error( 'tc_billing_pending', 'Multiple unfinished purchases need support review before a new payment.' ); }
+				$order = $attempts[0] ?? null;
+				if ( $order && $order['provider'] !== $provider ) {
+					if ( 'monthly' === $plan && 'stripe' === $order['provider'] && ! empty( $order['subscription_id'] ) ) { return self::error( 'tc_billing_existing_subscription', 'An existing subscription may still renew or retry payment. Manage it and confirm it has stopped before starting another.' ); }
+					$closed = self::close_unpaid( $order ); if ( is_wp_error( $closed ) ) { return $closed; }
+					$order = null;
+				}
 				if ( 'monthly' === $plan ) {
 					$recurring = TC_Billing_Store::unresolved_recurring( $identity['user_id'], $mode );
 					if ( is_wp_error( $recurring ) ) { return $recurring; }
@@ -199,22 +223,25 @@ final class TC_Billing {
 				if ( $covered_role && '1' !== get_user_meta( $identity['user_id'], '_tc_billing_legacy_reviewed_' . $mode, true ) ) {
 					return self::error( 'tc_billing_legacy_review', 'Your Discord account already has paid access. Contact support to review the existing purchase before starting another. Monthly members may separately upgrade to Lifetime.' );
 				}
-				$attempts = TC_Billing_Store::checkout_attempts( $identity['user_id'], $mode, $plan );
-				if ( is_wp_error( $attempts ) ) { return $attempts; }
-				if ( count( $attempts ) > 1 ) { return self::error( 'tc_billing_pending', 'Multiple unfinished purchases need support review before a new payment.' ); }
-				$order = $attempts[0] ?? null;
 				if ( $order ) {
-					if ( $order['provider'] !== $provider ) { return self::error( 'tc_billing_pending', 'An unfinished checkout already exists with another provider. Contact support before creating another payment.' ); }
 					if ( empty( $order['checkout_id'] ) && empty( $order['subscription_id'] ) && strtotime( $order['created_at'] . ' UTC' ) <= time() - 600 ) { return self::error( 'tc_billing_pending', 'An earlier checkout has an uncertain provider response. Contact support to reconcile it before retrying payment.' ); }
 				}
 				if ( 'live' === $mode ) { $delivery = TC_Billing_Discord::preflight( $mode, $identity['user_id'] ); if ( is_wp_error( $delivery ) ) { return $delivery; } }
 				if ( self::config()['mode'] !== $mode || ! self::actor_can_purchase( $identity['discord_id'] ) || ! self::checkout_provider_ready( $provider, $mode, $plan ) ) { return self::error( 'tc_billing_pilot', 'Checkout access changed. Reload the page before continuing.' ); }
-				if ( null === $order ) { $order = TC_Billing_Store::create_order( $identity['user_id'], $identity['discord_id'], $provider, $mode, $plan ); }
+				$new_order = null === $order;
+				if ( $new_order ) { $order = TC_Billing_Store::create_order( $identity['user_id'], $identity['discord_id'], $provider, $mode, $plan ); }
 				if ( is_wp_error( $order ) ) { return $order; }
 				$consent = TC_Billing_Store::update_order( $order['id'], array( 'consent_at' => gmdate( 'Y-m-d H:i:s' ), 'consent_version' => '2026-10-26-button-v2' ) );
 				if ( is_wp_error( $consent ) ) { return $consent; }
+				$renewed = TC_Billing_Store::renew_checkout_lease( $identity['user_id'], $mode ); if ( is_wp_error( $renewed ) ) { return $renewed; }
 				$adapter = self::adapter( $provider ); $checkout = $adapter::create_checkout( $order );
-				if ( is_wp_error( $checkout ) ) { return $checkout; }
+				if ( is_wp_error( $checkout ) ) {
+					$detail = $checkout->get_error_data();
+					if ( $new_order && is_array( $detail ) && true === ( $detail['checkout_not_created'] ?? false ) ) {
+						$failed = TC_Billing_Store::update_order( $order['id'], array( 'status' => 'failed' ) ); if ( is_wp_error( $failed ) ) { return $failed; }
+					}
+					return $checkout;
+				}
 				if ( ! is_string( $checkout['id'] ?? null ) || ! is_string( $checkout['url'] ?? null ) || ! self::trusted_url( $checkout['url'], $provider ) ) { return self::error( 'tc_billing_url', 'The provider did not return a valid hosted checkout.' ); }
 				$fields = array_intersect_key( $checkout, array_flip( array( 'customer_id', 'subscription_id', 'payment_id' ) ) ); $fields['checkout_id'] = $checkout['id']; $fields['status'] = 'checkout';
 				$saved = TC_Billing_Store::update_order( $order['id'], $fields );
@@ -225,6 +252,13 @@ final class TC_Billing {
 		if ( ! $order || (int) $order['user_id'] !== $identity['user_id'] || $order['discord_id'] !== $identity['discord_id'] || $order['mode'] !== $mode ) { return self::error( 'tc_billing_order', 'This order is not available to your account.' ); }
 		if ( ! self::provider_ready( $order['provider'], $mode ) ) { return self::error( 'tc_billing_unconfigured', 'This provider is not available yet.' ); }
 		$adapter = self::adapter( $order['provider'] );
+		if ( 'close_checkout' === $operation ) {
+			if ( '1' !== self::scalar( $data, 'confirm_close' ) ) { return self::error( 'tc_billing_confirm', 'Confirm that you want to close this unpaid checkout.' ); }
+			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $identity['user_id'], static function () use ( $order ): array|WP_Error {
+				$closed = self::close_unpaid( $order );
+				return is_wp_error( $closed ) ? $closed : array( 'message' => 'Unpaid checkout closed. You can now choose a payment method.', 'checkout_plan' => $order['plan'] );
+			} );
+		}
 		return TC_Billing_Store::locked( 'manage:' . $order['id'], static function () use ( $data, $operation, $order, $adapter ): array|WP_Error {
 			if ( 'portal' === $operation ) {
 				$url = $adapter::portal( $order );
@@ -255,17 +289,47 @@ final class TC_Billing {
 			if ( ! is_user_logged_in() ) { wp_die( esc_html( $result->get_error_message() ), '', array( 'response' => 403 ) ); }
 			set_transient( 'tc_billing_feedback_' . get_current_user_id(), $result->get_error_message(), 120 );
 			$data = wp_unslash( $_POST ); $plan = self::scalar( $data, 'plan' );
-			$retry_url = 'checkout' === self::scalar( $data, 'operation' ) && in_array( $plan, array( 'monthly', 'lifetime' ), true ) ? TC_Checkout::get_checkout_url( $plan ) : home_url( '/account/' );
+			$retry_url = in_array( self::scalar( $data, 'operation' ), array( 'checkout', 'close_checkout' ), true ) && in_array( $plan, array( 'monthly', 'lifetime' ), true ) ? TC_Checkout::get_checkout_url( $plan ) : home_url( '/account/' );
 			wp_safe_redirect( $retry_url, 303 ); exit;
 		}
 		if ( isset( $result['redirect'] ) ) { wp_redirect( $result['redirect'], 303, 'TimonConfigs billing' ); exit; } // Provider URLs were strictly validated by perform().
 		set_transient( 'tc_billing_feedback_' . get_current_user_id(), (string) ( $result['message'] ?? 'Billing request accepted.' ), 120 );
-		wp_safe_redirect( home_url( '/account/' ), 303 ); exit;
+		$destination = in_array( $result['checkout_plan'] ?? '', array( 'monthly', 'lifetime' ), true ) ? TC_Checkout::get_checkout_url( $result['checkout_plan'] ) : home_url( '/account/' );
+		wp_safe_redirect( $destination, 303 ); exit;
 	}
 	public static function admin_perform( array $data ): bool|WP_Error {
 		if ( ! current_user_can( 'manage_options' ) || ! wp_verify_nonce( self::scalar( $data, '_wpnonce' ), 'tc_billing_admin' ) ) { return self::error( 'tc_billing_forbidden', 'Administrator authorization is required.' ); }
 		$operation = self::scalar( $data, 'operation' ); $uid = absint( $data['user_id'] ?? 0 ); $mode = self::scalar( $data, 'mode' );
 		if ( ! in_array( $mode, array( 'test', 'live' ), true ) ) { return self::error( 'tc_billing_mode', 'Choose Test or Live.' ); }
+		if ( in_array( $operation, array( 'order_refresh', 'order_close', 'order_cancel' ), true ) ) {
+			if ( ! TC_Billing_Secrets::secure_transport() ) { return self::error( 'tc_billing_https', 'Secure HTTPS administration is required.' ); }
+			$order = TC_Billing_Store::order( self::scalar( $data, 'order_id' ) );
+			if ( ! $order || $order['mode'] !== $mode || self::config()['mode'] !== $mode || ! self::provider_ready( $order['provider'], $mode ) ) { return self::error( 'tc_billing_order', 'Choose an order from the currently configured payment environment.' ); }
+			if ( 'order_refresh' !== $operation && '1' !== self::scalar( $data, 'confirm_order' ) ) { return self::error( 'tc_billing_confirm', 'Confirm the selected order action.' ); }
+			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $order['user_id'], static function () use ( $order, $operation, $mode ): bool|WP_Error {
+				$audit = array( 'order_id' => $order['id'], 'mode' => $mode, 'action' => $operation, 'target_user' => (int) $order['user_id'], 'at' => gmdate( 'Y-m-d H:i:s' ), 'status' => 'requested' );
+				$audit_id = add_user_meta( get_current_user_id(), '_tc_billing_order_audit', $audit );
+				if ( ! $audit_id ) { return self::error( 'tc_billing_audit', 'The administrator action could not be recorded. No provider action was started.' ); }
+				if ( 'order_close' === $operation ) { $result = self::close_unpaid( $order ); }
+				else {
+					$result = TC_Billing_Store::locked( 'provider:' . $order['provider'] . ':' . $mode, static function () use ( $order, $operation, $mode ): bool|WP_Error {
+						$current = TC_Billing_Store::order( $order['id'] );
+						if ( ! $current || $current['mode'] !== $mode || self::config()['mode'] !== $mode ) { return self::error( 'tc_billing_order', 'The order environment changed. Reload before continuing.' ); }
+						if ( 'order_refresh' === $operation ) {
+							if ( ! $current['checkout_id'] && ! $current['subscription_id'] && ! $current['payment_id'] ) { return self::error( 'tc_billing_reference', 'The provider reference is missing. Check the original provider dashboard before retrying; this uncertain attempt cannot be reset automatically.' ); }
+						} else {
+							if ( 'monthly' !== $current['plan'] || ! $current['subscription_id'] ) { return self::error( 'tc_billing_subscription', 'This order has no subscription to cancel. Use Close unpaid checkout for an unfinished purchase.' ); }
+							$adapter = self::adapter( $current['provider'] ); $canceled = $adapter::cancel( $current ); if ( is_wp_error( $canceled ) ) { return $canceled; }
+						}
+						self::queue_reconcile( $current ); return true;
+					} );
+				}
+				$audit['status'] = is_wp_error( $result ) ? 'error' : 'accepted';
+				if ( is_wp_error( $result ) ) { $audit['code'] = sanitize_key( $result->get_error_code() ); }
+				if ( ! update_metadata_by_mid( 'user', $audit_id, $audit ) ) { return self::error( 'tc_billing_audit_result', 'The provider action may have completed, but its final audit update failed. Refresh this order before retrying.' ); }
+				return $result;
+			} );
+		}
 		if ( 'stripe_setup' === $operation ) {
 			if ( ! TC_Billing_Secrets::secure_transport() ) { return self::error( 'tc_billing_https', 'Secure HTTPS setup is required.' ); }
 			$monthly = TC_Billing_Stripe::inspect_setup_price( self::scalar( $data, 'monthly_price_id' ), 'monthly', $mode );

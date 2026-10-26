@@ -5,7 +5,7 @@ set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.11.1.zip}")"
-core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.9.4.zip}")"
+core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.9.5.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
 db_image='mariadb:11.4'

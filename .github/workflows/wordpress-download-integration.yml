@@ -96,6 +96,8 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-live-pilot-integration.php
       - name: Public Live purchases for ordinary Discord members
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-public-live-integration.php
+      - name: Checkout recovery and administrator order management
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-recovery-integration.php
       - name: Public Discord sign-in preserves member and Owner permissions
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/discord-public-checkout-integration.php
       - name: Tear down disposable WordPress

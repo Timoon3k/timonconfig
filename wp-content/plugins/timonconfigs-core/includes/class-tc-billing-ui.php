@@ -9,6 +9,21 @@ final class TC_Billing_UI {
 		foreach ( $fields as $key => $value ) { echo '<input type="hidden" name="' . esc_attr( $key ) . '" value="' . esc_attr( (string) $value ) . '">'; }
 	}
 	private static function date( mixed $date ): string { return is_string( $date ) && '' !== $date ? $date . ' UTC' : '—'; }
+	private static function close_checkout_form( array $order ): void {
+		self::start( 'close_checkout', array( 'order_id' => $order['id'], 'plan' => $order['plan'], 'confirm_close' => '1' ) );
+		echo '<button class="tc-button tc-button--ghost" type="submit">Close unpaid checkout</button></form>';
+	}
+	private static function unfinished_checkout( int $uid, string $mode, string $plan ): void {
+		$attempts = TC_Billing_Store::checkout_attempts( $uid, $mode, $plan );
+		if ( is_wp_error( $attempts ) ) { echo '<p class="tc-billing-notice" role="status">Your earlier checkout could not be checked. Please try again before starting another payment.</p>'; return; }
+		if ( ! $attempts ) { return; }
+		echo '<div class="tc-billing-notice" role="status"><p>You have an unfinished checkout. Resume the same payment method, or choose another method below. We will first try to close the earlier unpaid checkout. A completed or uncertain payment must be reviewed before another purchase.</p>';
+		foreach ( $attempts as $order ) {
+			echo '<p><strong>' . esc_html( ucfirst( $order['provider'] ) ) . '</strong> · ' . esc_html( $order['status'] ) . '</p>';
+			self::close_checkout_form( $order );
+		}
+		echo '</div>';
+	}
 	public static function checkout( string $plan ): string {
 		$product = TC_Billing::plan( $plan ); if ( ! in_array( $plan, array( 'monthly', 'lifetime' ), true ) || ! $product ) { return '<p>Choose a membership from Pricing.</p>'; }
 		$identity = TC_Billing::identity(); $config = TC_Billing::config();
@@ -34,6 +49,7 @@ final class TC_Billing_UI {
 		}
 		if ( ! TC_Billing::current_user_can_purchase() ) { echo '<p class="tc-billing-notice" role="status">This Live pilot is limited to its invited Discord account.</p><a href="' . esc_url( home_url( '/pricing/' ) ) . '">Back to memberships</a></section>'; return (string) ob_get_clean(); }
 		echo '<p>Purchase for Discord account <strong>' . esc_html( $identity['discord_id'] ) . '</strong>.</p>';
+		self::unfinished_checkout( $identity['user_id'], $config['mode'], $plan );
 		$available = array();
 		foreach ( array( 'stripe' => 'Pay with Stripe', 'paypal' => 'Pay with PayPal' ) as $provider => $label ) {
 			if ( ! TC_Billing::checkout_provider_ready( $provider, $config['mode'], $plan ) ) { continue; }
@@ -86,6 +102,10 @@ final class TC_Billing_UI {
 			$contract = $order['provider'] . ':' . ( $order['subscription_id'] ?: $order['id'] );
 			if ( isset( $managed[ $contract ] ) ) { continue; } $managed[ $contract ] = true;
 			echo '<article class="tc-billing-card"><h3>' . esc_html( TC_Billing::plan( $order['plan'] )['name'] ) . ' · ' . esc_html( ucfirst( $order['provider'] ) ) . '</h3>';
+			if ( in_array( $order['status'], array( 'pending', 'checkout' ), true ) ) {
+				echo '<p>An unfinished checkout can be closed only after the payment provider confirms it is unpaid and cannot charge. Completed or uncertain payments require review.</p>';
+				self::close_checkout_form( $order );
+			}
 			if ( 'monthly' === $order['plan'] && $order['subscription_id'] ) {
 				self::start( 'portal', array( 'order_id' => $order['id'] ) ); echo '<button class="tc-button tc-button--ghost" type="submit">Manage Subscription</button></form>';
 				self::start( 'cancel', array( 'order_id' => $order['id'] ) ); echo '<label><input type="checkbox" name="confirm_cancel" value="1" required> Stop future renewals; keep verified prepaid access until its end date.</label><button class="tc-button tc-button--ghost" type="submit">Cancel Auto-Renewal</button></form>';
@@ -95,7 +115,9 @@ final class TC_Billing_UI {
 			}
 			self::start( 'refresh', array( 'order_id' => $order['id'] ) ); echo '<button class="tc-button tc-button--ghost" type="submit">Refresh payment status</button></form></article>';
 		}
-		echo '<div class="tc-billing-actions">' . ( $has_lifetime ? '' : '<a class="tc-button" href="' . esc_url( TC_Checkout::get_checkout_url( 'lifetime' ) ) . '">Upgrade to Lifetime</a>' ) . '<a href="' . esc_url( home_url( '/contact/' ) ) . '">Membership support</a></div><p>For an earlier purchase or missing access, open a support ticket in our Discord server. A new purchase does not cancel an existing subscription. Complete payments through this website; a ticket message does not confirm payment.</p></section>';
+		echo '<div class="tc-billing-actions">' . ( $has_lifetime ? '' : '<a class="tc-button" href="' . esc_url( TC_Checkout::get_checkout_url( 'lifetime' ) ) . '">Upgrade to Lifetime</a>' ) . '<a href="' . esc_url( home_url( '/contact/' ) ) . '">Membership support</a>';
+		if ( current_user_can( 'manage_options' ) ) { echo '<a href="' . esc_url( admin_url( 'options-general.php?page=tc-billing#tc-billing-orders' ) ) . '">Manage customer orders</a>'; }
+		echo '</div><p>For an earlier purchase or missing access, open a support ticket in our Discord server. A new purchase does not cancel an existing subscription. Complete payments through this website; a ticket message does not confirm payment.</p></section>';
 		return (string) ob_get_clean();
 	}
 	private static function credentials(): void {
@@ -127,6 +149,31 @@ final class TC_Billing_UI {
 		foreach ( array( 'monthly' => 'Monthly Price ID', 'lifetime' => 'Lifetime Price ID' ) as $plan => $label ) { echo '<p><label>' . esc_html( $label ) . ' <input class="regular-text" name="' . esc_attr( $plan . '_price_id' ) . '" placeholder="price_…" required></label></p>'; }
 		echo '<button class="button" type="submit">Verify and save Stripe prices</button></form>';
 	}
+	private static function orders(): void {
+		if ( ! current_user_can( 'manage_options' ) ) { return; }
+		$mode = TC_Billing::config()['mode'];
+		$search = is_string( $_GET['tc_billing_search'] ?? null ) ? trim( wp_unslash( $_GET['tc_billing_search'] ) ) : '';
+		echo '<section id="tc-billing-orders"><h2>Customer orders</h2><p>WordPress administrators can refresh a customer’s payment status, close a verified unpaid checkout, or stop future subscription renewals. Closing an unpaid checkout does not refund a payment. Canceling renewal preserves already paid access. Discord Owner publishing access alone does not grant billing administration.</p>';
+		echo '<form method="get" action="' . esc_url( admin_url( 'options-general.php' ) ) . '"><input type="hidden" name="page" value="tc-billing"><p><label for="tc-billing-order-search">WordPress user ID, Discord user ID or order ID</label><br><input type="search" class="regular-text" id="tc-billing-order-search" name="tc_billing_search" maxlength="36" value="' . esc_attr( strlen( $search ) <= 36 ? $search : '' ) . '"> <button type="submit" class="button">Find orders</button></p></form><p>Showing up to 20 orders in ' . esc_html( ucfirst( $mode ) ) . '.</p>';
+		if ( strlen( $search ) > 36 ) { echo '<p role="status">Enter a valid user ID or order ID.</p></section>'; return; }
+		$orders = TC_Billing_Store::admin_orders( $mode, $search, 20 );
+		if ( is_wp_error( $orders ) ) { echo '<p role="status">' . esc_html( $orders->get_error_message() ) . '</p></section>'; return; }
+		if ( ! $orders ) { echo '<p>No matching orders.</p></section>'; return; }
+		echo '<div style="max-width:100%;overflow-x:auto"><table class="widefat striped"><thead><tr><th scope="col">Order / customer</th><th scope="col">Membership / provider</th><th scope="col">Status</th><th scope="col">Actions</th></tr></thead><tbody>';
+		foreach ( $orders as $order ) {
+			echo '<tr><td style="overflow-wrap:anywhere"><code>' . esc_html( $order['id'] ) . '</code><br>WP user: ' . esc_html( (string) $order['user_id'] ) . '<br>Discord: ' . esc_html( $order['discord_id'] ) . '<br>' . esc_html( self::date( $order['created_at'] ) ) . '</td><td>' . esc_html( TC_Billing::plan( $order['plan'] )['name'] ?? 'Membership' ) . '<br>' . esc_html( ucfirst( $order['provider'] ) ) . '</td><td>' . esc_html( $order['status'] ) . '<br>€' . esc_html( number_format( (int) $order['amount'] / 100, 2, '.', '' ) ) . '</td><td>';
+			$fields = array( 'order_id' => $order['id'], 'mode' => $order['mode'] );
+			self::start( 'order_refresh', $fields, true ); echo '<button type="submit" class="button">Refresh payment status</button></form>';
+			if ( in_array( $order['status'], array( 'pending', 'checkout' ), true ) ) {
+				self::start( 'order_close', $fields, true ); echo '<p><label><input type="checkbox" name="confirm_order" value="1" required> Close only if the provider verifies this checkout is unpaid and cannot charge.</label></p><button type="submit" class="button">Close unpaid checkout</button></form>';
+			}
+			if ( 'monthly' === $order['plan'] && ! empty( $order['subscription_id'] ) && empty( $order['cancel_at_period_end'] ) && ! in_array( $order['status'], array( 'canceled', 'cancelled' ), true ) ) {
+				self::start( 'order_cancel', $fields, true ); echo '<p><label><input type="checkbox" name="confirm_order" value="1" required> Stop this customer’s future renewals and retain verified prepaid access.</label></p><button type="submit" class="button">Cancel auto-renewal</button></form>';
+			}
+			echo '</td></tr>';
+		}
+		echo '</tbody></table></div></section>';
+	}
 	public static function admin(): void {
 		if ( ! current_user_can( 'manage_options' ) ) { return; }
 		$config = TC_Billing::config(); echo '<div class="wrap"><h1>TimonConfigs billing</h1><p>Configure payments on this page. Public Live checkout lets every verified Discord member purchase a membership. The restricted pilot remains available when you want to limit new purchases to one account.</p>';
@@ -145,7 +192,7 @@ final class TC_Billing_UI {
 			foreach ( array( 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'PAYPAL_CLIENT_ID', 'PAYPAL_CLIENT_SECRET', 'DISCORD_BOT_TOKEN' ) as $name ) { echo '<code>' . esc_html( $name ) . '</code> ' . ( '' !== TC_Billing::secret( $name, $mode ) ? 'configured' : 'missing' ) . ' · '; }
 			echo '</p><p>Stripe webhook: <code>' . esc_html( rest_url( 'timonconfigs/v1/billing/stripe/' . $mode ) ) . '</code><br>PayPal webhook: <code>' . esc_html( rest_url( 'timonconfigs/v1/billing/paypal/' . $mode ) ) . '</code></p>';
 		}
-		submit_button(); echo '</form><h2>Queue and reconciliation</h2><p>Run server cron every 5 minutes; normal page traffic is not a reliable scheduler. Last worker run: ' . esc_html( (string) get_option( 'timonconfigs_billing_last_tick', 'Not recorded yet' ) ) . '</p>';
+		submit_button(); echo '</form>'; self::orders(); echo '<h2>Queue and reconciliation</h2><p>Run server cron every 5 minutes; normal page traffic is not a reliable scheduler. Last worker run: ' . esc_html( (string) get_option( 'timonconfigs_billing_last_tick', 'Not recorded yet' ) ) . '</p>';
 		$worker_error = get_option( 'timonconfigs_billing_worker_error', '' ); if ( is_string( $worker_error ) && '' !== $worker_error ) { echo '<p>Worker diagnostic: <code>' . esc_html( $worker_error ) . '</code></p>'; }
 		$diagnostics = TC_Billing_Store::diagnostics();
 		foreach ( array( 'events' => 'Provider notifications', 'jobs' => 'Discord synchronization' ) as $key => $title ) {

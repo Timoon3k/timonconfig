@@ -27,12 +27,12 @@ final class TC_Billing_PayPal {
 		$order = self::stored( $input );
 		if ( is_wp_error( $order ) ) { return $order; }
 		$guard = self::guard( $order['mode'] );
-		if ( is_wp_error( $guard ) ) { return $guard; }
+		if ( is_wp_error( $guard ) ) { return self::checkout_not_created( $guard ); }
 		$mode = $order['mode'];
 		// A pending approval must still match the immutable offer when resumed.
 		if ( 'monthly' === $order['plan'] ) {
 			$valid = self::validate_plan( $mode );
-			if ( is_wp_error( $valid ) ) { return $valid; }
+			if ( is_wp_error( $valid ) ) { return self::checkout_not_created( $valid ); }
 		}
 		if ( ! empty( $order['checkout_id'] ) || ! empty( $order['subscription_id'] ) ) {
 			$id = 'monthly' === $order['plan'] ? (string) $order['subscription_id'] : (string) $order['checkout_id'];
@@ -66,6 +66,13 @@ final class TC_Billing_PayPal {
 		$valid = 'monthly' === $order['plan'] ? self::subscription_binding( $result, $order ) : self::order_binding( $result, $order );
 		if ( is_wp_error( $valid ) ) { return $valid; }
 		return self::checkout_result( $result, $order );
+	}
+
+	/** Only callers that have not sent a checkout-creation request may set this marker. */
+	private static function checkout_not_created( WP_Error $error ): WP_Error {
+		$data = $error->get_error_data();
+		$error->add_data( array_merge( is_array( $data ) ? $data : array(), array( 'checkout_not_created' => true ) ) );
+		return $error;
 	}
 
 	public static function capture( array $input ) {
@@ -110,6 +117,64 @@ final class TC_Billing_PayPal {
 		$result = self::api( $order['mode'], 'POST', '/v1/billing/subscriptions/' . rawurlencode( $order['subscription_id'] ) . '/cancel', array( 'reason' => 'Customer requested cancellation of future renewals.' ), self::request_id( $order, 'cancel' ) );
 		if ( is_wp_error( $result ) ) { return $result; }
 		return array( 'subscription_id' => $order['subscription_id'], 'cancel_at_period_end' => 1 );
+	}
+
+	/** Close only a provider-confirmed unpaid attempt; never erase a payment or active contract. */
+	public static function close_checkout( array $input ): bool|WP_Error {
+		$order = self::stored( $input );
+		if ( is_wp_error( $order ) ) { return $order; }
+		$guard = self::guard( $order['mode'] );
+		if ( is_wp_error( $guard ) ) { return $guard; }
+		if ( ! in_array( $order['status'] ?? '', array( 'pending', 'checkout', 'failed' ), true ) || ! empty( $order['payment_id'] ) ) { return self::error( 'checkout_paid_or_active' ); }
+		$active = TC_Billing_Store::active( (int) $order['user_id'], $order['mode'] );
+		if ( is_wp_error( $active ) ) { return $active; }
+		foreach ( $active as $source ) {
+			if ( ( $source['order_id'] ?? '' ) === $order['id'] || ( 'paypal' === ( $source['provider'] ?? '' ) && ! empty( $source['external_id'] ) && in_array( $source['external_id'], array_filter( array( $order['checkout_id'] ?? '', $order['subscription_id'] ?? '' ) ), true ) ) ) { return self::error( 'checkout_paid_or_active' ); }
+		}
+		if ( 'lifetime' === $order['plan'] ) {
+			if ( ! self::id( $order['checkout_id'] ?? '' ) ) { return self::error( 'checkout_external_missing' ); }
+			$checkout = self::api( $order['mode'], 'GET', '/v2/checkout/orders/' . rawurlencode( $order['checkout_id'] ) );
+			if ( is_wp_error( $checkout ) ) { return $checkout; }
+			$valid = self::order_binding( $checkout, $order );
+			if ( is_wp_error( $valid ) ) { return $valid; }
+			// Checkout v2 has no cancel/expire operation for CAPTURE orders.
+			// CREATED or APPROVED is not proof that its existing approval URL is dead.
+			$payments = $checkout['purchase_units'][0]['payments'] ?? array();
+			if ( 'VOIDED' !== ( $checkout['status'] ?? '' ) || ! is_array( $payments ) || array_diff( array_keys( $payments ), array( 'captures', 'authorizations', 'refunds' ) ) ) { return self::error( 'checkout_cannot_close' ); }
+			foreach ( $payments as $items ) { if ( ! is_array( $items ) || $items ) { return self::error( 'checkout_paid_or_active' ); } }
+			return true;
+		}
+		if ( ! self::id( $order['subscription_id'] ?? '' ) ) { return self::error( 'checkout_external_missing' ); }
+		$path = '/v1/billing/subscriptions/' . rawurlencode( $order['subscription_id'] );
+		$subscription = self::api( $order['mode'], 'GET', $path );
+		if ( is_wp_error( $subscription ) ) { return $subscription; }
+		$valid = self::unpaid_checkout_subscription( $subscription, $order );
+		if ( is_wp_error( $valid ) ) { return $valid; }
+		return true;
+	}
+
+	/** Read the complete bounded lifetime only after PayPal independently confirms a permanent stop. */
+	private static function unpaid_checkout_subscription( array $subscription, array $order ): bool|WP_Error {
+		$valid = self::subscription_binding( $subscription, $order );
+		if ( is_wp_error( $valid ) ) { return $valid; }
+		// PayPal cannot condition cancellation on APPROVAL_PENDING. Automatic
+		// cancellation here could race customer approval and create another charge.
+		if ( 'APPROVAL_PENDING' === ( $subscription['status'] ?? '' ) ) { return self::error( 'checkout_cancel_required' ); }
+		if ( ! in_array( $subscription['status'] ?? '', array( 'CANCELLED', 'EXPIRED' ), true ) ) { return self::error( 'checkout_paid_or_active' ); }
+		$info = $subscription['billing_info'] ?? array();
+		if ( ! is_array( $info ) || ! empty( $info['last_payment'] ) || ! empty( $info['last_failed_payment'] ) || ! empty( $info['failed_payments_count'] ) || ( isset( $info['outstanding_balance'] ) && ! self::money( $info['outstanding_balance'], 0 ) ) ) { return self::error( 'checkout_paid_or_active' ); }
+		$cycles = $info['cycle_executions'] ?? array();
+		if ( ! is_array( $cycles ) ) { return self::error( 'checkout_history' ); }
+		foreach ( $cycles as $cycle ) {
+			if ( ! is_array( $cycle ) || ! in_array( $cycle['cycles_completed'] ?? null, array( 0, '0' ), true ) ) { return self::error( 'checkout_paid_or_active' ); }
+		}
+		$created = self::timestamp( $subscription['create_time'] ?? '' );
+		if ( ! $created || $created > time() + 300 || $created < time() - 30 * DAY_IN_SECONDS ) { return self::error( 'checkout_history' ); }
+		$query = '?start_time=' . rawurlencode( gmdate( 'Y-m-d\TH:i:s\Z', $created - 300 ) ) . '&end_time=' . rawurlencode( gmdate( 'Y-m-d\TH:i:s\Z' ) );
+		$history = self::api( $order['mode'], 'GET', '/v1/billing/subscriptions/' . rawurlencode( $subscription['id'] ) . '/transactions' . $query );
+		if ( is_wp_error( $history ) ) { return $history; }
+		if ( ! is_array( $history['transactions'] ?? null ) || $history['transactions'] || ! empty( $history['has_more'] ) || ! in_array( $history['total_pages'] ?? 1, array( 0, 1, '0', '1' ), true ) || ! in_array( $history['total_items'] ?? 0, array( 0, '0' ), true ) ) { return self::error( 'checkout_history' ); }
+		return true;
 	}
 
 	public static function verify_webhook( string $raw, array $headers, string $mode ) {
@@ -210,7 +275,15 @@ final class TC_Billing_PayPal {
 		$transition = array( 'order_id' => $order['id'], 'order_fields' => array( 'checkout_id' => $checkout['id'], 'status' => 'pending' ) );
 		$captures = $checkout['purchase_units'][0]['payments']['captures'] ?? array();
 		if ( ! is_array( $captures ) || count( $captures ) > 1 ) { return self::error( 'capture_quantity' ); }
-		if ( ! $captures ) { return $transition; }
+		if ( ! $captures ) {
+			if ( 'VOIDED' === ( $checkout['status'] ?? '' ) ) {
+				$payments = $checkout['purchase_units'][0]['payments'] ?? array();
+				if ( ! empty( $order['payment_id'] ) || ! is_array( $payments ) || array_diff( array_keys( $payments ), array( 'captures', 'authorizations', 'refunds' ) ) ) { return self::error( 'checkout_cannot_close' ); }
+				foreach ( $payments as $items ) { if ( ! is_array( $items ) || $items ) { return self::error( 'checkout_paid_or_active' ); } }
+				$transition['order_fields']['status'] = 'canceled';
+			}
+			return $transition;
+		}
 		$id = $captures[0]['id'] ?? '';
 		if ( ! self::id( $id ) || ( ! empty( $order['payment_id'] ) && $order['payment_id'] !== $id ) ) { return self::error( 'capture_binding' ); }
 		$capture = self::api( $mode, 'GET', '/v2/payments/captures/' . rawurlencode( $id ) );
@@ -521,5 +594,14 @@ final class TC_Billing_PayPal {
 		$day = min( (int) $date->format( 'j' ), (int) $next->format( 't' ) );
 		return $next->setDate( (int) $next->format( 'Y' ), (int) $next->format( 'n' ), $day )->getTimestamp();
 	}
-	private static function error( string $code ) { return TC_Billing::error( 'tc_paypal_' . $code, 'PayPal billing could not be verified. Please retry or contact support.' ); }
+	private static function error( string $code ) {
+		$messages = array(
+			'checkout_cancel_required' => 'Cancel the existing PayPal approval through subscription management, then refresh its payment status before changing payment provider.',
+			'checkout_paid_or_active' => 'This PayPal checkout may have an active or paid contract. Manage its subscription instead of discarding the purchase.',
+			'checkout_external_missing' => 'PayPal has not confirmed the earlier checkout identifier. Contact support to reconcile it before creating another payment.',
+			'checkout_history' => 'PayPal has not confirmed that this checkout has no payment history. Contact support before creating another payment.',
+			'checkout_cannot_close' => 'PayPal has not confirmed this checkout is permanently closed. Continue the existing checkout or contact support before changing payment provider.',
+		);
+		return TC_Billing::error( 'tc_paypal_' . $code, ( $messages[ $code ] ?? 'PayPal billing could not be verified. Please retry or contact support.' ) . ' Reference: ' . $code . '.' );
+	}
 }

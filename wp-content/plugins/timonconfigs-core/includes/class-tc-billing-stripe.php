@@ -32,7 +32,12 @@ final class TC_Billing_Stripe {
 		if ( is_wp_error( $order ) ) { return $order; }
 		if ( ! in_array( $order['status'] ?? '', array( 'pending', 'checkout', 'failed' ), true ) ) { return self::error( 'stripe_order_closed' ); }
 		$price = self::configured_price( $order, true );
-		if ( is_wp_error( $price ) ) { return $price; }
+		if ( is_wp_error( $price ) ) {
+			// Proof applies only to this invocation. The controller may release a
+			// newly inserted local attempt, never a previously uncertain order.
+			if ( empty( $order['checkout_id'] ) ) { $details = $price->get_error_data(); return new WP_Error( $price->get_error_code(), $price->get_error_message(), array_merge( is_array( $details ) ? $details : array(), array( 'checkout_not_created' => true ) ) ); }
+			return $price;
+		}
 		$metadata = self::metadata( $order );
 		$args = array(
 			'mode' => 'monthly' === $order['plan'] ? 'subscription' : 'payment',
@@ -54,6 +59,7 @@ final class TC_Billing_Stripe {
 		if ( ! empty( $order['checkout_id'] ) ) {
 			$result = self::fetch( 'checkout/sessions', $order['checkout_id'], 'cs_', $order['mode'], array( 'expand' => array( 'line_items.data.price' ) ) );
 			if ( ! is_wp_error( $result ) && is_wp_error( self::checkout_lines( $result, $order ) ) ) { return self::error( 'stripe_checkout_price' ); }
+			if ( ! is_wp_error( $result ) && 'expired' === ( $result['status'] ?? '' ) ) { $closed = self::closable_session( $result, $order ); return is_wp_error( $closed ) ? $closed : self::error( 'stripe_checkout_expired' ); }
 		} else {
 			$result = self::api( 'POST', 'checkout/sessions', $order['mode'], $args, self::key( $order, 'checkout' ) );
 		}
@@ -125,6 +131,13 @@ final class TC_Billing_Stripe {
 			$order = self::resolve( $session, $mode );
 			if ( is_wp_error( $order ) ) { return $order; }
 			if ( ( $session['client_reference_id'] ?? '' ) !== $order['id'] || ( ! empty( $order['checkout_id'] ) && $order['checkout_id'] !== $id ) ) { return self::error( 'stripe_checkout_binding' ); }
+			if ( 'expired' === ( $session['status'] ?? '' ) ) {
+				if ( ! in_array( $order['status'] ?? '', array( 'pending', 'checkout', 'canceled', 'cancelled' ), true ) || ! empty( $order['subscription_id'] ) || ! empty( $order['payment_id'] ) ) { return self::error( 'stripe_checkout_close_uncertain' ); }
+				$closed = self::closable_session( $session, $order );
+				if ( is_wp_error( $closed ) ) { return $closed; }
+				// No entitlement mutation: another paid source remains independent.
+				return array( 'order_id' => $order['id'], 'order_fields' => array( 'checkout_id' => $session['id'], 'status' => 'canceled', 'next_payment_at' => null ) );
+			}
 			$valid = self::checkout_lines( $session, $order );
 			if ( is_wp_error( $valid ) ) { return $valid; }
 			if ( 'monthly' === $order['plan'] ) { $id = self::object_id( $session['subscription'] ?? '' ); $type = 'customer.subscription.updated'; }
@@ -195,6 +208,36 @@ final class TC_Billing_Stripe {
 		$bound = self::bind( $result, $order );
 		if ( is_wp_error( $bound ) || ( $result['id'] ?? '' ) !== $subscription['id'] || true !== ( $result['cancel_at_period_end'] ?? false ) ) { return self::error( 'stripe_cancel_binding' ); }
 		return array( 'id' => $result['id'], 'cancel_at_period_end' => true );
+	}
+
+	/** Expire only a provably unpaid hosted checkout; never a paid or recurring contract. */
+	public static function close_checkout( array $order ): bool|WP_Error {
+		$order = self::stored_order( $order );
+		if ( is_wp_error( $order ) ) { return $order; }
+		if ( ! in_array( $order['status'] ?? '', array( 'pending', 'checkout' ), true ) || ! self::id( $order['checkout_id'] ?? '', 'cs_' ) || ! empty( $order['subscription_id'] ) || ! empty( $order['payment_id'] ) ) { return self::error( 'stripe_checkout_close_uncertain' ); }
+		$session = self::fetch( 'checkout/sessions', $order['checkout_id'], 'cs_', $order['mode'], array( 'expand' => array( 'line_items.data.price' ) ) );
+		if ( is_wp_error( $session ) ) { return $session; }
+		$valid = self::closable_session( $session, $order );
+		if ( is_wp_error( $valid ) ) { return $valid; }
+		if ( 'expired' === $session['status'] ) { return true; }
+		$result = self::api( 'POST', 'checkout/sessions/' . rawurlencode( $session['id'] ) . '/expire', $order['mode'], array(), self::key( $order, 'expire' ) );
+		if ( is_wp_error( $result ) ) { return $result; }
+		// Expiration can race a completed payment. The canonical final GET, not a
+		// browser return or local marker, must prove the session can no longer pay.
+		$session = self::fetch( 'checkout/sessions', $order['checkout_id'], 'cs_', $order['mode'], array( 'expand' => array( 'line_items.data.price' ) ) );
+		if ( is_wp_error( $session ) ) { return $session; }
+		$valid = self::closable_session( $session, $order );
+		if ( is_wp_error( $valid ) ) { return $valid; }
+		return 'expired' === $session['status'] ? true : self::error( 'stripe_checkout_close_unconfirmed' );
+	}
+
+	private static function closable_session( array $session, array $order ): bool|WP_Error {
+		$bound = self::bind( $session, $order );
+		if ( is_wp_error( $bound ) || ( $session['id'] ?? '' ) !== $order['checkout_id'] || ( $session['client_reference_id'] ?? '' ) !== $order['id'] ) { return self::error( 'stripe_checkout_binding' ); }
+		if ( ! in_array( $session['status'] ?? '', array( 'open', 'expired' ), true ) || 'unpaid' !== ( $session['payment_status'] ?? '' ) || ! empty( $session['subscription'] ) || ! empty( $session['payment_intent'] ) ) { return self::error( 'stripe_checkout_close_uncertain' ); }
+		$customer = self::object_id( $session['customer'] ?? '' );
+		if ( ( '' !== $customer && ! self::id( $customer, 'cus_' ) ) || ( ! empty( $order['customer_id'] ) && $customer !== $order['customer_id'] ) ) { return self::error( 'stripe_customer_binding' ); }
+		return self::checkout_lines( $session, $order );
 	}
 
 	private static function monthly( array $order, array $subscription, ?array $session ): array|WP_Error {
@@ -402,9 +445,11 @@ final class TC_Billing_Stripe {
 	private static function api( string $method, string $path, string $mode, array $params = array(), string $key = '', bool $setup_read = false ): array|WP_Error {
 		// Only setup inspection may precede activation; never use this exception for a write.
 		$inspection = $setup_read && 'GET' === $method && 1 === preg_match( '~^(?:prices/price_|products/prod_)[A-Za-z0-9_]+$~D', $path );
-		if ( ( $setup_read && ! $inspection ) || ( ! $inspection && ! TC_Billing::mode_allowed( $mode ) ) || ! in_array( $mode, array( 'test', 'live' ), true ) || ! preg_match( '~^[a-z_]+(?:/[a-zA-Z0-9_]+){0,2}$~D', $path ) ) { return self::error( 'stripe_request' ); }
+		$expiration = 'POST' === $method && 1 === preg_match( '~^checkout/sessions/cs_[A-Za-z0-9_]+/expire$~D', $path );
+		$stage = self::api_stage( $method, $path );
+		if ( ( $setup_read && ! $inspection ) || ( ! $inspection && ! TC_Billing::mode_allowed( $mode ) ) || ! in_array( $mode, array( 'test', 'live' ), true ) || ( ! $expiration && ! preg_match( '~^[a-z_]+(?:/[a-zA-Z0-9_]+){0,2}$~D', $path ) ) ) { return self::error( 'stripe_request', 0, $stage ); }
 		$secret = TC_Billing::secret( 'STRIPE_SECRET_KEY', $mode );
-		if ( ! preg_match( '/^(?:sk|rk)_' . $mode . '_[a-zA-Z0-9]+$/D', $secret ) ) { return self::error( 'stripe_key_mode' ); }
+		if ( ! preg_match( '/^(?:sk|rk)_' . $mode . '_[a-zA-Z0-9]+$/D', $secret ) ) { return self::error( 'stripe_key_mode', 0, $stage ); }
 		$headers = array( 'Authorization' => 'Bearer ' . $secret, 'Stripe-Version' => self::VERSION, 'Content-Type' => 'application/x-www-form-urlencoded' );
 		if ( $key ) { $headers['Idempotency-Key'] = $key; }
 		$args = array( 'method' => $method, 'headers' => $headers, 'timeout' => 20, 'redirection' => 0, 'sslverify' => true, 'reject_unsafe_urls' => true, 'limit_response_size' => 1048576 );
@@ -413,14 +458,18 @@ final class TC_Billing_Stripe {
 		if ( 'GET' === $method ) { if ( $query ) { $url .= '?' . $query; } }
 		else { $args['body'] = $query; }
 		$response = wp_remote_request( $url, $args );
-		if ( is_wp_error( $response ) ) { return self::error( 'stripe_network' ); }
-		$status = wp_remote_retrieve_response_code( $response );
+		if ( is_wp_error( $response ) ) { return self::error( 'stripe_network', 0, $stage ); }
+		$status = (int) wp_remote_retrieve_response_code( $response );
 		if ( $status < 200 || $status >= 300 ) {
 			$retry = (int) wp_remote_retrieve_header( $response, 'retry-after' );
-			return new WP_Error( 429 === $status ? 'stripe_rate_limited' : 'stripe_api_error', 'Stripe is temporarily unavailable.', array( 'retry_after' => max( 60, min( 3600, $retry ) ) ) );
+			$data = json_decode( wp_remote_retrieve_body( $response ), true );
+			$provider_code = is_array( $data ) && is_array( $data['error'] ?? null ) && is_string( $data['error']['code'] ?? null ) ? $data['error']['code'] : '';
+			$error = self::error( 429 === $status ? 'stripe_rate_limited' : 'stripe_api_error', $status, $stage, $provider_code );
+			$details = $error->get_error_data(); $details['retry_after'] = max( 60, min( 3600, $retry ) );
+			return new WP_Error( $error->get_error_code(), $error->get_error_message(), $details );
 		}
 		$data = json_decode( wp_remote_retrieve_body( $response ), true );
-		return is_array( $data ) && ! isset( $data['error'] ) ? $data : self::error( 'stripe_response' );
+		return is_array( $data ) && ! isset( $data['error'] ) ? $data : self::error( 'stripe_response', $status, $stage );
 	}
 
 	private static function matches_mode( array $object, string $mode ): bool { return isset( $object['livemode'] ) && is_bool( $object['livemode'] ) && $object['livemode'] === ( 'live' === $mode ); }
@@ -428,7 +477,40 @@ final class TC_Billing_Stripe {
 	private static function id( mixed $id, string $prefix ): bool { return is_string( $id ) && strlen( $id ) <= 255 && str_starts_with( $id, $prefix ) && (bool) preg_match( '/^[a-zA-Z0-9_]{3,255}$/D', $id ); }
 	private static function date( mixed $timestamp ): ?string { return is_int( $timestamp ) && $timestamp > 0 ? gmdate( 'Y-m-d H:i:s', $timestamp ) : null; }
 	private static function key( array $order, string $operation ): string { return 'tc-' . $operation . '-' . hash( 'sha256', $order['mode'] . ':' . $order['id'] ); }
-	private static function error( string $code ): WP_Error { return TC_Billing::error( $code, 'Stripe billing could not be verified. Please try again or contact support.' ); }
+	private static function api_stage( string $method, string $path ): string {
+		if ( str_starts_with( $path, 'prices/' ) ) { return 'price_read'; }
+		if ( str_starts_with( $path, 'products/' ) ) { return 'product_read'; }
+		if ( str_starts_with( $path, 'checkout/sessions' ) ) { return 'POST' === $method ? ( str_ends_with( $path, '/expire' ) ? 'checkout_expire' : 'checkout_create' ) : 'checkout_read'; }
+		if ( str_starts_with( $path, 'subscriptions/' ) ) { return 'POST' === $method ? 'subscription_cancel' : 'subscription_read'; }
+		if ( str_starts_with( $path, 'billing_portal/' ) ) { return 'portal_create'; }
+		return 'provider_read';
+	}
+	private static function error( string $code, int $http = 0, string $stage = '', string $provider_code = '' ): WP_Error {
+		$messages = array(
+			'stripe_key_mode' => 'Stripe credentials do not match the selected Test or Live environment. Contact support to check payment setup.',
+			'stripe_configured_price' => 'Stripe membership pricing needs administrator review. Check the configured EUR price and billing interval.',
+			'stripe_configured_product' => 'The configured Stripe product is unavailable. Contact support before purchasing.',
+			'stripe_price_mismatch' => 'Stripe membership pricing does not match this offer. Contact support to check the EUR price and product.',
+			'stripe_price_interval' => 'Stripe billing interval does not match this membership. Contact support to check its price.',
+			'stripe_external_id' => 'Stripe setup is missing a valid product, price or payment reference. Contact support.',
+			'stripe_network' => 'Could not connect to Stripe. Please try again shortly.',
+			'stripe_rate_limited' => 'Stripe is receiving too many requests. Please wait before trying again.',
+			'stripe_checkout_close_uncertain' => 'This checkout may have a payment or subscription in progress. Its status must be verified before it can be closed.',
+			'stripe_checkout_close_unconfirmed' => 'Stripe has not confirmed that this checkout is closed. Please refresh its status before trying another provider.',
+			'stripe_checkout_expired' => 'Your earlier Stripe checkout expired. Close this unpaid attempt or refresh its status before starting another checkout.',
+		);
+		$messages['stripe_api_error'] = match ( $http ) {
+			401 => 'Stripe authentication failed. Contact support to check the payment credentials.',
+			403 => 'Stripe denied this operation. Contact support to check payment permissions.',
+			404 => 'Stripe could not find the configured payment resource. Contact support to check the selected account and environment.',
+			default => $http >= 500 ? 'Stripe is temporarily unavailable. Please try again shortly.' : 'Stripe could not complete this request. Please retry or contact support.',
+		};
+		$provider_code = in_array( $provider_code, array( 'resource_missing', 'parameter_missing', 'parameter_unknown', 'parameter_invalid_empty', 'parameter_invalid_integer', 'url_invalid', 'api_key_expired', 'account_invalid', 'idempotency_key_in_use', 'invalid_request_error', 'rate_limit' ), true ) ? $provider_code : '';
+		$stage = in_array( $stage, array( 'price_read', 'product_read', 'checkout_create', 'checkout_read', 'checkout_expire', 'subscription_read', 'subscription_cancel', 'portal_create', 'provider_read' ), true ) ? $stage : '';
+		$message = $messages[ $code ] ?? 'Stripe billing could not be verified. Please try again or contact support.';
+		$message .= ' Reference: ' . $code . ( '' !== $stage ? ' / ' . $stage : '' ) . ( $http > 0 ? ' / HTTP ' . $http : '' ) . ( '' !== $provider_code ? ' / ' . $provider_code : '' ) . '.';
+		return new WP_Error( $code, $message, array( 'http' => $http, 'stage' => $stage, 'provider_code' => $provider_code ) );
+	}
 	private static function hosted_url( mixed $url, string $host ): bool {
 		if ( ! is_string( $url ) ) { return false; }
 		$parts = wp_parse_url( $url );

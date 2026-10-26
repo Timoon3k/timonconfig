@@ -15,6 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	class WP_Error {
 		public function __construct( public string $code, public string $message = '', public mixed $data = null ) {}
 		public function get_error_code(): string { return $this->code; }
+		public function get_error_message(): string { return $this->message; }
 		public function get_error_data(): mixed { return $this->data; }
 	}
 	function is_wp_error( mixed $value ): bool { return $value instanceof WP_Error; }
@@ -345,5 +346,97 @@ $tc_before = count( $tc_http_calls );
 $tc_assert( is_wp_error( TC_Billing_Stripe::inspect_setup_price( 'price_monthly', 'monthly', 'live' ) ) && $tc_before === count( $tc_http_calls ), 'Live setup rejects a Test secret key before HTTP.' );
 $tc_assert( count( array_filter( array_slice( $tc_http_calls, $tc_setup_before ), static fn( array $call ): bool => 'GET' !== $call[1]['method'] ) ) === 0, 'Every setup request is a pinned GET; no charge, product, price or subscription is created.' );
 TC_Billing::$settings = $tc_setup_settings; TC_Billing::$secrets = $tc_setup_secrets;
+
+// Closing a checkout requires canonical proof that its original hosted session
+// cannot accept a payment; the adapter never edits the local financial record.
+$tc_close_uuid = 'c3333333-3333-4333-8333-333333333333';
+foreach ( array( 'monthly', 'lifetime' ) as $tc_close_plan ) {
+	$tc_close_order = array_replace( $tc_order, array( 'id' => $tc_close_uuid, 'plan' => $tc_close_plan, 'amount' => 'monthly' === $tc_close_plan ? 2999 : 8000, 'status' => 'checkout', 'checkout_id' => 'cs_test_close', 'subscription_id' => '', 'payment_id' => '', 'customer_id' => '' ) );
+	$tc_close_meta = array_replace( $tc_meta, array( 'tc_order_id' => $tc_close_uuid, 'tc_plan' => $tc_close_plan ) );
+	$tc_close_price = 'monthly' === $tc_close_plan ? $tc_price : $tc_life_price;
+	$tc_close_session = array_replace( $tc_session, array( 'id' => 'cs_test_close', 'metadata' => $tc_close_meta, 'client_reference_id' => $tc_close_uuid, 'mode' => 'monthly' === $tc_close_plan ? 'subscription' : 'payment', 'amount_total' => $tc_close_order['amount'], 'status' => 'open', 'payment_status' => 'unpaid', 'subscription' => null, 'payment_intent' => null, 'customer' => null, 'line_items' => array( 'has_more' => false, 'data' => array( array( 'quantity' => 1, 'amount_total' => $tc_close_order['amount'], 'price' => $tc_close_price ) ) ) ) );
+	TC_Billing_Store::$orders[ $tc_close_uuid ] = $tc_close_order;
+	$tc_close_routes = array(
+		'GET prices/price_monthly' => $tc_price,
+		'GET products/prod_monthly' => array( 'id' => 'prod_monthly', 'livemode' => false, 'active' => true ),
+		'GET prices/price_lifetime' => $tc_life_price,
+		'GET products/prod_lifetime' => array( 'id' => 'prod_lifetime', 'livemode' => false, 'active' => true ),
+		'GET checkout/sessions/cs_test_close?expand%5B0%5D=line_items.data.price' => static function () use ( &$tc_close_session, $tc_response ): array { return $tc_response( $tc_close_session ); },
+		'POST checkout/sessions/cs_test_close/expire' => static function () use ( &$tc_close_session, $tc_response ): array { $tc_close_session['status'] = 'expired'; return $tc_response( $tc_close_session ); },
+	);
+	$tc_routes = $tc_close_routes; $tc_before = count( $tc_http_calls );
+	$tc_assert( true === TC_Billing_Stripe::close_checkout( $tc_close_order ), 'An exact unpaid ' . $tc_close_plan . ' checkout is expired and independently verified.' );
+	$tc_close_calls = array_slice( $tc_http_calls, $tc_before );
+	$tc_close_writes = array_values( array_filter( $tc_close_calls, static fn( array $call ): bool => 'POST' === $call[1]['method'] ) );
+	$tc_assert( 1 === count( $tc_close_writes ) && str_ends_with( $tc_close_writes[0][0], '/checkout/sessions/cs_test_close/expire' ) && '' === $tc_close_writes[0][1]['body'] && ! empty( $tc_close_writes[0][1]['headers']['Idempotency-Key'] ), 'Closing uses only the exact idempotent expiration endpoint and no financial mutation parameters.' );
+	$tc_assert( TC_Billing_Store::$orders[ $tc_close_uuid ] === $tc_close_order, 'The Stripe adapter does not manufacture a canceled local status.' );
+	$tc_before = count( $tc_http_calls );
+	$tc_assert( true === TC_Billing_Stripe::close_checkout( $tc_close_order ) && ! array_filter( array_slice( $tc_http_calls, $tc_before ), static fn( array $call ): bool => 'POST' === $call[1]['method'] ), 'A retry of a canonically expired session is read-only.' );
+	$tc_expired_snapshot = TC_Billing_Stripe::reconcile( array( 'provider' => 'stripe', 'mode' => 'test', 'type' => 'checkout.session.expired', 'object_id' => 'cs_test_close' ) );
+	$tc_assert( ! is_wp_error( $tc_expired_snapshot ) && $tc_close_uuid === $tc_expired_snapshot['order_id'] && 'canceled' === $tc_expired_snapshot['order_fields']['status'] && ! isset( $tc_expired_snapshot['entitlement'] ) && 'checkout' === TC_Billing_Store::$orders[ $tc_close_uuid ]['status'], 'Canonical unpaid expiry yields a closed-order snapshot without editing independent paid access.' );
+	foreach ( array( 'canceled', 'cancelled' ) as $tc_closed_status ) {
+		TC_Billing_Store::$orders[ $tc_close_uuid ]['status'] = $tc_closed_status; $tc_before = count( $tc_http_calls );
+		$tc_expired_retry = TC_Billing_Stripe::reconcile( array( 'provider' => 'stripe', 'mode' => 'test', 'type' => 'checkout.session.expired', 'object_id' => 'cs_test_close' ) );
+		$tc_assert( $tc_expired_snapshot === $tc_expired_retry && ! isset( $tc_expired_retry['entitlement'] ) && $tc_closed_status === TC_Billing_Store::$orders[ $tc_close_uuid ]['status'] && ! array_filter( array_slice( $tc_http_calls, $tc_before ), static fn( array $call ): bool => 'GET' !== $call[1]['method'] ), 'An expiry notification after confirmed closure is idempotent and read-only: ' . $tc_close_plan . '/' . $tc_closed_status );
+	}
+	TC_Billing_Store::$orders[ $tc_close_uuid ] = $tc_close_order;
+	$tc_expired_resume = TC_Billing_Stripe::create_checkout( $tc_close_order );
+	$tc_assert( is_wp_error( $tc_expired_resume ) && 'stripe_checkout_expired' === $tc_expired_resume->get_error_code(), 'A verified expired checkout has an actionable terminal diagnostic instead of a generic binding error.' );
+	TC_Billing_Store::$orders[ $tc_close_uuid ]['status'] = 'active';
+	$tc_assert( is_wp_error( TC_Billing_Stripe::reconcile( array( 'provider' => 'stripe', 'mode' => 'test', 'type' => 'checkout.session.expired', 'object_id' => 'cs_test_close' ) ) ) && 'active' === TC_Billing_Store::$orders[ $tc_close_uuid ]['status'], 'An expiry event cannot close a previously active local financial record.' ); TC_Billing_Store::$orders[ $tc_close_uuid ] = $tc_close_order;
+	foreach ( array( array( 'status', 'complete' ), array( 'payment_status', 'paid' ), array( 'payment_status', 'no_payment_required' ), array( 'subscription', 'sub_uncertain' ), array( 'payment_intent', 'pi_processing' ) ) as [ $tc_bad_key, $tc_bad_value ] ) {
+		$tc_close_session['status'] = 'open'; $tc_clean_session = $tc_close_session; $tc_close_session[ $tc_bad_key ] = $tc_bad_value;
+		$tc_before = count( $tc_http_calls );
+		$tc_assert( is_wp_error( TC_Billing_Stripe::close_checkout( $tc_close_order ) ) && ! array_filter( array_slice( $tc_http_calls, $tc_before ), static fn( array $call ): bool => 'POST' === $call[1]['method'] ), 'A possibly paid or running contract cannot be expired: ' . $tc_bad_key . '/' . $tc_bad_value );
+		$tc_close_session = $tc_clean_session;
+	}
+	$tc_close_session['metadata']['tc_user_id'] = '18'; $tc_before = count( $tc_http_calls );
+	$tc_assert( is_wp_error( TC_Billing_Stripe::close_checkout( $tc_close_order ) ) && ! array_filter( array_slice( $tc_http_calls, $tc_before ), static fn( array $call ): bool => 'POST' === $call[1]['method'] ), 'A canonical session belonging to another identity cannot be expired.' ); $tc_close_session['metadata']['tc_user_id'] = '17';
+	$tc_close_session['line_items']['data'][0]['amount_total'] = 1; $tc_before = count( $tc_http_calls );
+	$tc_assert( is_wp_error( TC_Billing_Stripe::close_checkout( $tc_close_order ) ) && ! array_filter( array_slice( $tc_http_calls, $tc_before ), static fn( array $call ): bool => 'POST' === $call[1]['method'] ), 'An altered canonical offer prevents checkout expiration.' ); $tc_close_session['line_items']['data'][0]['amount_total'] = $tc_close_order['amount'];
+	$tc_routes['POST checkout/sessions/cs_test_close/expire'] = static function () use ( $tc_response ): array { return $tc_response( array( 'error' => array( 'message' => 'PRIVATE_UPSTREAM_SECRET' ) ), 409 ); };
+	$tc_assert( is_wp_error( TC_Billing_Stripe::close_checkout( $tc_close_order ) ) && 'checkout' === TC_Billing_Store::$orders[ $tc_close_uuid ]['status'], 'An expiration race/error never closes the local order.' );
+	$tc_routes['POST checkout/sessions/cs_test_close/expire'] = static function () use ( &$tc_close_session, $tc_response ): array { return $tc_response( $tc_close_session ); };
+	$tc_unconfirmed_close = TC_Billing_Stripe::close_checkout( $tc_close_order );
+	$tc_assert( is_wp_error( $tc_unconfirmed_close ) && 'stripe_checkout_close_unconfirmed' === $tc_unconfirmed_close->get_error_code() && 'checkout' === TC_Billing_Store::$orders[ $tc_close_uuid ]['status'], 'An expiration response without final canonical expiry never authorizes local closure.' );
+	$tc_routes = $tc_close_routes;
+	$tc_routes['POST checkout/sessions/cs_test_close/expire'] = static function () use ( &$tc_close_session, $tc_response ): array { $tc_close_session['status'] = 'complete'; $tc_close_session['payment_status'] = 'paid'; return $tc_response( $tc_close_session ); };
+	$tc_assert( is_wp_error( TC_Billing_Stripe::close_checkout( $tc_close_order ) ) && 'checkout' === TC_Billing_Store::$orders[ $tc_close_uuid ]['status'], 'A payment that wins the expiration race fails final canonical proof and keeps local review pending.' );
+	foreach ( array( 'checkout_id' => '', 'subscription_id' => 'sub_existing', 'payment_id' => 'pi_existing', 'status' => 'active' ) as $tc_bad_key => $tc_bad_value ) {
+		TC_Billing_Store::$orders[ $tc_close_uuid ] = array_replace( $tc_close_order, array( $tc_bad_key => $tc_bad_value ) ); $tc_before = count( $tc_http_calls );
+		$tc_assert( is_wp_error( TC_Billing_Stripe::close_checkout( $tc_close_order ) ) && $tc_before === count( $tc_http_calls ), 'Unknown session or stored financial contract requires explicit review before any expiration request: ' . $tc_bad_key );
+	}
+}
+unset( TC_Billing_Store::$orders[ $tc_close_uuid ] );
+
+// Customer-facing diagnostics retain only known codes, a fixed operation stage
+// and numeric HTTP; raw upstream descriptions, request IDs and secret values stay private.
+$tc_routes = $tc_base_routes;
+foreach ( array( 400, 401, 403, 404, 429, 500 ) as $tc_status ) {
+	$tc_routes['GET prices/price_monthly'] = static function () use ( $tc_response, $tc_status ): array { return $tc_response( array( 'error' => array( 'code' => 'resource_missing', 'message' => 'PRIVATE_UPSTREAM_SECRET sk_test_fixtureOnly', 'param' => 'PRIVATE_UPSTREAM_SECRET' ) ), $tc_status ); };
+	$tc_diagnostic = TC_Billing_Stripe::create_checkout( $tc_order );
+	$tc_details = $tc_diagnostic->get_error_data();
+	$tc_assert( is_wp_error( $tc_diagnostic ) && $tc_status === $tc_details['http'] && 'price_read' === $tc_details['stage'] && 'resource_missing' === $tc_details['provider_code'] && str_contains( $tc_diagnostic->get_error_message(), 'HTTP ' . $tc_status ) && ! str_contains( $tc_diagnostic->get_error_message(), 'PRIVATE_UPSTREAM_SECRET' ) && ! str_contains( $tc_diagnostic->get_error_message(), 'sk_test_fixtureOnly' ), 'Safe Stripe diagnostic preserves actionable status/stage without raw error data: HTTP ' . $tc_status );
+}
+$tc_routes['GET prices/price_monthly'] = static function () use ( $tc_response ): array { return $tc_response( array( 'error' => array( 'code' => 'arbitrary_secret_error_code', 'message' => 'PRIVATE_UPSTREAM_SECRET' ) ), 400 ); };
+$tc_diagnostic = TC_Billing_Stripe::create_checkout( $tc_order );
+$tc_assert( '' === $tc_diagnostic->get_error_data()['provider_code'] && ! str_contains( $tc_diagnostic->get_error_message(), 'arbitrary_secret_error_code' ), 'Unrecognized provider error codes are never reflected to the customer.' );
+
+$tc_unstarted = array_replace( $tc_order, array( 'id' => $tc_close_uuid, 'status' => 'pending', 'checkout_id' => '', 'subscription_id' => '', 'payment_id' => '', 'customer_id' => '' ) );
+TC_Billing_Store::$orders[ $tc_close_uuid ] = $tc_unstarted;
+$tc_routes = $tc_base_routes; $tc_routes['GET prices/price_monthly']['unit_amount'] = 1; $tc_before = count( $tc_http_calls );
+$tc_price_failure = TC_Billing_Stripe::create_checkout( $tc_unstarted );
+$tc_assert( is_wp_error( $tc_price_failure ) && true === ( $tc_price_failure->get_error_data()['checkout_not_created'] ?? false ) && ! array_filter( array_slice( $tc_http_calls, $tc_before ), static fn( array $call ): bool => 'POST' === $call[1]['method'] ), 'A price validation failure explicitly proves this invocation never contacted checkout creation.' );
+TC_Billing_Store::$orders[ $tc_close_uuid ]['checkout_id'] = 'cs_test_unknown';
+$tc_old_failure = TC_Billing_Stripe::create_checkout( $tc_unstarted );
+$tc_assert( is_wp_error( $tc_old_failure ) && empty( $tc_old_failure->get_error_data()['checkout_not_created'] ), 'A previous checkout reference cannot be dismissed using a new price-read failure.' );
+TC_Billing_Store::$orders[ $tc_close_uuid ] = $tc_unstarted;
+foreach ( array( 'rejected', 'network' ) as $tc_failure_kind ) {
+	$tc_routes = $tc_base_routes;
+	$tc_routes['POST checkout/sessions'] = static function () use ( $tc_response, $tc_failure_kind ): array|WP_Error { return 'network' === $tc_failure_kind ? new WP_Error( 'PRIVATE_UPSTREAM_ERROR', 'PRIVATE_UPSTREAM_SECRET' ) : $tc_response( array( 'error' => array( 'code' => 'resource_missing' ) ), 400 ); };
+	$tc_created_failure = TC_Billing_Stripe::create_checkout( $tc_unstarted );
+	$tc_assert( is_wp_error( $tc_created_failure ) && empty( $tc_created_failure->get_error_data()['checkout_not_created'] ) && 'checkout_create' === $tc_created_failure->get_error_data()['stage'], 'A contacted creation endpoint leaves explicit uncertainty instead of claiming that no checkout was created: ' . $tc_failure_kind );
+}
+unset( TC_Billing_Store::$orders[ $tc_close_uuid ] );
 
 file_put_contents( 'php://stdout', sprintf( "Stripe isolated integration: %d assertions passed; all HTTP mocked, no database or payment.\n", $tc_checks ) );

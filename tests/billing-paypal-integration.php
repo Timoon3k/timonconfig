@@ -53,8 +53,13 @@ final class TC_Billing {
 final class TC_Billing_Store {
 	public static array $orders = array();
 	public static array $entitlements = array();
+	public static bool $active_error = false;
 	public static function order( string $id ): ?array { return self::$orders[ $id ] ?? null; }
 	public static function entitlement( string $source ): ?array { return self::$entitlements[ $source ] ?? null; }
+	public static function active( int $uid, string $mode ): array|WP_Error {
+		if ( self::$active_error ) { return new WP_Error( 'fixture_ledger_unavailable', 'PRIVATE_LEDGER_FAILURE' ); }
+		return array_values( array_filter( self::$entitlements, static fn( array $source ): bool => (int) $source['user_id'] === $uid && $source['mode'] === $mode && 'active' === $source['status'] && ( null === $source['valid_until'] || strtotime( $source['valid_until'] . ' UTC' ) > time() ) ) );
+	}
 	public static function find_order( string $provider, string $mode, string $id ): ?array {
 		foreach ( self::$orders as $order ) { if ( $provider === $order['provider'] && $mode === $order['mode'] && in_array( $id, array( $order['checkout_id'], $order['subscription_id'], $order['payment_id'] ), true ) ) { return $order; } }
 		return null;
@@ -290,4 +295,93 @@ $assert( '2027-02-28 12:34:56' === gmdate( 'Y-m-d H:i:s', $calendar->invoke( nul
 $assert( '2028-02-29 12:34:56' === gmdate( 'Y-m-d H:i:s', $calendar->invoke( null, strtotime( '2028-01-31 12:34:56 UTC' ) ) ), 'Calendar month preserves leap-year last day and time.' );
 $oauth_calls = array_filter( $GLOBALS['pp_requests'], static fn( $request ) => '/v1/oauth2/token' === parse_url( $request[0], PHP_URL_PATH ) );
 $assert( 1 === count( $oauth_calls ), 'Server-only OAuth token reused without repeated authentication.' );
+
+// Unpaid checkout closure is provider-confirmed and never a local status override.
+$close_id = '33333333-3333-4333-8333-333333333333';
+$close_order = $make_order( $close_id, 'monthly' ); $close_order['subscription_id'] = 'I-CLOSE-PENDING'; $close_order['checkout_id'] = 'I-CLOSE-PENDING';
+TC_Billing_Store::$orders[ $close_id ] = $close_order;
+$close_binding = 'tc:' . $close_id . ':27:123456789012345678';
+$terminal_subscription = array( 'id' => 'I-CLOSE-PENDING', 'plan_id' => 'P-MONTHLY29', 'custom_id' => $close_binding, 'quantity' => '1', 'status' => 'CANCELLED', 'create_time' => gmdate( 'Y-m-d\TH:i:s\Z', time() - 600 ), 'billing_info' => array( 'outstanding_balance' => array( 'currency_code' => 'EUR', 'value' => '0.00' ), 'cycle_executions' => array( array( 'cycles_completed' => 0 ) ) ) );
+$close_subscription = $terminal_subscription; $close_history = array( 'transactions' => array(), 'total_pages' => 1, 'total_items' => 0 );
+$GLOBALS['pp_routes']['GET /v1/billing/subscriptions/I-CLOSE-PENDING'] = static function () use ( &$close_subscription ) { return pp_response( $close_subscription ); };
+$GLOBALS['pp_routes']['GET /v1/billing/subscriptions/I-CLOSE-PENDING/transactions'] = static function ( $url ) use ( &$close_history, $assert, &$close_subscription ) {
+	parse_str( (string) parse_url( $url, PHP_URL_QUERY ), $range );
+	$assert( strtotime( $range['start_time'] ?? '' ) <= strtotime( $close_subscription['create_time'] ) && strtotime( $range['end_time'] ?? '' ) >= time() - 2, 'Closing inspects complete recent provider creation range, not only a possibly incomplete recent window.' );
+	return pp_response( $close_history );
+};
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions/I-CLOSE-PENDING/cancel'] = static function () { throw new RuntimeException( 'Unpaid closure must not cancel a PayPal approval implicitly.' ); };
+$mutations = static function (): int { return count( array_filter( $GLOBALS['pp_requests'], static fn( array $request ): bool => 'GET' !== $request[1]['method'] && '/v1/oauth2/token' !== parse_url( $request[0], PHP_URL_PATH ) ) ); };
+$before = $mutations(); $forged = $close_order; $forged['user_id'] = 99;
+$error( TC_Billing_PayPal::close_checkout( $forged ), 'order_binding', 'Closing cannot substitute another stored buyer.' );
+$assert( $before === $mutations(), 'Forged unpaid closure sends no remote mutation.' );
+foreach ( array( 'payment_id' => 'SALE-UNKNOWN', 'status' => 'paid' ) as $field => $value ) {
+	TC_Billing_Store::$orders[ $close_id ][ $field ] = $value;
+	$error( TC_Billing_PayPal::close_checkout( TC_Billing_Store::$orders[ $close_id ] ), 'checkout_paid_or_active', 'Known payment or paid local state cannot be discarded: ' . $field );
+	TC_Billing_Store::$orders[ $close_id ] = $close_order;
+}
+TC_Billing_Store::$active_error = true;
+$assert( 'fixture_ledger_unavailable' === TC_Billing_PayPal::close_checkout( $close_order )->get_error_code() && $before === $mutations(), 'A failed active-ledger read blocks closure before remote mutation.' ); TC_Billing_Store::$active_error = false;
+$same_source = TC_Billing_Store::$entitlements[ $monthly_source ]; $same_source['order_id'] = $close_id; TC_Billing_Store::$entitlements['fixture-same-order'] = $same_source;
+$error( TC_Billing_PayPal::close_checkout( $close_order ), 'checkout_paid_or_active', 'An independent active source for this exact order vetoes unpaid closure.' ); unset( TC_Billing_Store::$entitlements['fixture-same-order'] );
+foreach ( array( 'ACTIVE', 'APPROVED', 'SUSPENDED' ) as $status ) {
+	$close_subscription['status'] = $status;
+	$error( TC_Billing_PayPal::close_checkout( $close_order ), 'checkout_paid_or_active', 'Potentially chargeable subscription requires ordinary subscription management: ' . $status );
+}
+$close_subscription = $terminal_subscription;
+$close_subscription['custom_id'] = str_replace( ':27:', ':28:', $close_binding );
+$error( TC_Billing_PayPal::close_checkout( $close_order ), 'subscription_binding', 'Canonical metadata must still match the exact buyer before cancellation.' ); $close_subscription = $terminal_subscription;
+foreach ( array( 'last_payment' => array( 'time' => gmdate( 'c' ) ), 'cycle_executions' => array( array( 'cycles_completed' => 1 ) ), 'outstanding_balance' => array( 'currency_code' => 'EUR', 'value' => '1.00' ) ) as $field => $value ) {
+	$close_subscription['billing_info'][ $field ] = $value;
+	$error( TC_Billing_PayPal::close_checkout( $close_order ), 'checkout_paid_or_active', 'Payment evidence prevents unpaid cancellation: ' . $field ); $close_subscription = $terminal_subscription;
+}
+foreach ( array( 'COMPLETED', 'PENDING', 'REFUNDED' ) as $status ) {
+	$close_history['transactions'] = array( array( 'status' => $status ) );
+	$error( TC_Billing_PayPal::close_checkout( $close_order ), 'checkout_history', 'Any historical or in-flight transaction prevents closure: ' . $status );
+}
+$close_history = array( 'transactions' => array(), 'total_pages' => 2, 'total_items' => 0 );
+$error( TC_Billing_PayPal::close_checkout( $close_order ), 'checkout_history', 'An incomplete transaction listing cannot prove no payments.' );
+$close_history['total_pages'] = 1;
+$close_subscription['create_time'] = gmdate( 'c', time() - 31 * DAY_IN_SECONDS );
+$error( TC_Billing_PayPal::close_checkout( $close_order ), 'checkout_history', 'Older attempts outside the complete bounded history require review.' ); $close_subscription = $terminal_subscription;
+$assert( $before === $mutations(), 'All rejected preconditions preserve the remote contract.' );
+$close_subscription['status'] = 'APPROVAL_PENDING';
+$error( TC_Billing_PayPal::close_checkout( $close_order ), 'checkout_cancel_required', 'A pending approval is never canceled automatically while switching payment provider.' );
+$assert( $before === $mutations(), 'Pending approval must use the separate explicit subscription cancellation flow.' );
+$close_subscription = $terminal_subscription;
+$assert( true === TC_Billing_PayPal::close_checkout( $close_order ) && $before === $mutations(), 'An unpaid terminal subscription closes only after provider terminal and full-history confirmation, without writes.' );
+$assert( true === TC_Billing_PayPal::close_checkout( $close_order ) && $before === $mutations(), 'Repeating a confirmed terminal closure is read-only and idempotent.' );
+$close_subscription['status'] = 'EXPIRED';
+$assert( true === TC_Billing_PayPal::close_checkout( $close_order ) && $before === $mutations(), 'Provider-confirmed expiry with no payment history is also read-only closure.' );
+$assert( 'pending' === TC_Billing_Store::$orders[ $close_id ]['status'] && '' === TC_Billing_Store::$orders[ $close_id ]['payment_id'], 'Adapter never changes local status or grants access.' );
+$close_subscription = $terminal_subscription;
+$GLOBALS['pp_routes']['GET /v1/billing/plans/P-MONTHLY29'] = static function () use ( &$plan ) { return pp_response( $plan ); };
+$snapshot = $good( TC_Billing_PayPal::reconcile( array( 'mode' => 'test', 'type' => 'tc.reconcile', 'order_id' => $close_id ) ) );
+$assert( 'canceled' === $snapshot['order_fields']['status'] && ! isset( $snapshot['entitlement'] ), 'Reconciling an unpaid terminal subscription cannot reopen it or invent access.' );
+
+$void_id = '44444444-4444-4444-8444-444444444444'; $void_order = $make_order( $void_id, 'lifetime' ); $void_order['checkout_id'] = 'ORDER-VOID-UNPAID'; TC_Billing_Store::$orders[ $void_id ] = $void_order;
+$void_checkout = $checkout; $void_checkout['id'] = $void_order['checkout_id']; $void_checkout['purchase_units'][0]['reference_id'] = $void_id; $void_checkout['purchase_units'][0]['custom_id'] = 'tc:' . $void_id . ':27:123456789012345678'; unset( $void_checkout['purchase_units'][0]['payments'] );
+$GLOBALS['pp_routes']['GET /v2/checkout/orders/ORDER-VOID-UNPAID'] = static function () use ( &$void_checkout ) { return pp_response( $void_checkout ); };
+foreach ( array( 'CREATED', 'APPROVED', 'COMPLETED' ) as $status ) {
+	$void_checkout['status'] = $status; $before = $mutations();
+	$error( TC_Billing_PayPal::close_checkout( $void_order ), 'checkout_cannot_close', 'A v2 CAPTURE order has no invented expire endpoint: ' . $status );
+	$assert( $before === $mutations(), 'Lifetime closure sends no unsupported void/cancel operation.' );
+}
+$void_checkout['status'] = 'VOIDED';
+$assert( true === TC_Billing_PayPal::close_checkout( $void_order ), 'Only canonical empty VOIDED Lifetime checkout can be released.' );
+$snapshot = $good( TC_Billing_PayPal::reconcile( array( 'mode' => 'test', 'type' => 'tc.reconcile', 'order_id' => $void_id ) ) );
+$assert( 'canceled' === $snapshot['order_fields']['status'] && ! isset( $snapshot['entitlement'] ), 'Canonical VOIDED Lifetime reconciliation stays canceled instead of becoming pending again.' );
+$void_checkout['purchase_units'][0]['payments']['captures'] = array( array( 'id' => 'CAPTURE-UNEXPECTED' ) );
+$error( TC_Billing_PayPal::close_checkout( $void_order ), 'checkout_paid_or_active', 'Even VOIDED cannot discard a capture reference.' );
+$assert( 'active' === TC_Billing_Store::$entitlements[ $lifetime_source ]['status'] && $old_period === TC_Billing_Store::$entitlements[ $monthly_source ]['valid_until'], 'Closing unrelated unpaid attempts preserves independent existing paid sources.' );
+
+TC_Billing::$settings['stripe_test_confirmed'] = false;
+$not_created = TC_Billing_PayPal::create_checkout( $close_order );
+$assert( true === ( $not_created->get_error_data()['checkout_not_created'] ?? false ), 'A disabled early guard explicitly proves no checkout creation was sent.' ); TC_Billing::$settings['stripe_test_confirmed'] = true;
+$plan['billing_cycles'][0]['frequency']['interval_unit'] = 'DAY';
+$not_created = TC_Billing_PayPal::create_checkout( $close_order );
+$assert( true === ( $not_created->get_error_data()['checkout_not_created'] ?? false ), 'Plan validation failure before creation retains an explicit not-created marker.' ); $plan['billing_cycles'][0]['frequency']['interval_unit'] = 'MONTH';
+$new_id = '55555555-5555-4555-8555-555555555555'; $new_order = $make_order( $new_id, 'monthly' ); TC_Billing_Store::$orders[ $new_id ] = $new_order;
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions'] = new WP_Error( 'network-private', 'PRIVATE_PROVIDER_BODY' );
+$unknown = TC_Billing_PayPal::create_checkout( $new_order );
+$assert( is_wp_error( $unknown ) && empty( $unknown->get_error_data()['checkout_not_created'] ), 'A network failure after attempted creation never claims that no provider checkout exists.' );
 echo 'PayPal mocked integration: ' . $checks . " assertions passed; no real provider or database calls.\n";

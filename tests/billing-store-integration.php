@@ -271,6 +271,108 @@ try {
 	$due_live_sync = TC_Billing_Store::due_syncs( 1, 'live' );
 	$assert( 1 === count( $due_live_sync ) && $uid === (int) $due_live_sync[0]['user_id'] && 'live' === $due_live_sync[0]['mode'], 'Role workers do not spend their bounded batch on the other mode.' );
 	$assert( array() === TC_Billing_Store::due_reconcile( 1, 'invalid' ) && array() === TC_Billing_Store::due_events( 1, 'invalid' ) && array() === TC_Billing_Store::due_syncs( 1, 'invalid' ), 'Worker reads reject invalid billing modes.' );
+
+	// Unpaid closure uses the same checkout/provider leases as its remote proof.
+	// It may never erase payment history or commit after a lease has expired.
+	$renew_key = 'checkout:test:' . $other_uid;
+	$renewed = TC_Billing_Store::locked( $renew_key, static function () use ( $wpdb, $tables, $renew_key, $other_uid ) {
+		$wpdb->query( $wpdb->prepare( 'UPDATE ' . $tables['leases'] . ' SET expires_at=DATE_ADD(UTC_TIMESTAMP(), INTERVAL 10 SECOND) WHERE lease_key=%s', hash( 'sha256', $renew_key ) ) );
+		$result = TC_Billing_Store::renew_checkout_lease( $other_uid, 'test' );
+		$seconds = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT TIMESTAMPDIFF(SECOND,UTC_TIMESTAMP(),expires_at) FROM ' . $tables['leases'] . ' WHERE lease_key=%s', hash( 'sha256', $renew_key ) ) );
+		return array( $result, $seconds );
+	} );
+	$assert( true === $renewed[0] && $renewed[1] > 170, 'A current worker can atomically renew its own checkout lease before contacting a payment provider.' );
+	$expired_renewal = TC_Billing_Store::locked( $renew_key, static function () use ( $wpdb, $tables, $renew_key, $other_uid ) {
+		$wpdb->update( $tables['leases'], array( 'expires_at' => '2000-01-01 00:00:00' ), array( 'lease_key' => hash( 'sha256', $renew_key ) ) );
+		return TC_Billing_Store::renew_checkout_lease( $other_uid, 'test' );
+	} );
+	$assert( is_wp_error( $expired_renewal ) && 'billing_busy' === $expired_renewal->get_error_code(), 'A worker cannot revive an expired checkout lease before starting another provider request.' );
+	$closing = $make_order( $other_uid, 'test', 'lifetime' );
+	$must( TC_Billing_Store::update_order( $closing['id'], array( 'checkout_id' => 'cs_' . $tag . '_closing', 'customer_id' => 'cus_' . $tag . '_closing', 'status' => 'checkout' ) ) );
+	$closing = TC_Billing_Store::order( $closing['id'] );
+	$close_locked = static function ( array $order, ?callable $callback = null ) {
+		return TC_Billing_Store::locked( 'checkout:' . $order['mode'] . ':' . $order['user_id'], static function () use ( $order, $callback ) {
+			return TC_Billing_Store::locked( 'provider:' . $order['provider'] . ':' . $order['mode'], static fn() => $callback ? $callback() : TC_Billing_Store::close_unpaid_order( $order['id'] ) );
+		} );
+	};
+	$assert( is_wp_error( TC_Billing_Store::close_unpaid_order( $closing['id'] ) ), 'Unpaid closure cannot commit without the provider and checkout leases.' );
+	$one_lease = TC_Billing_Store::locked( 'checkout:test:' . $other_uid, static fn() => TC_Billing_Store::close_unpaid_order( $closing['id'] ) );
+	$assert( is_wp_error( $one_lease ) && 'checkout' === TC_Billing_Store::order( $closing['id'] )['status'], 'A checkout lease alone cannot serialize a closure against financial reconciliation.' );
+	foreach ( array( 'provider:stripe:test', 'checkout:test:' . $other_uid ) as $expired_key ) {
+		$closed = $close_locked( $closing, static function () use ( $wpdb, $tables, $expired_key, $closing ) {
+			$wpdb->update( $tables['leases'], array( 'expires_at' => '2000-01-01 00:00:00' ), array( 'lease_key' => hash( 'sha256', $expired_key ) ) );
+			return TC_Billing_Store::close_unpaid_order( $closing['id'] );
+		} );
+		$assert( is_wp_error( $closed ) && 'billing_busy' === $closed->get_error_code() && 'checkout' === TC_Billing_Store::order( $closing['id'] )['status'], 'Either expired lease stops closure before the order is changed.' );
+	}
+	$late_expiry = false;
+	$expire_before_write = static function ( string $sql ) use ( &$late_expiry, $wpdb, $tables ): string {
+		if ( ! $late_expiry && str_starts_with( $sql, 'UPDATE ' . $tables['orders'] . " SET status='canceled'" ) ) {
+			$late_expiry = true;
+			$wpdb->update( $tables['leases'], array( 'expires_at' => '2000-01-01 00:00:00' ), array( 'lease_key' => hash( 'sha256', 'provider:stripe:test' ) ) );
+		}
+		return $sql;
+	};
+	add_filter( 'query', $expire_before_write );
+	try { $late_closed = $close_locked( $closing ); }
+	finally { remove_filter( 'query', $expire_before_write ); }
+	$assert( $late_expiry && is_wp_error( $late_closed ) && 'checkout' === TC_Billing_Store::order( $closing['id'] )['status'], 'A lease expiring after initial validation is fenced by the final closure SQL.' );
+	$closure_read_failed = false;
+	$closure_read_fault = static function ( string $sql ) use ( &$closure_read_failed, $tables ): string {
+		if ( ! $closure_read_failed && str_starts_with( $sql, 'SELECT id FROM ' . $tables['entitlements'] ) ) { $closure_read_failed = true; return 'SELECT tc_fixture_missing_close_history FROM ' . $tables['entitlements']; }
+		return $sql;
+	};
+	$old_suppress = $wpdb->suppress_errors( true ); add_filter( 'query', $closure_read_fault );
+	try { $history_unavailable = $close_locked( $closing ); }
+	finally { remove_filter( 'query', $closure_read_fault ); $wpdb->suppress_errors( $old_suppress ); }
+	$assert( $closure_read_failed && is_wp_error( $history_unavailable ) && 'checkout' === TC_Billing_Store::order( $closing['id'] )['status'], 'Missing historical payment proof never means an unpaid checkout may be closed.' );
+	$closure_write_failed = false;
+	$closure_write_fault = static function ( string $sql ) use ( &$closure_write_failed, $tables ): string {
+		if ( ! $closure_write_failed && str_starts_with( $sql, 'UPDATE ' . $tables['orders'] . " SET status='canceled'" ) ) { $closure_write_failed = true; return 'UPDATE ' . $tables['orders'] . ' SET tc_fixture_missing_close_column=1'; }
+		return $sql;
+	};
+	$old_suppress = $wpdb->suppress_errors( true ); add_filter( 'query', $closure_write_fault );
+	try { $write_unavailable = $close_locked( $closing ); }
+	finally { remove_filter( 'query', $closure_write_fault ); $wpdb->suppress_errors( $old_suppress ); }
+	$assert( $closure_write_failed && is_wp_error( $write_unavailable ) && 'checkout' === TC_Billing_Store::order( $closing['id'] )['status'], 'A failed local closure write rolls back without pretending the provider state was saved.' );
+	$assert( true === $must( $close_locked( $closing ) ), 'Both valid fenced leases can commit the provider-verified unpaid closure.' );
+	$closed = TC_Billing_Store::order( $closing['id'] );
+	$assert( 'canceled' === $closed['status'] && $closing['checkout_id'] === $closed['checkout_id'] && $closing['customer_id'] === $closed['customer_id'] && $closing['created_at'] === $closed['created_at'], 'Closure retains provider references and immutable order history.' );
+	$assert( true === $must( $close_locked( $closed ) ), 'Repeating an already verified unpaid closure is idempotent.' );
+	foreach ( array( 'active', 'paid', 'completed', 'refunded', 'disputed' ) as $status ) {
+		$must( TC_Billing_Store::update_order( $closing['id'], array( 'status' => $status ) ) );
+		$assert( is_wp_error( $close_locked( $closing ) ) && $status === TC_Billing_Store::order( $closing['id'] )['status'], 'A financial order state cannot be relabelled as an abandoned checkout: ' . $status );
+	}
+	$must( TC_Billing_Store::update_order( $closing['id'], array( 'status' => 'checkout', 'payment_id' => 'pi_' . $tag . '_close_paid' ) ) );
+	$assert( is_wp_error( $close_locked( $closing ) ) && 'checkout' === TC_Billing_Store::order( $closing['id'] )['status'], 'A payment reference blocks unpaid closure even if a stale local status says checkout.' );
+	$must( TC_Billing_Store::update_order( $closing['id'], array( 'payment_id' => null ) ) );
+	$historical = $entitlement( $closing, $tag . ':closed-history', 'revoked' ); $must( TC_Billing_Store::upsert_entitlement( $historical ) );
+	$assert( is_wp_error( $close_locked( $closing ) ) && 'revoked' === TC_Billing_Store::entitlement( $historical['source'] )['status'], 'A revoked historical payment still blocks classification as an unpaid attempt.' );
+	$wpdb->delete( $tables['entitlements'], array( 'source' => $historical['source'] ) );
+	$pending_source = $entitlement( $closing, $tag . ':unpaid-history', 'pending' ); $pending_source['payment_id'] = null; $pending_source['last_invoice_id'] = null;
+	$must( TC_Billing_Store::upsert_entitlement( $pending_source ) );
+	$assert( true === $must( $close_locked( $closing ) ) && 'pending' === TC_Billing_Store::entitlement( $pending_source['source'] )['status'], 'Canonical unpaid closure retains an unpaid pending source without granting or deleting coverage.' );
+	$other_source = $entitlement( $live, $tag . ':orphaned-paid-history', 'revoked' ); unset( $other_source['order_id'] ); $other_source['external_id'] = 'cs_' . $tag . '_closing'; $other_source['provider'] = 'stripe'; $other_source['mode'] = 'test'; $other_source['plan'] = 'lifetime';
+	$must( TC_Billing_Store::upsert_entitlement( $other_source ) );
+	$assert( is_wp_error( $close_locked( $closing ) ), 'A matching canonical external reference protects historical coverage even without its order_id link.' );
+
+	$admin_test = $must( TC_Billing_Store::admin_orders( 'test', (string) $other_uid ) );
+	$admin_live = $must( TC_Billing_Store::admin_orders( 'live', (string) $uid ) );
+	$assert( $admin_test && $admin_live && array( 'test' ) === array_values( array_unique( array_column( $admin_test, 'mode' ) ) ) && array( 'live' ) === array_values( array_unique( array_column( $admin_live, 'mode' ) ) ), 'Administrator order lookup isolates requested member and billing mode.' );
+	$assert( $closing['id'] === ( TC_Billing_Store::admin_orders( 'test', $closing['id'] )[0]['id'] ?? '' ) && array() === TC_Billing_Store::admin_orders( 'live', $closing['id'] ), 'Exact UUID search cannot return an order from a different environment.' );
+	$by_discord = $must( TC_Billing_Store::admin_orders( 'test', $discord, 1000 ) );
+	$assert( count( $by_discord ) <= 25 && count( TC_Billing_Store::admin_orders( 'test', '', 1 ) ) <= 1 && array( $discord ) === array_values( array_unique( array_column( $by_discord, 'discord_id' ) ) ), 'Discord-ID and recent administrator searches are exact and bounded.' );
+	foreach ( array( "1 OR 1=1", '%', '0', str_repeat( '9', 21 ), 'member@example.com' ) as $search ) { $assert( is_wp_error( TC_Billing_Store::admin_orders( 'test', $search ) ), 'Unrecognized order searches are rejected before SQL.' ); }
+	$assert( is_wp_error( TC_Billing_Store::admin_orders( 'invalid' ) ), 'Administrator order lookup requires an exact known mode.' );
+	$admin_read_failed = false;
+	$admin_read_fault = static function ( string $sql ) use ( &$admin_read_failed, $tables ): string {
+		if ( ! $admin_read_failed && str_starts_with( $sql, 'SELECT * FROM ' . $tables['orders'] . ' WHERE mode=' ) ) { $admin_read_failed = true; return 'SELECT tc_fixture_missing_admin_order FROM ' . $tables['orders']; }
+		return $sql;
+	};
+	$old_suppress = $wpdb->suppress_errors( true ); add_filter( 'query', $admin_read_fault );
+	try { $admin_unavailable = TC_Billing_Store::admin_orders( 'test' ); }
+	finally { remove_filter( 'query', $admin_read_fault ); $wpdb->suppress_errors( $old_suppress ); }
+	$assert( $admin_read_failed && is_wp_error( $admin_unavailable ), 'Administrator read failures remain explicit instead of reporting an empty successful order list.' );
 	$assert( 0 === $network_calls, 'All store operations complete without any remote HTTP.' );
 	WP_CLI::success( "Billing store integration: $checks assertions; durable transaction/outbox rollback, source isolation, deduplication, retry and CAS lease checks." );
 } finally {

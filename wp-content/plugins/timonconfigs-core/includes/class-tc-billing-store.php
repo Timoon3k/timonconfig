@@ -226,6 +226,61 @@ final class TC_Billing_Store {
 		if ( $uid < 1 || ! self::mode( $mode ) ) { return array(); }
 		return $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'orders' ) . ' WHERE user_id = %d AND mode = %s ORDER BY created_at DESC, id DESC LIMIT %d', $uid, $mode, self::limit( $limit ) ), ARRAY_A );
 	}
+	/** Administrator caller must authorize access; queries stay exact, mode-scoped and bounded. */
+	public static function admin_orders( string $mode, string $search = '', int $limit = 20 ): array|WP_Error {
+		global $wpdb;
+		$search = trim( $search );
+		if ( ! self::mode( $mode ) || strlen( $search ) > 36 ) { return self::error( 'billing_invalid_order_search' ); }
+		$where = 'mode=%s'; $params = array( $mode );
+		if ( '' !== $search ) {
+			if ( self::uuid( $search ) ) { $where .= ' AND id=%s'; $params[] = $search; }
+			elseif ( preg_match( '/^[1-9][0-9]{16,19}$/D', $search ) ) { $where .= ' AND discord_id=%s'; $params[] = $search; }
+			elseif ( preg_match( '/^[1-9][0-9]{0,9}$/D', $search ) ) { $where .= ' AND user_id=%d'; $params[] = (int) $search; }
+			else { return self::error( 'billing_invalid_order_search' ); }
+		}
+		$params[] = max( 1, min( 25, $limit ) );
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'orders' ) . " WHERE $where ORDER BY created_at DESC, id DESC LIMIT %d", ...$params ), ARRAY_A );
+		return '' === $wpdb->last_error && is_array( $rows ) ? $rows : self::error( 'billing_order_read_failed' );
+	}
+
+	/**
+	 * Commit only a provider-verified unpaid closure. The caller must hold both
+	 * checkout and provider leases while obtaining proof and invoking this method.
+	 * Financial history is retained and cannot be relabelled as an unpaid attempt.
+	 */
+	public static function close_unpaid_order( string $id ): bool|WP_Error {
+		global $wpdb;
+		$seed = self::order( $id );
+		if ( '' !== $wpdb->last_error ) { return self::error( 'billing_order_read_failed' ); }
+		if ( ! $seed ) { return self::error( 'billing_order_missing' ); }
+		return self::transaction( static function () use ( $wpdb, $id, $seed ) {
+			$leases = array();
+			foreach ( array( 'provider:' . $seed['provider'] . ':' . $seed['mode'], 'checkout:' . $seed['mode'] . ':' . $seed['user_id'] ) as $lease_key ) {
+				$key = hash( 'sha256', $lease_key ); $nonce = self::$held_leases[ $key ] ?? '';
+				$valid = $wpdb->get_var( $wpdb->prepare( 'SELECT nonce FROM ' . self::table( 'leases' ) . ' WHERE lease_key=%s AND nonce=%s AND expires_at>UTC_TIMESTAMP() FOR UPDATE', $key, $nonce ) );
+				if ( '' !== $wpdb->last_error || '' === $nonce || $valid !== $nonce ) { return self::error( 'billing_busy' ); }
+				$leases[] = array( $key, $nonce );
+			}
+			$order = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::table( 'orders' ) . ' WHERE id=%s FOR UPDATE', $id ), ARRAY_A );
+			if ( '' !== $wpdb->last_error ) { return self::error( 'billing_order_read_failed' ); }
+			if ( ! $order || ! self::same_identity( $order, $seed ) ) { return self::error( 'billing_order_missing' ); }
+			if ( ! in_array( $order['status'], array( 'pending', 'checkout', 'canceled', 'cancelled' ), true ) || ! empty( $order['payment_id'] ) ) { return self::error( 'billing_order_not_unpaid' ); }
+			$linked = 'order_id=%s'; $values = array( $id );
+			$external = array_values( array_filter( array( $order['checkout_id'], $order['subscription_id'] ), static fn( mixed $value ): bool => is_string( $value ) && '' !== $value ) );
+			if ( $external ) {
+				$linked .= ' OR (provider=%s AND mode=%s AND external_id IN (' . implode( ',', array_fill( 0, count( $external ), '%s' ) ) . '))';
+				$values = array_merge( $values, array( $order['provider'], $order['mode'] ), $external );
+			}
+			$history = $wpdb->get_results( $wpdb->prepare( 'SELECT id FROM ' . self::table( 'entitlements' ) . " WHERE ($linked) AND (status<>'pending' OR valid_until IS NOT NULL OR COALESCE(payment_id,'')<>'' OR COALESCE(last_invoice_id,'')<>'') FOR UPDATE", ...$values ), ARRAY_A );
+			if ( '' !== $wpdb->last_error || ! is_array( $history ) ) { return self::error( 'billing_entitlement_read_failed' ); }
+			if ( $history ) { return self::error( 'billing_order_not_unpaid' ); }
+			if ( in_array( $order['status'], array( 'canceled', 'cancelled' ), true ) ) { return true; }
+			$provider = $leases[0]; $checkout = $leases[1];
+			$sql = $wpdb->prepare( 'UPDATE ' . self::table( 'orders' ) . " SET status='canceled', updated_at=%s WHERE id=%s AND status IN ('pending','checkout') AND COALESCE(payment_id,'')='' AND EXISTS (SELECT 1 FROM " . self::table( 'leases' ) . ' WHERE lease_key=%s AND nonce=%s AND expires_at>UTC_TIMESTAMP()) AND EXISTS (SELECT 1 FROM ' . self::table( 'leases' ) . ' WHERE lease_key=%s AND nonce=%s AND expires_at>UTC_TIMESTAMP())', self::now(), $id, $provider[0], $provider[1], $checkout[0], $checkout[1] );
+			$changed = $wpdb->query( $sql );
+			return false === $changed ? self::error( 'billing_order_write_failed' ) : ( 1 === $changed ? true : self::error( 'billing_busy' ) );
+		} );
+	}
 
 	public static function find_order( string $provider, string $mode, string $external_id ): ?array {
 		global $wpdb;
@@ -462,6 +517,21 @@ final class TC_Billing_Store {
 			'events' => $wpdb->get_results( $wpdb->prepare( 'SELECT id,provider,mode,event_id,type,status,attempts,next_attempt,last_error,updated_at FROM ' . self::table( 'events' ) . ' ORDER BY id DESC LIMIT %d', $limit ), ARRAY_A ),
 			'jobs' => $wpdb->get_results( $wpdb->prepare( 'SELECT id,user_id,mode,status,attempts,next_attempt,last_error,updated_at FROM ' . self::table( 'sync_jobs' ) . ' ORDER BY id DESC LIMIT %d', $limit ), ARRAY_A ),
 		);
+	}
+
+	/** Extend only this worker's still-current checkout lease before a provider call. */
+	public static function renew_checkout_lease( int $uid, string $mode ): bool|WP_Error {
+		global $wpdb;
+		if ( $uid < 1 || ! self::mode( $mode ) ) { return self::error( 'billing_busy' ); }
+		$key = hash( 'sha256', 'checkout:' . $mode . ':' . $uid ); $nonce = self::$held_leases[ $key ] ?? '';
+		if ( '' === $nonce ) { return self::error( 'billing_busy' ); }
+		$table = self::table( 'leases' );
+		$changed = $wpdb->query( $wpdb->prepare( "UPDATE $table SET expires_at=DATE_ADD(UTC_TIMESTAMP(), INTERVAL 180 SECOND) WHERE lease_key=%s AND nonce=%s AND expires_at>UTC_TIMESTAMP()", $key, $nonce ) );
+		if ( false === $changed ) { return self::error( 'billing_lock_failed' ); }
+		if ( 1 === $changed ) { return true; }
+		// A renewal within the same second may leave an identical expiry value.
+		$valid = $wpdb->get_var( $wpdb->prepare( "SELECT nonce FROM $table WHERE lease_key=%s AND nonce=%s AND expires_at>UTC_TIMESTAMP()", $key, $nonce ) );
+		return '' === $wpdb->last_error && $valid === $nonce ? true : self::error( 'billing_busy' );
 	}
 
 	/** Atomic acquisition/takeover and compare-and-delete release of our nonce. */
