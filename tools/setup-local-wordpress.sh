@@ -95,7 +95,23 @@ for route in "${routes[@]}"; do
     ((skipped_routes += 1))
     continue
   fi
-  curl --silent --show-error --fail --output /dev/null "http://127.0.0.1:8080$route"
+  # Retired legal routes may remain absent on a fresh WordPress install until
+  # the owner-authorized legal publication/migration has run. Never promote
+  # drafts or mutate the database merely to satisfy smoke checks.
+  if [[ "$route" == "/cookie-policy/" || "$route" == "/lifetime-license-terms/" ]]; then
+    status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:8080$route")"
+    if [[ "$status" == "404" ]]; then
+      echo "Skipping retired legal path $route before explicit legal publication."
+      ((skipped_routes += 1))
+      continue
+    fi
+    if [[ "$status" != "200" && "$status" != "301" && "$status" != "302" ]]; then
+      echo "Unexpected legacy redirect status $route: $status" >&2
+      exit 1
+    fi
+  else
+    curl --silent --show-error --fail --output /dev/null "http://127.0.0.1:8080$route"
+  fi
   ((checked_routes += 1))
 done
 
