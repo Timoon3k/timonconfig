@@ -150,6 +150,41 @@ try {
     $fault = ''; $before = $writes();
     $assert( is_wp_error( TC_Billing::perform( $close( $uncertain[0] ) ) ) && $before === $writes() && 'pending' === TC_Billing_Store::order( $uncertain[0]['id'] )['status'], 'Unknown missing-session attempts cannot be closed by blind local status changes.' );
 
+    // Operator-created session with a lost local POST response. Only an actual
+    // provider object with immutable owner/plan/price binding may release it.
+    wp_set_current_user( $users['admin'] );
+    $_GET['tc_billing_search'] = $uncertain[0]['id'];
+    $admin_html = $render_admin_orders();
+    $recovery_forms = $forms_for( $admin_html, 'order_recover_stripe' );
+    $assert( 1 === count( $recovery_forms ) && str_contains( $recovery_forms[0], 'stripe_session_id' ) && str_contains( $recovery_forms[0], 'confirm_order' ), 'Administrator sees exact Stripe-session recovery only for an unlinked pending order.' );
+    $_GET = $old_get;
+    $orphan = $session( $uncertain[0], 'recovered' ); $sessions[ $orphan['id'] ] = $orphan;
+    $recover = array_merge( $admin( 'order_recover_stripe', $uncertain[0] ), array( 'stripe_session_id' => $orphan['id'] ) );
+    $before = $writes(); $bad_nonce = $recover; $bad_nonce['_wpnonce'] = 'invalid';
+    $assert( $error_is( TC_Billing::admin_perform( $bad_nonce ), 'tc_billing_forbidden' ) && $writes() === $before, 'Untrusted administrators cannot recover other customer sessions.' );
+    $missing_confirmation = $recover; $missing_confirmation['confirm_order'] = '0';
+    $assert( is_wp_error( TC_Billing::admin_perform( $missing_confirmation ) ) && $writes() === $before, 'Session recovery requires deliberate admin confirmation.' );
+    $wrong_mode = $recover; $wrong_mode['stripe_session_id'] = 'cs_live_fakeRecovery';
+    $assert( $error_is( TC_Billing::admin_perform( $wrong_mode ), 'stripe_checkout_recovery_id' ) && $writes() === $before, 'No Stripe Test/Live cross-link is allowed.' );
+    $sessions[ $orphan['id'] ]['metadata']['tc_discord_id'] = $ids['other'];
+    $assert( $error_is( TC_Billing::admin_perform( $recover ), 'stripe_checkout_binding' ) || $error_is( TC_Billing::admin_perform( $recover ), 'stripe_identity_binding' ), 'Session with mismatched immutable Discord ownership cannot be recovered.' );
+    $assert( empty( TC_Billing_Store::order( $uncertain[0]['id'] )['checkout_id'] ) && $writes() === $before, 'Wrong-owner proof cannot change the order or touch financial state.' );
+    $sessions[ $orphan['id'] ] = $orphan;
+    $sessions[ $orphan['id'] ]['status'] = 'complete'; $sessions[ $orphan['id'] ]['payment_status'] = 'paid';
+    $assert( $error_is( TC_Billing::admin_perform( $recover ), 'stripe_checkout_close_uncertain' ) && empty( TC_Billing_Store::order( $uncertain[0]['id'] )['checkout_id'] ), 'Paid Stripe session must never be relinked as unpaid.' );
+    $sessions[ $orphan['id'] ] = $orphan;
+    $sessions[ $orphan['id'] ]['subscription'] = 'sub_' . $tag . '_unexpected';
+    $assert( $error_is( TC_Billing::admin_perform( $recover ), 'stripe_checkout_close_uncertain' ) && empty( TC_Billing_Store::order( $uncertain[0]['id'] )['checkout_id'] ), 'Existing subscription must not be erased by recovering a checkout.' );
+    $sessions[ $orphan['id'] ] = $orphan;
+    $must( TC_Billing::admin_perform( $recover ) );
+    $restored = TC_Billing_Store::order( $uncertain[0]['id'] );
+    $assert( 'canceled' === $restored['status'] && $orphan['id'] === $restored['checkout_id'] && 'expired' === $sessions[ $orphan['id'] ]['status'], 'Verified orphan Stripe session is linked, remotely expired, and locally closed under both leases.' );
+    $assert( array() === $must( TC_Billing_Store::checkout_attempts( $users['unknown'], 'test', 'monthly' ) ), 'Recovering a verified unpaid session unblocks fresh checkout for the actual buyer.' );
+    $assert( $error_is( TC_Billing::admin_perform( $recover ), 'tc_billing_session_claimed' ), 'An already-linked session cannot be claimed twice.' );
+    $audits = get_user_meta( $users['admin'], '_tc_billing_order_audit' );
+    $assert( 1 === count( array_filter( $audits, static fn( $x ) => is_array( $x ) && ( $x['order_id'] ?? '' ) === $uncertain[0]['id'] && ( $x['action'] ?? '' ) === 'order_recover_stripe' && ( $x['status'] ?? '' ) === 'accepted' ) ), 'Recovery is attributed to a WordPress financial administrator in the audit trail.' );
+
+
     $raced = $make_order( 'race', 'race' ); wp_set_current_user( $users['race'] ); $fault = 'paid-race'; $racing = TC_Billing::perform( $close( $raced ) ); $fault = '';
     $assert( is_wp_error( $racing ) && 'complete' === $sessions[ $raced['checkout_id'] ]['status'] && 'checkout' === TC_Billing_Store::order( $raced['id'] )['status'], 'A payment completing during expiration remains unresolved instead of being falsely canceled locally.' );
     $paid = $must( TC_Billing_Store::create_order( $users['active'], $ids['active'], 'stripe', 'test', 'monthly' ) );
