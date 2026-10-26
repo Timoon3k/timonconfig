@@ -12,9 +12,19 @@ final class TC_Site {
 
 	public static function init(): void {
 		add_action( 'admin_menu', array( __CLASS__, 'add_setup_page' ) );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_publish_owner_legal_release' ), 5 );
 		add_action( 'admin_post_tc_install_site', array( __CLASS__, 'handle_install' ) );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_migrate_checkout_copy' ) );
 		add_action( 'admin_post_tc_update_checkout_copy', array( __CLASS__, 'handle_checkout_copy' ) );
+	}
+
+	/** Explicit owner-authorized release: only an administrator request may publish the new documents. */
+	public static function maybe_publish_owner_legal_release(): void {
+		if ( ! current_user_can( 'manage_options' ) || '2026-10-26-legal-v1' === get_option( 'timonconfigs_owner_legal_release' ) || ! class_exists( 'TC_Legal' ) || ! TC_Legal::ready() ) { return; }
+		$result = TC_Legal::publish( TC_Legal::profile() );
+		if ( is_wp_error( $result ) ) { set_transient( 'tc_legal_release_error', $result->get_error_message(), DAY_IN_SECONDS ); return; }
+		update_option( 'timonconfigs_owner_legal_release', '2026-10-26-legal-v1', false );
+		delete_transient( 'tc_legal_release_error' );
 	}
 
 	/**
@@ -36,8 +46,6 @@ final class TC_Site {
 			'terms-of-service'       => 'Terms of Service',
 			'privacy-policy'         => 'Privacy Policy',
 			'refund-policy'          => 'Refund Policy',
-			'cookie-policy'          => 'Cookie Policy',
-			'lifetime-license-terms' => 'Lifetime License Terms',
 		);
 	}
 
@@ -120,6 +128,10 @@ final class TC_Site {
 
 	/** Native blocks, used only for new pages or genuinely empty existing content. */
 	public static function default_content( string $slug ): string {
+		if ( class_exists( 'TC_Legal' ) && isset( TC_Legal::pages()[ $slug ] ) && TC_Legal::ready() ) {
+			$document = TC_Legal::document( $slug );
+			return is_wp_error( $document ) ? '' : $document;
+		}
 		if ( 'home' === $slug ) {
 			return function_exists( 'timonconfigs_default_home_content' ) ? timonconfigs_default_home_content() : '';
 		}
@@ -255,6 +267,9 @@ final class TC_Site {
 				}
 				continue;
 			}
+			// A fresh installation must not publish anonymous legal placeholders.
+			// The explicit Legal documents action supplies real seller data and publishes these pages.
+			if ( class_exists( 'TC_Legal' ) && isset( TC_Legal::pages()[ $slug ] ) && ! TC_Legal::ready() ) { continue; }
 			$id = wp_insert_post( array( 'post_type' => 'page', 'post_title' => $title, 'post_name' => $slug, 'post_status' => 'publish', 'post_content' => self::default_content( $slug ) ), true );
 			if ( is_wp_error( $id ) ) {
 				return $id;
@@ -278,7 +293,7 @@ final class TC_Site {
 		$locations = get_nav_menu_locations();
 		$definitions = array(
 			'primary' => array( 'home', 'configs', 'games', 'pricing', 'reviews', 'faq', 'contact' ),
-			'footer'  => array( 'terms-of-service', 'privacy-policy', 'cookie-policy', 'refund-policy', 'lifetime-license-terms', 'contact' ),
+			'footer'  => array( 'terms-of-service', 'privacy-policy', 'refund-policy', 'contact' ),
 		);
 		$titles = self::pages();
 		foreach ( $definitions as $location => $slugs ) {
@@ -317,7 +332,7 @@ final class TC_Site {
 			return;
 		}
 		?>
-		<div class="wrap"><h1><?php esc_html_e( 'TimonConfigs site setup', 'timonconfigs-core' ); ?></h1><p><?php esc_html_e( 'Create missing pages and fill empty starter content. Existing content, publication status, and assigned menus are preserved. Review legal drafts before production.', 'timonconfigs-core' ); ?></p>
+		<div class="wrap"><h1><?php esc_html_e( 'TimonConfigs site setup', 'timonconfigs-core' ); ?></h1><p><?php esc_html_e( 'Create missing pages and fill empty starter content. Existing content, publication status, and assigned menus are preserved. Manage published policies and seller details in Settings → Legal documents.', 'timonconfigs-core' ); ?></p>
 		<table class="widefat striped"><thead><tr><th><?php esc_html_e( 'Page', 'timonconfigs-core' ); ?></th><th><?php esc_html_e( 'Status', 'timonconfigs-core' ); ?></th></tr></thead><tbody><?php foreach ( self::pages() as $slug => $title ) : $page = get_page_by_path( $slug, OBJECT, 'page' ); ?><tr><td><?php echo esc_html( $title ); ?></td><td><?php echo esc_html( $page ? $page->post_status : 'Missing' ); ?></td></tr><?php endforeach; ?></tbody></table>
 		<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post"><input type="hidden" name="action" value="tc_install_site"><?php wp_nonce_field( 'tc_install_site' ); ?><?php submit_button( __( 'Create missing site structure', 'timonconfigs-core' ) ); ?></form>
 		<h2><?php esc_html_e( 'Website checkout content', 'timonconfigs-core' ); ?></h2><p><?php esc_html_e( 'Unchanged stock pages are updated automatically in an administrator session. Authored content is preserved and must be reviewed manually. This update never approves legal policies or changes publication dates.', 'timonconfigs-core' ); ?></p>

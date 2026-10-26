@@ -1,3 +1,17 @@
+# Następna sesja — opublikowane regulaminy, 2026-10-26
+
+Kontynuuj Core0.9.6/theme0.11.2 i bieżący GitHub main; przeczytaj początek PROGRESS oraz `docs/LEGAL_PUBLICATION_0.9.6.md`. Właściciel wyraźnie zlecił published + push, więc nie przywracaj historycznej blokady draft-only. Trzy regulaminy są faktycznie opublikowane lokalnie. Kod aktualizuje je jednorazowo po wejściu administratora do kokpitu na zaktualizowanej instalacji, z archiwum oryginałów i 301 starych Cookie/Lifetime stron. Ustawienia → Legal documents edytuje dane i ponownie publikuje treści.
+
+Najbliżej: sprawdzić faktycznie zainstalowane wersje na Hostingerze, zaktualizować paczki po zwykłej kopii bazy i odświeżyć cache, następnie potwierdzić publiczne dokumenty/stopkę/przekierowania. Push nie oznacza instalacji WordPressa. Obecne połączenie Hostinger MCP jest niedostępne; nie deklaruj zdalnego wdrożenia. Nie zmieniaj działających płatności/OAuth/umów klientów.
+
+Dane podane: Tomasz Majewski, TimonConfigs, działalność nierejestrowana w Polsce, końcowe EUR29.99/80. Brak adresu (odmowa właściciela) i bezpośredniego e-maila pozostaje nierozwiązanym obowiązkiem ujawnienia, a nie powodem do wymyślania danych lub oznaczania gotowych tekstów Draft. Jeśli właściciel poda kontakt, uzupełnij rzeczywistą konfigurację i opublikuj ponownie; zachowaj późniejsze autorskie edycje. Prawo odstąpienia jest zachowane; brak osobnego waivera/durable-medium flow. Teksty nie stanowią poświadczenia pełnej zgodności prawnej.
+
+Zaliczone: 283 PHP, 139 browser/12widoków/2redirecty, lint111 PHP+JS, 97 instalacji ZIP. Aktualne ZIP-y0.9.6/0.11.2 i manifest `artifacts/legal-096-release-manifest.json`. Wcześniejsze wyniki billingowe są historyczne; rzeczywiste testy Live nadal wymagają weryfikacji operatora/Discorda. Nie powtarzaj szerokiego audytu przy samej zmianie danych kontaktowych.
+
+---
+
+## Historyczne przekazania — bieżące polecenie powyżej ma pierwszeństwo
+
 # Następna sesja — odzyskiwanie checkoutu, 2026-10-26
 
 Kontynuuj aktualny GitHub main z kodem `4f051d4`, Core0.9.5/theme0.11.1; wyniki są na początku `PROGRESS.md`. Przeczytaj `docs/CHECKOUT_RECOVERY_0.9.5.md`. Zachowaj publiczne zakupy, granicę administratora WordPressa oraz dotychczasowe uprawnienia Ownera.

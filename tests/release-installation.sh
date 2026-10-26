@@ -4,8 +4,8 @@
 set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.11.1.zip}")"
-core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.9.5.zip}")"
+theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.11.2.zip}")"
+core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.9.6.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
 db_image='mariadb:11.4'
@@ -141,7 +141,13 @@ $expect( ! get_registered_meta_keys( 'post', 'tc_config' )['_tc_values_content']
 $expect( true === TC_Config_Content::validate_fields( array( 'tc_guide_content' => 'Test only' ) ), 'content-only validation uses a safe restricted default' );
 
 $first = TC_Site::install();
-$expect( ! is_wp_error( $first ) && 14 === count( $first ), 'fourteen required editorial page IDs are provisioned' );
+$expect( ! is_wp_error( $first ) && 12 === count( $first ), 'twelve canonical editorial page IDs are provisioned' );
+$expect( class_exists( 'TC_Legal' ) && TC_Legal::ready(), 'the explicitly supplied seller profile and bundled legal documents are available' );
+TC_Site::maybe_publish_owner_legal_release();
+foreach ( TC_Legal::pages() as $legal_slug => $legal_title ) {
+	$legal_page = get_page_by_path( $legal_slug, OBJECT, 'page' );
+	$expect( $legal_page instanceof WP_Post && 'publish' === $legal_page->post_status && ! str_contains( $legal_page->post_content, 'Draft policy' ) && ! str_contains( $legal_page->post_content, '{{' ), 'owner-authorized legal release is published without placeholders: ' . $legal_slug );
+}
 foreach ( array( 'account', 'my-downloads' ) as $member_slug ) {
 	$member_page = get_page_by_path( $member_slug, OBJECT, 'page' );
 	$expect( $member_page instanceof WP_Post && has_shortcode( $member_page->post_content, 'account' === $member_slug ? 'timonconfigs_member_area' : 'timonconfigs_member_downloads' ) && (bool) get_post_meta( $member_page->ID, 'tc_noindex', true ), 'private member page is provisioned and noindex: ' . $member_slug );
@@ -206,7 +212,7 @@ $expect( $menu_locations === get_nav_menu_locations(), 'reinstallation preserves
 $expect( 3 === count( get_posts( array( 'post_type' => 'tc_config', 'post_status' => 'draft', 'meta_key' => '_tc_seeded_flagship', 'posts_per_page' => -1 ) ) ), 'reinstallation does not duplicate draft configs' );
 $expect( $retired_urls === get_option( 'timonconfigs_checkout_urls', array() ), 'reinstallation preserves retired checkout history without reactivating it' );
 $expect( '' === TC_Checkout::get_destination( 'monthly' ) && '' === TC_Checkout::get_destination( 'lifetime' ), 'repeat installation cannot reactivate a stored external destination' );
-WP_CLI::success( sprintf( 'Fresh ZIP installation: %d assertions passed; WordPress %s; theme %s; Core %s; 14 required pages, 7 games, 2 devices, 3 platforms, 3 unpublished draft configs, 10 Home blocks. Existing WordPress Privacy Policy status preserved as %s.', $checks, get_bloginfo( 'version' ), wp_get_theme()->get( 'Version' ), TIMONCONFIGS_CORE_VERSION, get_post_status( $first['privacy-policy'] ) ) );
+WP_CLI::success( sprintf( 'Fresh ZIP installation: %d assertions passed; WordPress %s; theme %s; Core %s; 12 required pages, 3 published legal documents, 7 games, 2 devices, 3 platforms, 3 unpublished draft configs, 10 Home blocks. Privacy Policy published by the authorized legal action as %s.', $checks, get_bloginfo( 'version' ), wp_get_theme()->get( 'Version' ), TIMONCONFIGS_CORE_VERSION, get_post_status( $first['privacy-policy'] ) ) );
 PHP
 chmod 755 "$test_directory"
 chmod 644 "$test_directory/verify.php"

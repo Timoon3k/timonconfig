@@ -1,6 +1,8 @@
 # TimonConfigs WordPress website
 
-Current implementation: **Core 0.9.5 / theme 0.11.1** supports public Stripe/PayPal EUR purchases for verified Discord members through an explicit HTTPS administrator setting, disabled by default. Public approval also opens configured Discord sign-in beyond the previous pilot allowlist; new accounts remain subscribers and Owner privileges stay separate. Login returns to the selected checkout with payment buttons available without additional checkboxes. See [checkout recovery and customer-order administration](docs/CHECKOUT_RECOVERY_0.9.5.md), [public Live setup](docs/PUBLIC_LIVE_CHECKOUT_0.9.3.md), [billing setup](docs/DIRECT_BILLING_SETUP.md) and [test report](docs/DIRECT_BILLING_TEST_REPORT.md). Existing purchases and access are preserved. No real payment acceptance or Hostinger activation is implied.
+Current implementation: **Core 0.9.6 / theme 0.11.2** adds three completed English legal policies and an owner-authorized publication update. On the first administrator dashboard request after installation, it replaces and publishes Terms, Privacy and Refund policies while archiving prior versions and consolidating Cookie/Lifetime pages with permanent redirects. Supplied seller identity and final EUR prices are included; the missing postal address and direct email remain unresolved disclosure requirements. See [legal publication and installation](docs/LEGAL_PUBLICATION_0.9.6.md).
+
+The existing public Stripe/PayPal EUR checkout remains controlled by its explicit HTTPS administrator setting, disabled by default. Public approval also opens configured Discord sign-in beyond the previous pilot allowlist; new accounts remain subscribers and Owner privileges stay separate. Login returns to the selected checkout with payment buttons available without additional checkboxes. See [checkout recovery and customer-order administration](docs/CHECKOUT_RECOVERY_0.9.5.md), [public Live setup](docs/PUBLIC_LIVE_CHECKOUT_0.9.3.md), [billing setup](docs/DIRECT_BILLING_SETUP.md) and [test report](docs/DIRECT_BILLING_TEST_REPORT.md). Existing purchases and access are preserved. No real payment acceptance or Hostinger activation is implied.
 
 Custom WordPress theme and business plugin for `timonconfigs.com`.
 
@@ -21,7 +23,7 @@ With Docker available, run:
 bash tools/setup-local-wordpress.sh
 ```
 
-This starts WordPress 6.8.3 with PHP 8.2 and MariaDB 11.4 on port `8080`, activates the theme and plugin, and creates the storefront, support, video, and policy pages plus navigation. HTTP checks explicitly skip existing unpublished editorial pages, including WordPress's default draft Privacy Policy; other route errors fail setup. The disposable local administrator is `timonadmin` with password `local-preview-only`. These credentials are local-only and must never be reused on staging or production.
+This starts WordPress 6.8.3 with PHP 8.2 and MariaDB 11.4 on port `8080`, activates the theme and plugin, and creates the storefront, support, video, and policy pages plus navigation. HTTP checks skip existing unpublished editorial pages; other route errors fail setup. The explicit legal publication update runs when an administrator next opens the dashboard, including replacing WordPress's default draft Privacy Policy. The disposable local administrator is `timonadmin` with password `local-preview-only`. These credentials are local-only and must never be reused on staging or production.
 
 Stop the services without deleting their database:
 
@@ -42,6 +44,7 @@ docker compose -f docker-compose.local.yml down
 9. Manage collections under **Configs → Games / Devices / Platforms**, and add release details in the Config Gutenberg editor. Keep unverified releases as drafts; empty/coming-soon collections are noindex and excluded from the core sitemap.
 10. Add FAQs, videos, and approved reviews in their dedicated Gutenberg menus. Every sample review is visibly labelled Demo Content and excluded from rating schema. Videos support native MP4/VTT and click-to-load YouTube, with inline playback by default and an optional per-entry modal.
 11. Edit page and collection search/social fields in the **Search and social metadata** panel. If AIOSEO or another supported SEO provider is active, use that provider's title/social settings; the theme suppresses its own duplicates.
+12. Open the dashboard as an administrator to apply this release's authorized legal publication. **Settings → Legal documents** edits actual seller details and republishes the three policies. This deliberate replacement is separate from the general installer, which continues to preserve authored pages.
 
 Do not put Discord OAuth secrets, tokens, or premium downloads in the theme, Media Library, repository, or public web root.
 

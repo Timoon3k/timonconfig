@@ -25,9 +25,7 @@ function timonconfigs_seo_page_defaults(): array {
 		'video-showcase' => array( 'title' => 'Apex Legends Gameplay Video Showcase | TimonConfigs', 'description' => 'Watch first-party TimonConfigs Apex Legends demonstrations. Check each video for confirmed device, configuration, recording, and setup information.' ),
 		'terms-of-service' => array( 'title' => 'Terms of Service | TimonConfigs', 'description' => 'Review TimonConfigs terms for digital configuration licenses, memberships, acceptable use, payment handling, account responsibilities, and consumer rights.' ),
 		'privacy-policy' => array( 'title' => 'Privacy Policy | TimonConfigs', 'description' => 'Learn how TimonConfigs handles website, account, Discord, support, and technical information, including data access and privacy contact options.' ),
-		'cookie-policy' => array( 'title' => 'Cookie Policy | TimonConfigs', 'description' => 'Understand essential WordPress cookies, third-party media choices, external checkout services, and cookie controls used by the TimonConfigs website.' ),
 		'refund-policy' => array( 'title' => 'Refund & Cancellation Policy | TimonConfigs', 'description' => 'Review TimonConfigs digital-access refund requests, recurring subscription cancellation, support options, and applicable statutory consumer rights.' ),
-		'lifetime-license-terms' => array( 'title' => 'Lifetime License Terms | TimonConfigs', 'description' => 'Understand the scope of the TimonConfigs Lifetime license, covered updates, account use, restrictions, and the purchase terms supplied at checkout.' ),
 	);
 }
 

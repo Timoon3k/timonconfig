@@ -30,8 +30,8 @@ $tc_site_die_filter = static function (): Closure {
 };
 
 try {
-	$tc_site_expected_slugs = array( 'home', 'pricing', 'games', 'reviews', 'faq', 'contact', 'video-showcase', 'vip-monthly', 'vip-lifetime', 'terms-of-service', 'privacy-policy', 'refund-policy', 'cookie-policy', 'lifetime-license-terms' );
-	$tc_site_expect( array_keys( TC_Site::pages() ) === $tc_site_expected_slugs, 'all fourteen editorial page definitions are present' );
+	$tc_site_expected_slugs = array( 'home', 'pricing', 'games', 'reviews', 'faq', 'contact', 'video-showcase', 'vip-monthly', 'vip-lifetime', 'terms-of-service', 'privacy-policy', 'refund-policy' );
+	$tc_site_expect( array_keys( TC_Site::pages() ) === $tc_site_expected_slugs, 'all twelve canonical editorial page definitions are present' );
 	$tc_site_expect( ! array_key_exists( 'configs', TC_Site::pages() ), 'Configs remains a CPT archive rather than a duplicate Page' );
 	$tc_site_type = get_post_type_object( 'tc_config' );
 	$tc_site_expect( $tc_site_type && 'configs' === $tc_site_type->has_archive, 'the original configuration archive is preserved' );
@@ -59,7 +59,7 @@ try {
 	$tc_site_existing_fixtures = array_map( static fn( int $id ): array => $tc_site_snapshot( get_post( $id ) ), array_slice( $tc_site_post_ids, 0, 2 ) );
 	$tc_site_configs_pages_before = get_posts( array( 'post_type' => 'page', 'name' => 'configs', 'post_status' => array_values( get_post_stati() ), 'posts_per_page' => -1, 'fields' => 'ids' ) );
 	$tc_site_first = TC_Site::install();
-	$tc_site_expect( ! is_wp_error( $tc_site_first ) && count( $tc_site_first ) === 14, 'explicit installation returns fourteen page IDs' );
+	$tc_site_expect( ! is_wp_error( $tc_site_first ) && count( $tc_site_first ) === 12, 'explicit installation returns twelve canonical page IDs' );
 	$tc_site_second = TC_Site::install();
 	$tc_site_expect( $tc_site_first === $tc_site_second, 'repeat installation returns the same IDs without duplicates' );
 	foreach ( $tc_site_first as $slug => $id ) {
@@ -91,10 +91,10 @@ try {
 	if ( $tc_site_home->post_content === timonconfigs_default_home_content() ) {
 		$tc_site_expect( count( array_filter( parse_blocks( $tc_site_home->post_content ), static fn( array $block ): bool => 'timonconfigs/section' === $block['blockName'] ) ) === 10, 'installed Home retains all ten starter sections' );
 	}
-	$tc_site_legal_slugs = array_keys( TC_Site::legal_sections() );
+	$tc_site_legal_slugs = array_keys( TC_Legal::pages() );
 	foreach ( $tc_site_legal_slugs as $slug ) {
 		$starter = TC_Site::default_content( $slug );
-		$tc_site_expect( str_contains( $starter, 'pending owner and legal review' ) && has_blocks( $starter ), 'legal starter is editable and clearly marked as a draft: ' . $slug );
+		$tc_site_expect( has_blocks( $starter ) && ! str_contains( $starter, 'Draft policy' ) && ! str_contains( $starter, '{{' ), 'identified legal content is complete and editable: ' . $slug );
 	}
 
 	$tc_site_flagship_args = array( 'post_type' => 'tc_config', 'post_status' => array_values( get_post_stati() ), 'posts_per_page' => -1, 'meta_key' => '_tc_seeded_flagship', 'orderby' => 'ID', 'order' => 'ASC' );
@@ -130,7 +130,7 @@ try {
 	preg_match( '/name="_wpnonce" value="([^"]+)"/', $tc_site_form, $tc_site_nonce_matches );
 	$tc_site_expect( str_contains( $tc_site_form, 'value="tc_install_site"' ) && isset( $tc_site_nonce_matches[1] ) && (bool) wp_verify_nonce( $tc_site_nonce_matches[1], 'tc_install_site' ), 'setup form includes the correct action and valid anti-CSRF nonce' );
 
-	echo 'Passed ' . $tc_site_checks . ' site installation assertions: page IDs, content/status/menu preservation, native blocks, draft scaffolds, and secured setup.' . PHP_EOL;
+	echo 'Passed ' . $tc_site_checks . ' site installation assertions: page IDs, content/status/menu preservation, native blocks, completed legal policies, and secured setup.' . PHP_EOL;
 } finally {
 	remove_filter( 'wp_die_handler', $tc_site_die_filter, PHP_INT_MAX );
 	$_REQUEST = $tc_site_original_request;

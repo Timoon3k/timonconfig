@@ -1,0 +1,62 @@
+<p><strong>Effective date: {{effective_date}}</strong></p>
+<h2 id="controller">1. Data controller and contact</h2>
+{{seller_identity}}
+<p>The operator identified above is the controller of personal data processed for TimonConfigs. This Policy describes timonconfigs.com, its member library, website payments and associated support. Use {{seller_contact}} for privacy requests.</p>
+<h2 id="data">2. Information we process</h2>
+<ul>
+<li><strong>Account and Discord information:</strong> your authenticated Discord User ID, username or display name, avatar, linked WordPress account, current membership and relevant roles in the TimonConfigs server, and sign-in and synchronization information.</li>
+<li><strong>Authentication information:</strong> temporary OAuth matching state, encrypted access and refresh tokens needed for the connection, session information and account-binding records.</li>
+<li><strong>Orders and membership:</strong> the purchased plan, amount, currency, provider and transaction or subscription references, verified payment and renewal status, paid access periods, applicable acceptance records, and support or administration actions relating to the order.</li>
+<li><strong>Support and communications:</strong> the information you choose to include in email or Discord tickets, your contact details, order references and our replies.</li>
+<li><strong>Technical and security information:</strong> requests necessary to serve the website or a file, IP addresses and browser information processed by hosting or security services, error diagnostics, download authorization records and measures used to prevent abuse.</li>
+</ul>
+<p>Discord sign-in uses the scopes <code>identify</code> and <code>guilds.members.read</code>. These allow identity and current membership verification; they do not supply your Discord password or private messages through this sign-in flow. Payment providers collect the payment details needed for their services. TimonConfigs does not store full payment-card numbers or your PayPal password.</p>
+<h2 id="purposes">3. Purposes and legal bases</h2>
+<table>
+<thead><tr><th>Purpose</th><th>GDPR legal basis</th></tr></thead>
+<tbody>
+<tr><td>Creating and linking an account, providing a requested membership, verifying payment, delivering licensed files, and handling contractual support or cancellation</td><td>Article 6(1)(b): steps requested before a contract and performance of the contract</td></tr>
+<tr><td>Accounting, tax records, legally required consumer information, and responding to a binding legal request</td><td>Article 6(1)(c): compliance with a legal obligation</td></tr>
+<tr><td>Preventing fraud, protecting accounts and private materials, investigating errors, maintaining an audit trail, and establishing or defending claims</td><td>Article 6(1)(f): our legitimate interests, balanced against your rights</td></tr>
+<tr><td>Optional tracking or optional communications where consent is legally required</td><td>Article 6(1)(a): your prior, specific consent; you may withdraw it</td></tr>
+</tbody>
+</table>
+<p>We use access checks to compare an authenticated account with verified purchases and current Discord roles. If a technical or automated check blocks a valid entitlement, you can request human review through the contact above. We do not use these account checks to grant advertising providers access to your protected materials.</p>
+<h2 id="recipients">4. Service providers and recipients</h2>
+<p>We disclose information only as necessary for the relevant service, legal obligation or legitimate purpose. Relevant services include:</p>
+<ul>
+<li><strong>Hostinger:</strong> website hosting, databases and related infrastructure.</li>
+<li><strong>Discord:</strong> authentication, server membership, community access and role verification or synchronization.</li>
+<li><strong>Stripe or PayPal:</strong> the payment method you choose, transaction verification, recurring billing, fraud controls and their applicable legal duties.</li>
+<li><strong>Ticket Tool:</strong> support-ticket handling when you use the corresponding Discord support flow.</li>
+<li><strong>YouTube/Google:</strong> connection information when externally hosted posters or video content are requested, as explained below.</li>
+<li>Professional advisers and competent authorities where necessary to meet legal duties or establish or defend a claim.</li>
+</ul>
+<p>A provider may act as a processor under our instructions for some activities and as an independent controller for others. Payment providers and Discord also process information under their own privacy notices. We do not sell your personal data. Our use of these services does not mean that all processing remains within Poland or the European Economic Area.</p>
+<h2 id="transfers">5. International processing</h2>
+<p>Some providers operate internationally and may process information outside the EEA. Relevant transfers are subject to applicable data-protection requirements and the provider's contractual arrangements, which may include an adequacy decision or approved safeguards such as Standard Contractual Clauses. Contact us for information about the arrangements relevant to your data and available copies of applicable safeguards.</p>
+<h2 id="retention">6. How long information is kept</h2>
+<p>We keep account and access information for the period needed to operate your account and fulfill valid contractual rights. Closing an account or disconnecting Discord does not automatically erase records needed for an existing purchase, statutory obligations, fraud investigation or a legal claim.</p>
+<p>Billing and accounting records are retained for applicable legal periods. For Polish tax records, this is generally five years from the end of the calendar year in which the relevant tax payment became due; other accounting rules, proceedings or limitation periods may require a different period. Support and dispute records are kept for the time reasonably needed to resolve the matter and handle the relevant claim period. Technical and security data are limited according to their operational or investigation purpose.</p>
+<p>Temporary OAuth matching state is valid for five minutes and is consumed on use. Current Discord membership information is cached for up to 60 seconds before it must be checked again. These temporary checks have different retention from the underlying account or purchase history. Retention and deletion of business records may require an administrator; the existence of an account-logout button does not imply automatic deletion of all records. You may request the retention criteria applicable to a particular category.</p>
+<h2 id="cookies">7. Cookies, storage and embedded content</h2>
+<p>Cookies and similar storage support requested sign-in, account security and website functions. You can browse public pages without creating a member account. The following table describes the essential WordPress and TimonConfigs authentication mechanisms:</p>
+<table>
+<thead><tr><th>Storage</th><th>Purpose</th><th>Duration</th></tr></thead>
+<tbody>
+<tr><td><code>__Host-tc_discord_state</code></td><td>Matches a Discord sign-in attempt to the browser and protects the callback from request forgery</td><td>Five minutes; cleared when the callback is processed</td></tr>
+<tr><td><code>wordpress_logged_in_*</code>, <code>wordpress_sec_*</code> and related WordPress authentication cookies</td><td>Maintains the authenticated website session</td><td>Session cookies in the current non-remembered login flow; standard server-side authentication validity is up to two days, subject to security settings and logout</td></tr>
+<tr><td><code>wordpress_test_cookie</code>, when the native WordPress login is used</td><td>Checks whether the browser accepts cookies required for that login</td><td>Browser session</td></tr>
+<tr><td><code>wp-settings-*</code> and <code>wp-settings-time-*</code>, when WordPress administration is used</td><td>Remembers requested WordPress interface preferences</td><td>Standard WordPress preference storage can last up to one year</td></tr>
+</tbody>
+</table>
+<p>Hosting, security and payment services may use storage for their own necessary functions. On a hosted Stripe or PayPal checkout, the selected provider controls its payment-page storage under its own notice. Removing essential cookies can sign you out or prevent protected functions from working.</p>
+<p>Local MP4 playback requests the video file from the configured delivery host. YouTube players are created after you select playback; a poster loaded from an external image host may already disclose connection information to that host. The privacy-enhanced YouTube domain does not make a request anonymous or replace applicable consent requirements. Loading an external video does not authorize unrelated marketing tracking.</p>
+<p>The TimonConfigs theme does not itself enable optional analytics or advertising tags. Optional tracking that requires consent must not run before valid consent; silence or continued browsing is not treated as consent. You can withdraw optional consent through the control that collected it or by contacting us. Browser controls also allow you to remove or block cookies. A change to the deployed tools must be reflected in this Policy and the applicable controls.</p>
+<h2 id="rights">8. Your rights</h2>
+<p>Subject to the conditions in applicable law, you may request access, correction, deletion, restriction, portability and information about the processing of your data. You may object to processing based on legitimate interests and withdraw consent without affecting processing lawfully carried out before withdrawal. Erasure may be limited by a legal duty or a necessary legal claim; we will explain any applicable limit.</p>
+<p>Send requests to {{seller_contact}}. We may request proportionate identity verification to protect your account. We normally respond within one month of receiving a request. Where GDPR permits an extension because of complexity or the number of requests, we will notify you within that first month and explain the reason.</p>
+<p>You may complain to the President of the Polish Personal Data Protection Office (<a href="https://uodo.gov.pl/en">UODO</a>) or another competent data-protection supervisory authority, including the authority in the country where you live or work. You may also contact us first so we can investigate.</p>
+<h2 id="security">9. Security, required information and policy changes</h2>
+<p>We restrict administrative access, encrypt stored OAuth and provider secrets, and authorize protected file delivery on the server. Supplying the relevant identity and payment information is necessary to provide the requested membership; without it we may be unable to authenticate an account, complete a purchase or deliver protected access. Information submitted voluntarily in a support conversation should be limited to what is needed to resolve the issue.</p>
+<p>We may update this Policy when the service or applicable requirements change. The effective date identifies the current text. A material change requiring new consent will not be treated as authorized merely because this page was updated.</p>

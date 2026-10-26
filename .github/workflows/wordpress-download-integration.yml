@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'wp-content/**/*.php'
+      - 'wp-content/plugins/timonconfigs-core/resources/legal/*.html'
       - 'wp-content/themes/timonconfigs/assets/css/billing.css'
       - 'tests/downloads-integration.php'
       - 'tests/member-catalog-integration.php'
@@ -20,6 +21,7 @@ on:
       - 'tests/billing-integration.php'
       - 'tests/checkout-integration.php'
       - 'tests/site-checkout-copy-integration.php'
+      - 'tests/legal-publication-integration.php'
       - 'tests/member-ui-integration.php'
       - '.github/workflows/wordpress-download-integration.yml'
   workflow_dispatch:
@@ -98,6 +100,8 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-public-live-integration.php
       - name: Checkout recovery and administrator order management
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-recovery-integration.php
+      - name: Published legal documents and legacy URL consolidation
+        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/legal-publication-integration.php
       - name: Public Discord sign-in preserves member and Owner permissions
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/discord-public-checkout-integration.php
       - name: Tear down disposable WordPress

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: TimonConfigs Core
  * Description: TimonConfigs private configuration library, Discord membership and website billing and protected membership access.
- * Version: 0.9.5
+ * Version: 0.9.6
  * Author: TimonConfigs
  * Text Domain: timonconfigs-core
  * Requires at least: 6.5
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_CORE_VERSION', '0.9.5' );
+define( 'TIMONCONFIGS_CORE_VERSION', '0.9.6' );
 define( 'TIMONCONFIGS_CORE_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-tc-checkout.php';
@@ -33,7 +33,14 @@ require_once __DIR__ . '/includes/class-tc-settings.php';
 require_once __DIR__ . '/includes/class-tc-editorial.php';
 require_once __DIR__ . '/includes/class-tc-seo.php';
 require_once __DIR__ . '/includes/class-tc-videos.php';
+require_once __DIR__ . '/includes/class-tc-legal.php';
 require_once __DIR__ . '/includes/class-tc-site.php';
+
+// Public seller details and final totals supplied by the site owner for this release.
+// Optional contact data remains empty rather than being inferred or invented.
+add_filter( 'timonconfigs_legal_defaults', static function ( array $defaults ): array {
+	return array_merge( array( 'seller_name' => 'Tomasz Majewski', 'seller_registration' => 'Unregistered business activity in Poland', 'seller_address' => '', 'seller_email' => '', 'seller_phone' => '', 'prices_confirmed' => true ), $defaults );
+} );
 
 add_action(
 	'plugins_loaded',
@@ -51,6 +58,7 @@ add_action(
 		TC_Editorial::init();
 		TC_SEO::init();
 		TC_Videos::init();
+		TC_Legal::init();
 		TC_Site::init();
 	}
 );

@@ -2,7 +2,7 @@
 /** Shared legal policy template, with native block content as the source. @package TimonConfigs */
 defined( 'ABSPATH' ) || exit;
 $policy = isset( $args['policy'] ) && is_string( $args['policy'] ) ? $args['policy'] : 'terms';
-$slugs  = array( 'terms' => 'terms-of-service', 'privacy' => 'privacy-policy', 'refund' => 'refund-policy', 'cookies' => 'cookie-policy', 'lifetime' => 'lifetime-license-terms' );
+$slugs  = array( 'terms' => 'terms-of-service', 'privacy' => 'privacy-policy', 'refund' => 'refund-policy', 'cookies' => 'privacy-policy', 'lifetime' => 'terms-of-service' );
 $slug   = $slugs[ $policy ] ?? 'terms-of-service';
 $page_id = get_queried_object_id();
 $content = (string) get_post_field( 'post_content', $page_id );
