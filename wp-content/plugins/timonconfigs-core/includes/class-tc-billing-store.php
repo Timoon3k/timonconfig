@@ -282,6 +282,14 @@ final class TC_Billing_Store {
 		} );
 	}
 
+	/** Fail closed on duplicate or unreadable external references under the provider lease. */
+	public static function stripe_session_unclaimed( string $mode, string $session_id ): bool {
+		global $wpdb;
+		if ( ! self::mode( $mode ) || ! self::identifier( $session_id ) || ! str_starts_with( $session_id, 'cs_' . $mode . '_' ) ) { return false; }
+		$matches = $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . self::table( 'orders' ) . ' WHERE provider=%s AND mode=%s AND checkout_id=%s', 'stripe', $mode, $session_id ) );
+		return '' === $wpdb->last_error && is_numeric( $matches ) && 0 === (int) $matches;
+	}
+
 	public static function find_order( string $provider, string $mode, string $external_id ): ?array {
 		global $wpdb;
 		if ( ! self::provider( $provider ) || ! self::mode( $mode ) || ! self::identifier( $external_id ) ) { return null; }
