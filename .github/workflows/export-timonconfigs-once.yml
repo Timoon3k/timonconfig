@@ -1,0 +1,35 @@
+name: Temporary TimonConfigs component export
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/export-timonconfigs-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export-packages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact published main snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: cc1d6dfbe8786ac73332ad753010d9ec2dd8b39b
+          persist-credentials: false
+      - name: Package WordPress theme and plugin
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p packages
+          (cd wp-content/themes && zip -q -r ../../packages/timonconfigs-theme-0.11.2.zip timonconfigs)
+          (cd wp-content/plugins && zip -q -r ../../packages/timonconfigs-core-0.9.6.zip timonconfigs-core)
+          unzip -t packages/timonconfigs-theme-0.11.2.zip >/dev/null
+          unzip -t packages/timonconfigs-core-0.9.6.zip >/dev/null
+          sha256sum packages/*.zip
+      - name: Export ZIP packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: timonconfigs-main-cc1d6df-components
+          path: packages/*.zip
+          if-no-files-found: error
+          retention-days: 1
