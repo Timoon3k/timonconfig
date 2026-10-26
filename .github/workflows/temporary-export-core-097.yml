@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(grep 'Version:' wp-content/plugins/timonconfigs-core/timonconfigs-core.php | head -1 | xargs)" = 'Version: 0.9.7'
+          test "$(sed -n 's/.*Version:[[:space:]]*\\([0-9.]*\\).*/\\1/p' wp-content/plugins/timonconfigs-core/timonconfigs-core.php | head -1)" = '0.9.7'
           test "$(grep 'Version:' wp-content/themes/timonconfigs/style.css | head -1 | sed 's/.*Version: /Version: /')" = 'Version: 0.11.2'
           mkdir -p artifacts
           (cd wp-content/plugins && zip -q -r ../../artifacts/timonconfigs-core-0.9.7.zip timonconfigs-core)
