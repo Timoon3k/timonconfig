@@ -210,6 +210,31 @@ final class TC_Billing_Stripe {
 		return array( 'id' => $result['id'], 'cancel_at_period_end' => true );
 	}
 
+	/**
+	 * Inspect a Stripe session supplied by an administrator after a checkout POST
+	 * response was lost.  Read-only: NEVER treats a missing local reference as proof
+	 * of nonpayment.  The returned proof is only valid for the exact bound session.
+	 */
+	public static function inspect_unlinked_checkout( array $order, string $session_id ): bool|WP_Error {
+		$order = self::stored_order( $order );
+		if ( is_wp_error( $order ) ) { return $order; }
+		if ( ! in_array( $order['status'], array( 'pending', 'checkout' ), true ) ||
+			! empty( $order['checkout_id'] ) || ! empty( $order['subscription_id'] ) ||
+			! empty( $order['payment_id'] ) || ! empty( $order['customer_id'] ) ) {
+			return self::error( 'stripe_checkout_recovery_ineligible' );
+		}
+		if ( ! self::id( $session_id, 'cs_' ) || ! str_starts_with( $session_id, 'cs_' . $order['mode'] . '_' ) ) {
+			return self::error( 'stripe_checkout_recovery_id' );
+		}
+		$session = self::fetch( 'checkout/sessions', $session_id, 'cs_', $order['mode'], array( 'expand' => array( 'line_items.data.price' ) ) );
+		if ( is_wp_error( $session ) ) { return $session; }
+		$bound = $order;
+		$bound['checkout_id'] = $session_id;
+		// Validates the immutable order/Discord metadata, Stripe environment,
+		// price, currency, product and absence of payment/subscription objects.
+		return self::closable_session( $session, $bound );
+	}
+
 	/** Expire only a provably unpaid hosted checkout; never a paid or recurring contract. */
 	public static function close_checkout( array $order ): bool|WP_Error {
 		$order = self::stored_order( $order );
