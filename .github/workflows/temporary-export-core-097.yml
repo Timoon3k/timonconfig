@@ -1,0 +1,35 @@
+name: Temporary package TimonConfigs Core 0.9.7 and Theme 0.11.2
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/temporary-export-core-097.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 8c15eddfee6bb8cc1226051e233c3533799fbece
+          persist-credentials: false
+      - name: ZIP complete WordPress installable components
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(grep 'Version:' wp-content/plugins/timonconfigs-core/timonconfigs-core.php | head -1 | xargs)" = 'Version: 0.9.7'
+          test "$(grep 'Version:' wp-content/themes/timonconfigs/style.css | head -1 | sed 's/.*Version: /Version: /')" = 'Version: 0.11.2'
+          mkdir -p artifacts
+          (cd wp-content/plugins && zip -q -r ../../artifacts/timonconfigs-core-0.9.7.zip timonconfigs-core)
+          (cd wp-content/themes && zip -q -r ../../artifacts/timonconfigs-theme-0.11.2.zip timonconfigs)
+          unzip -t artifacts/timonconfigs-core-0.9.7.zip >/dev/null
+          unzip -t artifacts/timonconfigs-theme-0.11.2.zip >/dev/null
+          sha256sum artifacts/*.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: timonconfigs-core-097-theme-0112-8c15edd
+          path: artifacts/*.zip
+          if-no-files-found: error
+          retention-days: 1
