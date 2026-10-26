@@ -1,3 +1,11 @@
+# Następna sesja — Discord checkout diagnostics, 2026-10-26
+
+Aktualny kod `5c4e510`, Core0.9.4/theme0.11.1 jest na GitHub main. Zaliczone 263 asercje PHP i 97 kontroli instalacji ZIP; pozostałe wyniki 0.9.3 są historyczne i nie były powtarzane dla samej diagnostyki. Nie zmieniaj działającej logiki publicznych zakupów ani Ownera.
+
+Przeczytaj `docs/DISCORD_CHECKOUT_DIAGNOSTICS_0.9.4.md`. Następny krok to aktualizacja faktycznego WordPressa i ustalenie HTTP/Reference przy ponownej próbie. Token wpisuje właściciel wyłącznie w Live billing, bot musi być członkiem właściwego serwera z Manage Roles i pozycją ponad VIP. Bez statusu nie zakładaj, że chodzi konkretnie o token lub uprawnienia. Nie wykonano realnej płatności, testu bota ani instalacji na Hostingerze.
+
+---
+
 # Następna sesja — publiczne zakupy Live, 2026-10-26
 
 1. Kontynuuj obecny projekt, aktualny GitHub `main` z kodem `fb2142e` i etap Core 0.9.3 / motyw 0.11.1. Sprawdź końcowy commit oraz wyniki na początku `PROGRESS.md`; nie nadpisuj istniejącej pracy.

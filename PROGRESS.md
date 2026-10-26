@@ -1,3 +1,10 @@
+## Diagnostyka błędów Discord przed checkoutem — 2026-10-26
+
+- Core 0.9.4 / theme 0.11.1; baza `a91391f`, kod `5c4e510` opublikowano na GitHub main. Komunikat ze zrzutu pochodzi z preflight bota, lecz screenshot nie rozstrzyga statusu ani przyczyny na Hostingerze. Publiczny checkout 0.9.3 pozostaje zachowany.
+- Rozróżniono HTTP401/403/404/5xx, problemy sieci/429 i niepoprawny JSON. Błędy żądań zawierają dozwolony stały etap i HTTP; bez tokenów, odpowiedzi API i identyfikatorów z URL. Istniejące WP_Error codes, retry, autoryzacja i kolejność preflight → zamówienie → operator nie zmieniły się.
+- **263 asercje PHP** zaliczone: public Live39, Discord billing93, pilot44, facade87. Nowe przypadki symulują 401/403/404/500 i uszkodzony JSON, sprawdzając brak zamówienia/zapisu u operatora oraz brak sekretów w komunikacie. Lint zmienionego PHP i diff check poprawne; **97 kontroli instalacji ZIP** zaliczonych na osobnym WP6.8.3/PHP8.2. Core21 plików zgodnych ze źródłami; `artifacts/discord-094-release-manifest.json` i logi `artifacts/discord-094-*.log`.
+- Nie potwierdzono rzeczywistej konfiguracji bota ani nie zmieniono Hostингera/sekretów/ról. Przyczynę ustala się z HTTP/Reference po ponowieniu na aktualnej wtyczce. Instrukcja: `docs/DISCORD_CHECKOUT_DIAGNOSTICS_0.9.4.md`.
+
 ## Publiczne zakupy dla zwykłych klientów — 2026-10-26
 
 - Nowe polecenie właściciela otwiera sprzedaż dla wszystkich klientów; zastępuje wcześniejsze ograniczenie do jednego konta. Baza GitHub `main`: `7688fc5`; Core 0.9.3 / motyw 0.11.1. Kod `fb2142e` wypchnięto fast-forward na GitHub `main` i potwierdzono zdalny ref, bez force push.

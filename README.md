@@ -1,6 +1,6 @@
 # TimonConfigs WordPress website
 
-Current implementation: **Core 0.9.3 / theme 0.11.1** supports public Stripe/PayPal EUR purchases for verified Discord members through an explicit HTTPS administrator setting, disabled by default. Public approval also opens configured Discord sign-in beyond the previous pilot allowlist; new accounts remain subscribers and Owner privileges stay separate. Login returns to the selected checkout with payment buttons available without additional checkboxes. See [public Live setup](docs/PUBLIC_LIVE_CHECKOUT_0.9.3.md), [billing setup](docs/DIRECT_BILLING_SETUP.md) and [test report](docs/DIRECT_BILLING_TEST_REPORT.md). Existing purchases and access are preserved. No real payment acceptance or Hostinger activation is implied.
+Current implementation: **Core 0.9.4 / theme 0.11.1** supports public Stripe/PayPal EUR purchases for verified Discord members through an explicit HTTPS administrator setting, disabled by default. Public approval also opens configured Discord sign-in beyond the previous pilot allowlist; new accounts remain subscribers and Owner privileges stay separate. Login returns to the selected checkout with payment buttons available without additional checkboxes. See [public Live setup](docs/PUBLIC_LIVE_CHECKOUT_0.9.3.md), [billing setup](docs/DIRECT_BILLING_SETUP.md) and [test report](docs/DIRECT_BILLING_TEST_REPORT.md). Existing purchases and access are preserved. No real payment acceptance or Hostinger activation is implied.
 
 Custom WordPress theme and business plugin for `timonconfigs.com`.
 
