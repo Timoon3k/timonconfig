@@ -1,6 +1,6 @@
 # TimonConfigs WordPress website
 
-Current staging implementation: **Core 0.9.1 / theme 0.11.1** adds direct Stripe/PayPal EUR billing and scoped Discord synchronization, disabled by default. New purchases use website checkout only; retired external checkout links are ignored while earlier purchases and access are preserved. Discord Ticket Tool can link to the [website checkout routes](docs/WEBSITE_CHECKOUT_TICKET_TOOL.md). See [billing setup](docs/DIRECT_BILLING_SETUP.md) and [implementation/test report](docs/DIRECT_BILLING_TEST_REPORT.md). No Live acceptance or production deployment is implied.
+Current implementation: **Core 0.9.2 / theme 0.11.1** supports direct Stripe/PayPal EUR billing, encrypted dashboard credentials and a server-restricted single-account Live pilot, disabled by default. Discord login returns directly to the selected checkout with payment buttons available without additional checkboxes. See the [short Live pilot setup](docs/SIMPLER_LIVE_CHECKOUT_0.9.2.md). New purchases use website checkout only; retired external checkout links are ignored while earlier purchases and access are preserved. Discord Ticket Tool can link to the [website checkout routes](docs/WEBSITE_CHECKOUT_TICKET_TOOL.md). See [billing setup](docs/DIRECT_BILLING_SETUP.md) and [implementation/test report](docs/DIRECT_BILLING_TEST_REPORT.md). No Live acceptance or production deployment is implied.
 
 Custom WordPress theme and business plugin for `timonconfigs.com`.
 

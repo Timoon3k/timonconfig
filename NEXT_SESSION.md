@@ -1,3 +1,15 @@
+# Następna sesja — prosty checkout / ograniczony Live, 2026-10-26
+
+1. Kontynuuj aktualny GitHub `main`: kod `9527129`, checkpoint panelu `5acad52`, Core 0.9.2 / motyw 0.11.1. Push fast-forward potwierdzono zdalnym refem; nie nadpisuj istniejącej pracy. Pełne wyniki są na początku `PROGRESS.md`.
+2. Przeczytaj `docs/SIMPLER_LIVE_CHECKOUT_0.9.2.md`. Właściciel wyraźnie dopuścił rzeczywiste płatności Live wyłącznie dla swojego zaproszonego Discord ID. To aktualizuje historyczne zalecenie pierwszych testów wyłącznie na stagingu. Publiczny Live nadal wymaga odrębnego zatwierdzenia; nie zaznaczaj fikcyjnie ukończonych testów, migracji lub przeglądu prawnego.
+3. Gotowe w kodzie: szyfrowany panel sekretów, odczyt dwóch Stripe Price IDs, ograniczenie pilota po stronie serwera, bezpieczny powrót OAuth prosto do wybranego checkoutu, natychmiastowe przyciski operatorów bez checkboxów oraz diagnostyka brakujących ustawień. GET-only preflight sprawdza możliwość nadania VIP przed stworzeniem zamówienia. Własność serwera Discord nie blokuje już sama w sobie zakupu.
+4. Uzupełnij rzeczywiste poświadczenia wyłącznie prywatnie w WordPressie, skonfiguruj webhooki i bota ponad rolami VIP, a następnie przeprowadź kontrolowany pilot: płatność → podpisany webhook → właściwa rola → chronione pobranie, potem anulowanie/zwrot. PayPal dopiero po rzeczywistym Stripe acceptance. Nie wykonano tych czynności zdalnie w bieżącej sesji. Testy lokalne używają symulowanego transportu; zaliczono 817 asercji PHP, 16 widoków przeglądarkowych, 2 checkouty, 6 stron i 97 kontroli instalacji ZIP.
+5. Zachowaj cache exclusions i cron co pięć minut. Wstrzymuj nowe płatności przez routing disabled, bez zmiany Live dla istniejących umów. Nie ruszaj starych subskrypcji, niezależnych praw, uploadów Ownera ani obecnych botów. Instalacja na Hostingerze wymaga osobnego potwierdzenia stanu; push GitHub nie oznacza automatycznie wdrożenia WordPressa.
+
+---
+
+## Historyczne przekazania poniżej — bieżące polecenie i wersja powyżej mają pierwszeństwo
+
 # Następna sesja — checkout na stronie / Ticket Tool, 2026-10-25
 
 Na wyraźne polecenie właściciela przetestowany kod `93eafde` z `feature/site-only-checkout` opublikowano na GitHub `main` przez fast-forward z `664333f`. Kontynuuj od aktualnego `main` (Core 0.9.1/theme 0.11.1). Nie przywracaj Upgrade.chat do nowych zakupów ani poprzedniego fallbacku. Historia i ważne dostępy pozostają zachowane. Nie potwierdzono aktualizacji WordPressa na Hostingerze; płatności Live nie zostały włączone.

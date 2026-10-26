@@ -1,6 +1,20 @@
 # Direct billing — implementation report
 
-## Current update — website-only checkout (2026-10-25)
+## Current update — simpler checkout and restricted Live pilot (2026-10-26)
+
+Core **0.9.2** / theme **0.11.1**, code `9527129` published to GitHub `main` after explicit owner authorization for real Live payments restricted to their own Discord account. No merchant credentials were entered, no real transaction or role change was performed, and Hostinger installation/activation is unverified. Earlier staging-only wording is historical within this restricted pilot scope; public Live still has separate approval gates.
+
+**817 PHP assertions passed:** checkout OAuth return 53; OAuth regression 127; Live pilot 44; encrypted credentials 57; facade 87; Discord delivery 93; Store 112; Stripe 99; PayPal 79; checkout 28; presentation 38. Canonical provider/Discord traffic is intercepted; local WordPress bindings, database transactions, AES-GCM storage and Ed25519 signatures are real. Actual OAuth callbacks return Monthly/Lifetime, reject forged destinations and consume state. The payment buttons use deliberate nonce-protected POST with displayed price/renewal terms and recorded acceptance version, without a checkbox. No automatic purchase occurs on login or GET.
+
+Live checks cover single-actor UI/POST/Discord intents, forged identities, missing setup diagnostics, GET-only delivery preflight for guild owner, bot hierarchy/API failures before local orders or provider writes, in-flight pilot pause, authenticated customer cancellation and reconciliation after purchases pause, and HTTPS preservation of Live maintenance. Focused Astra Medium source review found no blocking issue. It does not certify actual Live APIs or consumer-law readiness.
+
+**16 responsive views +2 actual local checkout routes +6 public pages** passed without overflow or browser errors. **97 fresh ZIP installation checks** passed on separate offline WordPress 6.8.3/PHP 8.2; the main development database was not used. PHP source lint **73** files, JS syntax and diff checks passed. ZIP contents match source byte-for-byte: theme89 files, Core21. Manifest: `artifacts/simpler-checkout-release-manifest.json`; logs `artifacts/checkout-*.log`. The existing actual WordPress 1200×900 theme screenshot is retained; theme source did not change.
+
+Setup: [SIMPLER_LIVE_CHECKOUT_0.9.2.md](SIMPLER_LIVE_CHECKOUT_0.9.2.md). Remaining work is installation/configuration on the actual HTTPS site and the owner's controlled Live payment → webhook → VIP → protected-download acceptance, then cancellation/refund and PayPal acceptance. A push to GitHub is not proof of a WordPress deployment.
+
+---
+
+## Previous update — website-only checkout (2026-10-25)
 
 Core **0.9.1** / theme **0.11.1**, `feature/site-only-checkout`, code checkpoint `068ff98`, based on published main `664333f`. New sales no longer route through the retired provider. Stored `legacy` routing resolves to **disabled**; historical URL options and paid access remain intact. Website prices always show €29.99/month and €80 once. Actual Test/Sandbox acceptance and Live approval are still pending.
 
