@@ -1,6 +1,6 @@
 # Publikacja regulaminów — Core 0.9.6 / motyw 0.11.2
 
-Kontynuacja `main` z `c08026b`. Właściciel jawnie polecił zastąpić dotychczasowe treści, opublikować regulaminy bez oznaczeń Draft, połączyć zbędne dokumenty i wypchnąć zmiany na GitHub. Zapis statusu `publish` w lokalnej bazie został wykonany i sprawdzony; samo wysłanie kodu nie potwierdza instalacji na Hostingerze.
+Kontynuacja `main` z `c08026b`; kod `2109f39` wysłano fast-forward na GitHub main i sprawdzono zdalny ref. Właściciel jawnie polecił zastąpić dotychczasowe treści, opublikować regulaminy bez oznaczeń Draft, połączyć zbędne dokumenty i wypchnąć zmiany na GitHub. Zapis statusu `publish` w lokalnej bazie został wykonany i sprawdzony; samo wysłanie kodu nie potwierdza instalacji na Hostingerze.
 
 ## Co zostało opublikowane lokalnie
 
