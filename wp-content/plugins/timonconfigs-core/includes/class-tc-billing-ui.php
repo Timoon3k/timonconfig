@@ -167,6 +167,12 @@ final class TC_Billing_UI {
 			if ( in_array( $order['status'], array( 'pending', 'checkout' ), true ) ) {
 				self::start( 'order_close', $fields, true ); echo '<p><label><input type="checkbox" name="confirm_order" value="1" required> Close only if the provider verifies this checkout is unpaid and cannot charge.</label></p><button type="submit" class="button">Close unpaid checkout</button></form>';
 			}
+			if ( 'stripe' === $order['provider'] && in_array( $order['status'], array( 'pending', 'checkout' ), true ) &&
+				empty( $order['checkout_id'] ) && empty( $order['subscription_id'] ) && empty( $order['payment_id'] ) && empty( $order['customer_id'] ) ) {
+				self::start( 'order_recover_stripe', $fields, true );
+				echo '<p><label>Missing Stripe Checkout Session ID (from Stripe Dashboard)<br><input name="stripe_session_id" class="regular-text" maxlength="160" placeholder="cs_' . esc_attr( $mode ) . '_..." required></label></p>';
+				echo '<p><label><input type="checkbox" name="confirm_order" value="1" required> Confirm exact Stripe session ownership and close only after verification as unpaid.</label></p><button type="submit" class="button">Verify and recover Stripe checkout</button></form>';
+			}
 			if ( 'monthly' === $order['plan'] && ! empty( $order['subscription_id'] ) && empty( $order['cancel_at_period_end'] ) && ! in_array( $order['status'], array( 'canceled', 'cancelled' ), true ) ) {
 				self::start( 'order_cancel', $fields, true ); echo '<p><label><input type="checkbox" name="confirm_order" value="1" required> Stop this customer’s future renewals and retain verified prepaid access.</label></p><button type="submit" class="button">Cancel auto-renewal</button></form>';
 			}
