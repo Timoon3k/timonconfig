@@ -120,7 +120,7 @@ final class TC_Billing_PayPal {
 	}
 
 	/** Close only a provider-confirmed unpaid attempt; never erase a payment or active contract. */
-	public static function close_checkout( array $input ): bool|WP_Error {
+	public static function close_checkout( array $input, bool $explicit_cancel = false ): bool|WP_Error {
 		$order = self::stored( $input );
 		if ( is_wp_error( $order ) ) { return $order; }
 		$guard = self::guard( $order['mode'] );
@@ -148,19 +148,30 @@ final class TC_Billing_PayPal {
 		$path = '/v1/billing/subscriptions/' . rawurlencode( $order['subscription_id'] );
 		$subscription = self::api( $order['mode'], 'GET', $path );
 		if ( is_wp_error( $subscription ) ) { return $subscription; }
-		$valid = self::unpaid_checkout_subscription( $subscription, $order );
-		if ( is_wp_error( $valid ) ) { return $valid; }
-		return true;
+		if ( $explicit_cancel && in_array( $subscription['status'] ?? '', array( 'APPROVAL_PENDING', 'APPROVED' ), true ) ) {
+			// Only an explicit close action may stop an uncharged approval. A
+			// provider switch alone must never cancel a possibly racing contract.
+			$valid = self::unpaid_checkout_subscription( $subscription, $order, true );
+			if ( is_wp_error( $valid ) ) { return $valid; }
+			$valid = self::validate_plan( $order['mode'] );
+			if ( is_wp_error( $valid ) ) { return $valid; }
+			$result = self::api( $order['mode'], 'POST', $path . '/cancel', array( 'reason' => 'Customer requested closing an unpaid checkout.' ), self::request_id( $order, 'close-unpaid' ) );
+			if ( is_wp_error( $result ) ) { return $result; }
+			// A successful POST alone proves neither a permanent stop nor no
+			// payment. Re-read both state and history, including approval races.
+			$subscription = self::api( $order['mode'], 'GET', $path );
+			if ( is_wp_error( $subscription ) ) { return $subscription; }
+		}
+		return self::unpaid_checkout_subscription( $subscription, $order );
 	}
 
-	/** Read the complete bounded lifetime only after PayPal independently confirms a permanent stop. */
-	private static function unpaid_checkout_subscription( array $subscription, array $order ): bool|WP_Error {
+	/** Read the complete bounded lifetime; pending proof alone never authorizes local closure. */
+	private static function unpaid_checkout_subscription( array $subscription, array $order, bool $before_cancel = false ): bool|WP_Error {
 		$valid = self::subscription_binding( $subscription, $order );
 		if ( is_wp_error( $valid ) ) { return $valid; }
-		// PayPal cannot condition cancellation on APPROVAL_PENDING. Automatic
-		// cancellation here could race customer approval and create another charge.
-		if ( 'APPROVAL_PENDING' === ( $subscription['status'] ?? '' ) ) { return self::error( 'checkout_cancel_required' ); }
-		if ( ! in_array( $subscription['status'] ?? '', array( 'CANCELLED', 'EXPIRED' ), true ) ) { return self::error( 'checkout_paid_or_active' ); }
+		if ( ! $before_cancel && 'APPROVAL_PENDING' === ( $subscription['status'] ?? '' ) ) { return self::error( 'checkout_cancel_required' ); }
+		$allowed = $before_cancel ? array( 'APPROVAL_PENDING', 'APPROVED' ) : array( 'CANCELLED', 'EXPIRED' );
+		if ( ! in_array( $subscription['status'] ?? '', $allowed, true ) ) { return self::error( 'checkout_paid_or_active' ); }
 		$info = $subscription['billing_info'] ?? array();
 		if ( ! is_array( $info ) || ! empty( $info['last_payment'] ) || ! empty( $info['last_failed_payment'] ) || ! empty( $info['failed_payments_count'] ) || ( isset( $info['outstanding_balance'] ) && ! self::money( $info['outstanding_balance'], 0 ) ) ) { return self::error( 'checkout_paid_or_active' ); }
 		$cycles = $info['cycle_executions'] ?? array();
@@ -596,11 +607,11 @@ final class TC_Billing_PayPal {
 	}
 	private static function error( string $code ) {
 		$messages = array(
-			'checkout_cancel_required' => 'Cancel the existing PayPal approval through subscription management, then refresh its payment status before changing payment provider.',
+			'checkout_cancel_required' => 'Use Close unpaid checkout to request cancellation of this PayPal approval before changing payment provider.',
 			'checkout_paid_or_active' => 'This PayPal checkout may have an active or paid contract. Manage its subscription instead of discarding the purchase.',
 			'checkout_external_missing' => 'PayPal has not confirmed the earlier checkout identifier. Contact support to reconcile it before creating another payment.',
 			'checkout_history' => 'PayPal has not confirmed that this checkout has no payment history. Contact support before creating another payment.',
-			'checkout_cannot_close' => 'PayPal has not confirmed this checkout is permanently closed. Continue the existing checkout or contact support before changing payment provider.',
+			'checkout_cannot_close' => 'PayPal has not confirmed this one-time checkout is permanently closed. Resume it using Pay with PayPal, or contact support to verify its expiry before starting another payment.',
 		);
 		return TC_Billing::error( 'tc_paypal_' . $code, ( $messages[ $code ] ?? 'PayPal billing could not be verified. Please retry or contact support.' ) . ' Reference: ' . $code . '.' );
 	}

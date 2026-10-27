@@ -121,6 +121,7 @@ h3 { font-size:1rem; letter-spacing:-.02em; }
 .tc-price strong { font-family:Inter,Arial,sans-serif; font-size:44px; font-weight:850; letter-spacing:-.06em; }
 .tc-price span { font-size:13px; padding-bottom:4px; color:#c5cbd0; }
 .tc-price-card>p.tc-price-card__description { font-size:13px; min-height:0; line-height:1.5; margin:0 0 12px; color:#a8b3bb; }
+.tc-price-card__library { margin:0 0 12px; color:#dce4e9; font-size:13px; line-height:1.6; }
 .home .tc-price-card__description { display:none; }
 .tc-price-card ul { border:0; margin:17px 0 22px; padding:0; }
 .tc-price-card li { gap:8px; font-size:13px; margin:8px 0; line-height:1.4; }

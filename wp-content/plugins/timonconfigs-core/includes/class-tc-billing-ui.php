@@ -17,7 +17,7 @@ final class TC_Billing_UI {
 		$attempts = TC_Billing_Store::checkout_attempts( $uid, $mode, $plan );
 		if ( is_wp_error( $attempts ) ) { echo '<p class="tc-billing-notice" role="status">Your earlier checkout could not be checked. Please try again before starting another payment.</p>'; return; }
 		if ( ! $attempts ) { return; }
-		echo '<div class="tc-billing-notice" role="status"><p>You have an unfinished checkout. Resume the same payment method, or choose another method below. We will first try to close the earlier unpaid checkout. A completed or uncertain payment must be reviewed before another purchase.</p>';
+		echo '<div class="tc-billing-notice" role="status"><p>You have an unfinished checkout. Resume the same payment method, or use Close unpaid checkout before choosing another method. We will ask the provider to verify and close the unpaid checkout. A completed or uncertain payment must be reviewed before another purchase.</p>';
 		foreach ( $attempts as $order ) {
 			echo '<p><strong>' . esc_html( ucfirst( $order['provider'] ) ) . '</strong> · ' . esc_html( $order['status'] ) . '</p>';
 			self::close_checkout_form( $order );

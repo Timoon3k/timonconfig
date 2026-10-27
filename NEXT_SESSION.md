@@ -1,3 +1,19 @@
+# Następna sesja — Lifetime i PayPal pending, 2026-10-27
+
+Kontynuuj **Core0.9.8/theme0.11.3**, najnowszy wpis PROGRESS i `docs/LIVE_WEBHOOKS_AND_SEARCH_2026-10-27.md`. Zdalny main8c15edd (Stripe orphan recovery) scalono z legalcontact7e1b602, checkpointc56ada3. Nie nadpisuj żadnej z tych prac; różne0.9.7zostały zastąpione wspólną0.9.8.
+
+Gotowe: Lifetime€80 MostPopular; obaVIPedytowalne250uniqueVIPscripts/owner valuation€10,000; Monthly€29.99bez zmiany billingamounts. JawnyClose unpaid checkout użytkownika/admina próbuje provider-verified cancel nieopłaconej PayPalMonthlyAPPROVAL_PENDING/APPROVED. Błąd/paidrace/brakID zachowuje pending; nie stosuj forcecancel ani lokalnegoresetu. LifetimeCAPTUREnie ma wymyślonego voidorderAPI, nadal wymaga kanonicznejweryfikacji lub wznowienia.
+
+Najbliżej po aktualizacji WP: sprawdź prawdziwy komunikat po Close (userpodał tylko początkowybannerPaypalpending). Poprawny PayPalLivewebhook jest widoczny na screenshotach; WebhookIDwWP musi odpowiadaćaplikacji. Stripeużytkownikpokazałstagingdestination — sprawdzićprodukcyjnyendpointiSigningsecret. SekretywpisujwyłącznieprywatniewWordPressie. Administrator:paymentsetupwskazujebraki; nie omijajreadinessżebypokazaćprzyciski. Nie zmieniono realnychumów/ról aniHostingera.
+
+Zaliczone:850PHP,242browser/24widoki/2redirecty,112PHPlint+JS/static,100freshZIP; paczki0.9.8/0.11.3(manifestoffer-098). AstraMediumwykonaławąskireview/implementację; sukcesPayPalcancelpotwierdzonytylkomockami, bezLive. Nie deklarujfaktycznieanulowanegozamówieniaklienta ani wdrożeniahosta.
+
+SEO: proxyCONNECT403uniemożliwiłodczytprodukcji/Google; nienazywajtegoawariąstrony. Niepotwierdzonoindeksacji/pozycji. WłaścicielpowiniensprawdzićGSCURLInspection/Home/XIM/Apex, sitemap, obaadresyWP/Reading/noindex. Kodnoindexujepustekolekcje ihostingersite.com. DalszySEOcontentpodXIMApex ma byćunikalnyiprawdziwy; nikt nie gwarantujeTop1.
+
+---
+
+## Historyczne przekazania — bieżący etap powyżej ma pierwszeństwo
+
 # Następna sesja — kontakt prawny, 2026-10-27
 
 Core0.9.7 uzupełnia podany kontakt: contact@timonconfigs.com, TimonConfigs, ul. Dąbrowica 21, 05-326 Poświetne, Poland. Zachowaj pisownię użytkownika i działalność nierejestrowaną; wcześniejszy brak adresu/e-maila jest historyczny. Patrz `docs/LEGAL_CONTACT_UPDATE_0.9.7.md`. Migracja admin_init legal-v2 obsługuje stare zapisane puste pola i v1; po aktualizacji wtyczki otwórz kokpitadministrator, potem sprawdź publiczne treści/cache. Lokalnie wszystkie trzy strony publish mają dane, Hostinger bez potwierdzonej instalacji.

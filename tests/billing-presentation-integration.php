@@ -81,9 +81,12 @@ try {
 		$expect( $monthly === timonconfigs_display_price( 'monthly' ) && $lifetime === timonconfigs_display_price( 'lifetime' ), 'The same central EUR offer is shown while checkout is disabled or enabled.' );
 		$cards = $render( 'template-parts/pricing-cards' );
 		$expect( str_contains( $cards, $monthly ) && str_contains( $cards, $lifetime ) && str_contains( $cards, '€0' ) && ! str_contains( $cards, '€987.65' ), 'Home/pricing cards ignore saved price overrides.' );
+		$expect( str_contains( $cards, 'tc-price-card--lifetime tc-price-card--featured' ) && ! str_contains( $cards, 'tc-price-card--monthly tc-price-card--featured' ) && 1 === substr_count( $cards, 'MOST POPULAR' ), 'Only the Lifetime card is Most Popular by default.' );
+		$expect( 2 === substr_count( $cards, '250 unique VIP scripts' ) && 2 === substr_count( $cards, '€10,000 by TimonConfigs' ), 'Both paid memberships show the owner-supplied quantity and attributed library valuation.' );
 		$expect( ! str_contains( strtolower( $cards ), 'upgrade.chat' ) && str_contains( $cards, '/checkout/monthly/' ) && str_contains( $cards, '/checkout/lifetime/' ), 'Purchase cards link to the website without a retired external provider.' );
 		ob_start(); include get_template_directory() . '/patterns/pricing.php'; $pattern = (string) ob_get_clean();
 		$expect( str_contains( $pattern, $monthly ) && str_contains( $pattern, $lifetime ), 'Newly inserted patterns snapshot the current catalogue.' );
+		$expect( str_contains( $pattern, 'VIP LIFETIME — MOST POPULAR' ) && 2 === substr_count( $pattern, '250 unique VIP scripts' ), 'New pricing patterns share the same featured Lifetime offer and script-library benefit.' );
 		$metadata = timonconfigs_seo_page_defaults();
 		$expect( str_contains( $metadata['pricing']['description'], $monthly ) && str_contains( $metadata['pricing']['description'], $lifetime ) && str_contains( $metadata['vip-monthly']['title'], $monthly ) && str_contains( $metadata['vip-lifetime']['title'], $lifetime ), 'Default metadata agrees with visible pricing.' );
 		$faq = timonconfigs_faq_items();
@@ -96,6 +99,7 @@ try {
 			$html = $render( 'template-parts/vip-plan', array( 'plan' => $plan ) );
 			$expected = 'monthly' === $plan ? $monthly : $lifetime;
 			$expect( str_contains( $html, $expected ) && ! str_contains( $html, '€987.65' ), 'Plan details ignore old price controls: ' . $plan );
+			$expect( str_contains( $html, '250 unique VIP scripts' ) && str_contains( $html, '€10,000 by TimonConfigs' ), 'Plan details expose the same shared unique-script library benefit: ' . $plan );
 			$products = array_values( array_filter( timonconfigs_schema_graph(), static fn( array $node ): bool => 'Product' === $node['@type'] ) );
 			if ( $direct ) {
 				$expect( 1 === count( $products ) && substr( $expected, strlen( '€' ) ) === $products[0]['offers']['price'] && 'EUR' === $products[0]['offers']['priceCurrency'] && home_url( '/checkout/' . $plan . '/' ) === $products[0]['offers']['url'], 'Enabled Schema Offer agrees with the amount and local checkout: ' . $plan );
@@ -104,6 +108,12 @@ try {
 			}
 		}
 	}
+	$shared_copy_override = static fn(): string => 'Owner-authored VIP library description';
+	add_filter( 'theme_mod_timonconfigs_vip_library_copy', $shared_copy_override );
+	try {
+		$custom_cards = $render( 'template-parts/pricing-cards' );
+		$expect( 2 === substr_count( $custom_cards, 'Owner-authored VIP library description' ) && ! str_contains( $custom_cards, '250 unique VIP scripts' ), 'The shared benefit remains editable for both paid cards without overwriting authored plan fields.' );
+	} finally { remove_filter( 'theme_mod_timonconfigs_vip_library_copy', $shared_copy_override ); }
 	$GLOBALS['wp_query'] = $old_query; $GLOBALS['wp_the_query'] = $old_main;
 	$users = get_users( array( 'number' => 1, 'fields' => 'ID' ) );
 	if ( ! $users ) { throw new RuntimeException( 'A local user is required for read-only account rendering.' ); }

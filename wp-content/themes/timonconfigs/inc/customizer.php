@@ -93,13 +93,14 @@ add_action(
 			) ) );
 		}
 
-		$plan_fields = array(
-			'free' => array( 'name' => 'Free', 'tagline' => 'Perfect to get started', 'suffix' => 'Forever', 'description' => 'Explore selected configs and join the community.', 'features' => "Selected free configurations\nBasic config library\nCommunity Discord access", 'cta' => 'Get Free Configs' ),
-			'monthly' => array( 'name' => 'VIP Monthly', 'tagline' => 'For serious players', 'suffix' => '/ month', 'description' => 'Full premium access with ongoing updates and VIP support.', 'features' => "Premium configuration library\nRegular updates covered\nPrivate VIP Discord channels\nMonthly recurring access", 'cta' => 'Get Started' ),
-			'lifetime' => array( 'name' => 'VIP Lifetime', 'tagline' => 'One payment. Lifetime license.', 'suffix' => 'one time', 'description' => 'A one-time license for long-term access under the Lifetime terms.', 'features' => "Premium configuration library\nUpdates covered by your license\nPrivate VIP Discord channels\nOne-time payment", 'cta' => 'Get Lifetime Access' ),
-		);
+		$manager->add_setting( 'timonconfigs_featured_plan', array( 'default' => 'lifetime', 'sanitize_callback' => static fn( $value ): string => in_array( $value, array( 'monthly', 'lifetime' ), true ) ? $value : 'lifetime' ) );
+		$manager->add_control( 'timonconfigs_featured_plan', array( 'label' => __( 'Most popular plan', 'timonconfigs' ), 'section' => 'timonconfigs_home', 'type' => 'select', 'choices' => array( 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime' ) ) );
+		$manager->add_setting( 'timonconfigs_vip_library_copy', array( 'default' => timonconfigs_vip_library_copy(), 'sanitize_callback' => 'sanitize_textarea_field' ) );
+		$manager->add_control( 'timonconfigs_vip_library_copy', array( 'label' => __( 'Shared VIP script-library benefit', 'timonconfigs' ), 'description' => __( 'Shown for both paid memberships. Keep the library quantity and your valuation accurate.', 'timonconfigs' ), 'section' => 'timonconfigs_home', 'type' => 'textarea' ) );
+		$plan_fields = timonconfigs_plan_defaults();
 		foreach ( $plan_fields as $plan_slug => $values ) {
 			foreach ( $values as $field_name => $default ) {
+				$default = 'features' === $field_name ? implode( "\n", $default ) : $default;
 				$setting = 'timonconfigs_plan_' . $plan_slug . '_' . $field_name;
 				$manager->add_setting( $setting, array( 'default' => $default, 'sanitize_callback' => 'features' === $field_name ? 'sanitize_textarea_field' : 'sanitize_text_field' ) );
 				$manager->add_control( $setting, array( 'label' => sprintf( __( '%1$s — %2$s', 'timonconfigs' ), $values['name'], ucfirst( $field_name ) ), 'section' => 'timonconfigs_home', 'type' => in_array( $field_name, array( 'description', 'features' ), true ) ? 'textarea' : 'text' ) );

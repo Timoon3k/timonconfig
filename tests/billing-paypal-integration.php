@@ -355,6 +355,46 @@ $assert( true === TC_Billing_PayPal::close_checkout( $close_order ) && $before =
 $assert( 'pending' === TC_Billing_Store::$orders[ $close_id ]['status'] && '' === TC_Billing_Store::$orders[ $close_id ]['payment_id'], 'Adapter never changes local status or grants access.' );
 $close_subscription = $terminal_subscription;
 $GLOBALS['pp_routes']['GET /v1/billing/plans/P-MONTHLY29'] = static function () use ( &$plan ) { return pp_response( $plan ); };
+// Explicit customer/admin closure may request cancellation, but must re-prove
+// terminal state and empty history; the default provider-switch path stays read-only.
+$cancel_fault = ''; $cancel_keys = array();
+$GLOBALS['pp_routes']['POST /v1/billing/subscriptions/I-CLOSE-PENDING/cancel'] = static function ( $url, $args ) use ( &$close_subscription, &$close_history, &$cancel_fault, &$cancel_keys, $assert ) {
+	$cancel_keys[] = $args['headers']['PayPal-Request-Id'] ?? '';
+	$assert( str_starts_with( end( $cancel_keys ), 'tc-' ) && strlen( end( $cancel_keys ) ) <= 38, 'Explicit cancellation uses a bounded stable request identifier.' );
+	if ( 'reject' === $cancel_fault ) { return pp_response( array(), 422 ); }
+	if ( 'unconfirmed' !== $cancel_fault ) { $close_subscription['status'] = 'CANCELLED'; }
+	if ( 'paid-race' === $cancel_fault ) { $close_history['transactions'] = array( array( 'status' => 'COMPLETED' ) ); }
+	if ( 'binding-race' === $cancel_fault ) { $close_subscription['custom_id'] = 'another-owner'; }
+	return pp_response( null, 204 );
+};
+foreach ( array( 'APPROVAL_PENDING', 'APPROVED' ) as $pending_status ) {
+	$close_subscription = $terminal_subscription; $close_subscription['status'] = $pending_status;
+	$before = $mutations();
+	$assert( true === TC_Billing_PayPal::close_checkout( $close_order, true ) && $before + 1 === $mutations() && 'CANCELLED' === $close_subscription['status'], 'Explicit close cancels an unpaid ' . $pending_status . ' subscription and confirms it remotely.' );
+	$assert( true === TC_Billing_PayPal::close_checkout( $close_order, true ) && $before + 1 === $mutations(), 'Retry after confirmed cancellation does not repeat the mutation.' );
+}
+foreach ( array( 'reject' => 'http_422', 'unconfirmed' => 'checkout_cancel_required', 'paid-race' => 'checkout_history', 'binding-race' => 'subscription_binding' ) as $cancel_fault => $expected ) {
+	$close_subscription = $terminal_subscription; $close_subscription['status'] = 'APPROVAL_PENDING';
+	$close_history = array( 'transactions' => array(), 'total_pages' => 1, 'total_items' => 0 );
+	$error( TC_Billing_PayPal::close_checkout( $close_order, true ), $expected, 'Failed or uncertain explicit cancellation cannot authorize local closure: ' . $cancel_fault );
+}
+$cancel_fault = ''; $close_subscription = $terminal_subscription; $close_subscription['status'] = 'APPROVAL_PENDING';
+$before = $mutations();
+foreach ( array( 'COMPLETED', 'PENDING', 'REFUNDED' ) as $payment_status ) {
+	$close_history['transactions'] = array( array( 'status' => $payment_status ) );
+	$error( TC_Billing_PayPal::close_checkout( $close_order, true ), 'checkout_history', 'Explicit close cannot discard prior or in-flight payments: ' . $payment_status );
+}
+$close_history = array( 'transactions' => array(), 'total_pages' => 1, 'total_items' => 0 );
+$close_subscription['custom_id'] = 'another-owner';
+$error( TC_Billing_PayPal::close_checkout( $close_order, true ), 'subscription_binding', 'Explicit cancellation verifies immutable ownership before POST.' );
+$close_subscription = $terminal_subscription; $close_subscription['status'] = 'APPROVED';
+$plan['billing_cycles'][0]['pricing_scheme']['fixed_price']['value'] = '0.01';
+$error( TC_Billing_PayPal::close_checkout( $close_order, true ), 'plan_price', 'Explicit cancellation verifies canonical plan price before POST.' );
+$plan['billing_cycles'][0]['pricing_scheme']['fixed_price']['value'] = '29.99';
+$assert( $before === $mutations(), 'Invalid owner, price or payment history causes no cancellation mutation.' );
+$assert( 1 === count( array_unique( $cancel_keys ) ), 'Retries of the same explicit cancellation retain the exact idempotency key.' );
+$assert( 'pending' === TC_Billing_Store::$orders[ $close_id ]['status'], 'Adapter errors and provider cancellation never override the local ledger directly.' );
+$close_subscription = $terminal_subscription;
 $snapshot = $good( TC_Billing_PayPal::reconcile( array( 'mode' => 'test', 'type' => 'tc.reconcile', 'order_id' => $close_id ) ) );
 $assert( 'canceled' === $snapshot['order_fields']['status'] && ! isset( $snapshot['entitlement'] ), 'Reconciling an unpaid terminal subscription cannot reopen it or invent access.' );
 

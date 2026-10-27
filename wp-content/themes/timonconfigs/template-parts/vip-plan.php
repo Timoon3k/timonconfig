@@ -4,6 +4,7 @@ defined( 'ABSPATH' ) || exit;
 
 $plan = isset( $args['plan'] ) && 'lifetime' === $args['plan'] ? 'lifetime' : 'monthly';
 $monthly = 'monthly' === $plan;
+$plan_defaults = timonconfigs_plan_defaults()[ $plan ];
 $content = $monthly
 	? array(
 		'name'        => 'VIP Monthly',
@@ -11,9 +12,9 @@ $content = $monthly
 		'headline'    => 'Premium configs that stay current.',
 		'price'       => timonconfigs_display_price( 'monthly' ),
 		'suffix'      => 'per month',
-		'intro'       => 'Get the full premium configuration library, regular updates covered while your subscription is active, and access to private VIP Discord channels.',
+		'intro'       => $plan_defaults['description'],
 		'cta'         => 'Continue to VIP Monthly checkout',
-		'features'    => array( 'Full premium config library', 'Regular updates while subscribed', 'Private VIP Discord channels', 'Recurring monthly membership' ),
+		'features'    => $plan_defaults['features'],
 		'best_for'    => 'Players who want current premium releases, ongoing updates, and the flexibility of a monthly membership.',
 		'billing'     => 'This is a recurring monthly subscription. Review the amount, renewal, and consent before continuing with an available hosted payment provider. Your account provides website subscription management.',
 	)
@@ -23,9 +24,9 @@ $content = $monthly
 		'headline'    => 'Long-term access with one payment.',
 		'price'       => timonconfigs_display_price( 'lifetime' ),
 		'suffix'      => 'one time',
-		'intro'       => 'Unlock the premium configuration library and private VIP channels under the Lifetime license terms presented when you purchase.',
+		'intro'       => $plan_defaults['description'],
 		'cta'         => 'Continue to VIP Lifetime checkout',
-		'features'    => array( 'Full premium config library', 'Updates covered by your license', 'Private VIP Discord channels', 'One-time payment' ),
+		'features'    => $plan_defaults['features'],
 		'best_for'    => 'Players who prefer a single payment and access governed by the Lifetime license rather than a recurring subscription.',
 		'billing'     => 'This is a one-time purchase. Review the exact access and update scope in the Lifetime license terms before secure hosted checkout.',
 	);
@@ -42,7 +43,7 @@ $editor_content = (string) get_post_field( 'post_content', get_queried_object_id
 			<?php timonconfigs_breadcrumbs(); ?>
 			<div class="tc-vip-hero__grid">
 				<div><p class="tc-eyebrow"><span></span><?php echo esc_html( $content['eyebrow'] ); ?></p><h1><?php the_title(); ?></h1><p class="tc-lead"><?php echo esc_html( $content['intro'] ); ?></p><div class="tc-actions"><a class="tc-button" href="<?php echo esc_url( timonconfigs_plan_url( $plan ) ); ?>"><?php echo esc_html( $content['cta'] ); ?> <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a><a class="tc-button tc-button--ghost" href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">Browse configs</a></div></div>
-				<aside class="tc-vip-summary"><p class="tc-price-card__name"><?php echo esc_html( strtoupper( $content['name'] ) ); ?></p><p class="tc-price"><strong><?php echo esc_html( $content['price'] ); ?></strong><span><?php echo esc_html( $content['suffix'] ); ?></span></p><ul><?php foreach ( $content['features'] as $feature ) : ?><li><?php echo timonconfigs_icon( 'check' ); // phpcs:ignore ?><?php echo esc_html( $feature ); ?></li><?php endforeach; ?></ul></aside>
+				<aside class="tc-vip-summary"><p class="tc-price-card__name"><?php echo esc_html( strtoupper( $content['name'] ) ); ?></p><p class="tc-price"><strong><?php echo esc_html( $content['price'] ); ?></strong><span><?php echo esc_html( $content['suffix'] ); ?></span></p><p class="tc-price-card__library"><?php echo esc_html( timonconfigs_vip_library_copy() ); ?></p><ul><?php foreach ( $content['features'] as $feature ) : ?><li><?php echo timonconfigs_icon( 'check' ); // phpcs:ignore ?><?php echo esc_html( $feature ); ?></li><?php endforeach; ?></ul></aside>
 			</div>
 		</div>
 	</section>

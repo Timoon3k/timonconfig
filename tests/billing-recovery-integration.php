@@ -8,7 +8,7 @@ define( 'TIMONCONFIGS_BILLING_TEST_STRIPE_WEBHOOK_SECRET', 'whsec_localRecoveryF
 define( 'TIMONCONFIGS_BILLING_TEST_PAYPAL_CLIENT_ID', 'synthetic-recovery-client' );
 define( 'TIMONCONFIGS_BILLING_TEST_PAYPAL_CLIENT_SECRET', 'synthetic-recovery-secret' );
 global $wpdb;
-$checks = 0; $users = array(); $requests = array(); $sessions = array(); $contracts = array(); $fault = ''; $switch_order = null; $paypal_creations = 0; $rendered = array();
+$checks = 0; $users = array(); $requests = array(); $sessions = array(); $contracts = array(); $fault = ''; $switch_order = null; $paypal_creations = 0; $paypal_pending = array(); $rendered = array();
 $tag = 'recovery_' . bin2hex( random_bytes( 6 ) ); $host = 'https://localhost:8080';
 $ids = array( 'close' => '980000000000000101', 'other' => '980000000000000102', 'badprice' => '980000000000000103', 'unknown' => '980000000000000104', 'race' => '980000000000000105', 'owner' => '980000000000000106', 'active' => '980000000000000107', 'application' => '980000000000000108', 'guild' => '980000000000000109', 'free' => '980000000000000110', 'monthly' => '980000000000000111', 'lifetime' => '980000000000000112', 'switch' => '980000000000000113' );
 foreach ( array( 'close', 'other', 'badprice', 'unknown', 'race', 'owner', 'active', 'switch' ) as $actor ) { if ( false !== get_option( '_tc_discord_binding_' . $ids[ $actor ] ) ) { throw new RuntimeException( 'Existing binding collision; refusing to replace an account.' ); } }
@@ -34,7 +34,7 @@ $session = static function ( array $order, string $suffix ) use ( $prices, $bill
     $price = $prices[ $billing[ 'test_stripe_' . $order['plan'] . '_price_id' ] ]; $id = 'cs_test_' . $tag . '_' . $suffix;
     return array( 'id' => $id, 'livemode' => false, 'metadata' => $metadata( $order ), 'client_reference_id' => $order['id'], 'mode' => 'monthly' === $order['plan'] ? 'subscription' : 'payment', 'currency' => 'eur', 'amount_total' => (int) $order['amount'], 'customer' => 'cus_' . $tag . '_' . $suffix, 'subscription' => null, 'payment_intent' => null, 'status' => 'open', 'payment_status' => 'unpaid', 'url' => 'https://checkout.stripe.com/c/pay/' . $id, 'line_items' => array( 'has_more' => false, 'data' => array( array( 'quantity' => 1, 'amount_total' => (int) $order['amount'], 'price' => $price ) ) ) );
 };
-$http = static function ( mixed $pre, array $args, string $url ) use ( &$requests, &$sessions, &$contracts, &$fault, &$switch_order, &$paypal_creations, $response, $session, $prices, $ids, $tag ): array|WP_Error {
+$http = static function ( mixed $pre, array $args, string $url ) use ( &$requests, &$sessions, &$contracts, &$fault, &$switch_order, &$paypal_creations, &$paypal_pending, $response, $session, $prices, $ids, $tag ): array|WP_Error {
     $requests[] = array( $url, $args ); $method = $args['method'] ?? 'GET';
     if ( 0 !== ( $args['redirection'] ?? null ) || true !== ( $args['sslverify'] ?? null ) ) { throw new RuntimeException( 'Unsafe transport blocked.' ); }
     if ( str_starts_with( $url, 'https://discord.com/api/v10/' ) ) {
@@ -52,6 +52,20 @@ $http = static function ( mixed $pre, array $args, string $url ) use ( &$request
             if ( ! $order || $order['user_id'] !== $switch_order['user_id'] || $order['discord_id'] !== $switch_order['discord_id'] || 'paypal' !== $order['provider'] || 'lifetime' !== $order['plan'] ) { throw new RuntimeException( 'PayPal switch did not preserve the actual customer and offer.' ); }
             ++$paypal_creations; $id = 'ORDER-RECOVERY-' . strtoupper( substr( $tag, 9 ) );
             return $response( array( 'id' => $id, 'intent' => 'CAPTURE', 'status' => 'CREATED', 'purchase_units' => $body['purchase_units'], 'links' => array( array( 'rel' => 'approve', 'href' => 'https://www.sandbox.paypal.com/checkoutnow?token=' . $id ) ) ), 201 );
+        }
+        if ( 'Bearer synthetic-recovery-paypal-token' === $authorization && $paypal_pending ) {
+            if ( 'GET' === $method && '/v1/billing/plans/P-RECOVERY-MONTHLY' === $path ) { return $response( array( 'id' => 'P-RECOVERY-MONTHLY', 'product_id' => 'PROD-RECOVERY-MONTHLY', 'status' => 'ACTIVE', 'billing_cycles' => array( array( 'tenure_type' => 'REGULAR', 'sequence' => 1, 'total_cycles' => 0, 'frequency' => array( 'interval_unit' => 'MONTH', 'interval_count' => 1 ), 'pricing_scheme' => array( 'fixed_price' => array( 'currency_code' => 'EUR', 'value' => '29.99' ) ) ) ) ) ); }
+            if ( 'GET' === $method && '/v1/catalogs/products/PROD-RECOVERY-MONTHLY' === $path ) { return $response( array( 'id' => 'PROD-RECOVERY-MONTHLY', 'type' => 'SERVICE' ) ); }
+            if ( preg_match( '~^/v1/billing/subscriptions/([A-Z0-9-]+)(/transactions|/cancel)?$~D', $path, $match ) && isset( $paypal_pending[ $match[1] ] ) ) {
+                $id = $match[1]; $suffix = $match[2] ?? '';
+                if ( 'GET' === $method && '' === $suffix ) { return $response( $paypal_pending[ $id ] ); }
+                if ( 'GET' === $method && '/transactions' === $suffix ) { return $response( array( 'transactions' => 'paypal-paid-race' === $fault && 'CANCELLED' === $paypal_pending[ $id ]['status'] ? array( array( 'status' => 'COMPLETED' ) ) : array(), 'total_pages' => 1 ) ); }
+                if ( 'POST' === $method && '/cancel' === $suffix ) {
+                    if ( 'paypal-reject' === $fault ) { return $response( array(), 422 ); }
+                    $paypal_pending[ $id ]['status'] = 'CANCELLED';
+                    return array( 'response' => array( 'code' => 204 ), 'headers' => array(), 'body' => '' );
+                }
+            }
         }
         throw new RuntimeException( 'Unexpected PayPal endpoint, capture or mutation blocked.' );
     }
@@ -202,6 +216,31 @@ try {
     $assert( 1 === count( $cancel_forms ) && str_contains( $cancel_forms[0], 'name="order_id" value="' . $paid['id'] . '"' ) && str_contains( $cancel_forms[0], 'name="confirm_order" value="1" required' ) && str_contains( $cancel_forms[0], 'name="_wpnonce" value="' . wp_create_nonce( 'tc_billing_admin' ) . '"' ), 'Expired local paid time does not hide the administrator cancel-renewal action for a subscription that may still renew.' );
     $_GET = $old_get; $must( TC_Billing_Store::update_order( $paid['id'], array( 'status' => 'active' ) ) );
     $assert( ! str_contains( $bad->get_error_message(), 'PRIVATE_PROVIDER_RESPONSE' ) && ! str_contains( $network->get_error_message(), 'PRIVATE_PROVIDER_RESPONSE' ), 'Customer errors never expose raw provider response text.' );
+    // Real owner/admin action routing and ledger commit around mocked PayPal cancellation.
+    $paypal_enabled['test_paypal_monthly_plan_id'] = 'P-RECOVERY-MONTHLY'; $paypal_enabled['test_paypal_monthly_product_id'] = 'PROD-RECOVERY-MONTHLY';
+    update_option( 'timonconfigs_billing', $paypal_enabled, false );
+    $make_paypal_pending = static function ( string $suffix ) use ( &$paypal_pending, $users, $ids, $must ): array {
+        $order = $must( TC_Billing_Store::create_order( $users['close'], $ids['close'], 'paypal', 'test', 'monthly' ) ); $id = 'I-RECOVERY-' . $suffix;
+        $must( TC_Billing_Store::update_order( $order['id'], array( 'checkout_id' => $id, 'subscription_id' => $id ) ) );
+        $paypal_pending[ $id ] = array( 'id' => $id, 'plan_id' => 'P-RECOVERY-MONTHLY', 'custom_id' => 'tc:' . $order['id'] . ':' . $order['user_id'] . ':' . $order['discord_id'], 'status' => 'APPROVAL_PENDING', 'create_time' => gmdate( 'Y-m-d\TH:i:s\Z', time() - 600 ), 'billing_info' => array( 'cycle_executions' => array( array( 'cycles_completed' => 0 ) ) ) );
+        return TC_Billing_Store::order( $order['id'] );
+    };
+    $pp = $make_paypal_pending( 'SELF' ); wp_set_current_user( $users['other'] ); $before = count( $requests );
+    $assert( is_wp_error( TC_Billing::perform( $close( $pp ) ) ) && count( $requests ) === $before, 'Another member cannot cancel the PayPal approval.' );
+    wp_set_current_user( $users['close'] ); $invalid = $close( $pp ); $invalid['_wpnonce'] = 'invalid';
+    $assert( is_wp_error( TC_Billing::perform( $invalid ) ) && count( $requests ) === $before, 'PayPal cancellation rejects an invalid member nonce before HTTP.' );
+    $must( TC_Billing::perform( $close( $pp ) ) ); $before = $writes();
+    $assert( 'canceled' === TC_Billing_Store::order( $pp['id'] )['status'] && 'CANCELLED' === $paypal_pending[ $pp['subscription_id'] ]['status'], 'Member explicit close cancels PayPal and commits local closure under both leases.' );
+    $must( TC_Billing::perform( $close( $pp ) ) );
+    $assert( $writes() === $before, 'Repeated member closure is idempotent without another provider POST.' );
+    $pp = $make_paypal_pending( 'ADMIN' ); wp_set_current_user( $users['admin'] );
+    $must( TC_Billing::admin_perform( $admin( 'order_close', $pp ) ) );
+    $assert( 'canceled' === TC_Billing_Store::order( $pp['id'] )['status'], 'Financial administrator can explicitly close the customer PayPal approval.' );
+    foreach ( array( 'paypal-reject', 'paypal-paid-race' ) as $scenario ) {
+        $pp = $make_paypal_pending( strtoupper( $scenario ) ); wp_set_current_user( $users['close'] ); $fault = $scenario;
+        $assert( is_wp_error( TC_Billing::perform( $close( $pp ) ) ) && 'pending' === TC_Billing_Store::order( $pp['id'] )['status'], 'Provider rejection or payment racing cancellation leaves local PayPal checkout unresolved: ' . $scenario );
+        $fault = '';
+    }
     WP_CLI::success( "Billing recovery integration: $checks assertions; real local WordPress, all HTTP mocked, no actual payment or cancellation." );
     if ( getenv( 'TC_BILLING_RENDER' ) ) { WP_CLI::line( 'TC_RECOVERY_FIXTURES:' . wp_json_encode( $rendered ) ); }
 } finally {

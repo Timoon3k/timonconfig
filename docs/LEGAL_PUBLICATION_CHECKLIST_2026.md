@@ -1,6 +1,6 @@
 # Legal publication — current release, 2026-10-26
 
-The owner's explicit instruction to publish completed policies supersedes the earlier draft-only workflow. Core 0.9.7 / theme 0.11.2 provide three English documents, published in WordPress as normal Gutenberg pages:
+The owner's explicit instruction to publish completed policies supersedes the earlier draft-only workflow. Core 0.9.8 / theme 0.11.3 provide three English documents, published in WordPress as normal Gutenberg pages:
 
 - `/terms-of-service/` includes the Lifetime license at `#lifetime-license`.
 - `/privacy-policy/` includes the cookie inventory at `#cookies`.
@@ -14,7 +14,7 @@ The old Cookie Policy and Lifetime License Terms pages are reversibly moved to T
 - Business form: unregistered business activity in Poland.
 - Final customer prices: €29.99 monthly / €80 once, in EUR, including any tax the seller must account for. No tax exemption, NIP, VAT registration or fictitious company details have been invented.
 - Correspondence and complaints address supplied by the owner: TimonConfigs, ul. Dąbrowica 21, 05-326 Poświetne, Poland. Spelling is retained as supplied.
-- Public contact, complaints and privacy email supplied by the owner: contact@timonconfigs.com. Version 0.9.7 replaces the empty fields stored by 0.9.6 and republishes all three documents; the previous missing-contact limitation is resolved in the supplied text. Postal deliverability, mailbox operation and overall legal compliance have not been independently verified.
+- Public contact, complaints and privacy email supplied by the owner: contact@timonconfigs.com. Version 0.9.8 replaces the empty fields stored by 0.9.6 and republishes all three documents; the previous missing-contact limitation is resolved in the supplied text. Postal deliverability, mailbox operation and overall legal compliance have not been independently verified.
 
 ## How this release applies
 

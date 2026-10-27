@@ -80,7 +80,8 @@ rg -q "SAMPLE REVIEW · DEMO CONTENT" "$theme/template-parts/review-cards.php"
 rg -q "BreadcrumbList" "$theme/inc/seo.php"
 rg -q "Coming soon" "$theme/template-parts/game-strip.php"
 
-if rg -ni "10,000|100,000|4\.9/5|99% uptime|guaranteed|undetectable|bypass anti-cheat" "$theme" --glob '!assets/video/*'; then
+# The owner-supplied €10,000 library valuation is distinct from fabricated user/download totals.
+if rg --pcre2 -ni "(?<!€)10,000|100,000|4\.9/5|99% uptime|guaranteed|undetectable|bypass anti-cheat" "$theme" --glob '!assets/video/*'; then
   echo "Unverified marketing claim detected"
   exit 1
 fi

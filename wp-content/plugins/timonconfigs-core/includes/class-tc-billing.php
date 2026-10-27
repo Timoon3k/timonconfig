@@ -158,14 +158,15 @@ final class TC_Billing {
 	}
 	private static function scalar( array $data, string $key ): string { return is_string( $data[ $key ] ?? null ) ? $data[ $key ] : ''; }
 	/** The caller holds the member checkout lease; canonical proof and commit share the provider lease. */
-	private static function close_unpaid( array $seed ): bool|WP_Error {
-		return TC_Billing_Store::locked( 'provider:' . $seed['provider'] . ':' . $seed['mode'], static function () use ( $seed ): bool|WP_Error {
+	private static function close_unpaid( array $seed, bool $explicit_cancel = false ): bool|WP_Error {
+		return TC_Billing_Store::locked( 'provider:' . $seed['provider'] . ':' . $seed['mode'], static function () use ( $seed, $explicit_cancel ): bool|WP_Error {
 			$order = TC_Billing_Store::order( $seed['id'] );
 			if ( ! $order || $order['user_id'] !== $seed['user_id'] || $order['discord_id'] !== $seed['discord_id'] || $order['mode'] !== $seed['mode'] || $order['provider'] !== $seed['provider'] ) { return self::error( 'tc_billing_order', 'This order is no longer available.' ); }
 			if ( ! self::provider_ready( $order['provider'], $order['mode'] ) || self::config()['mode'] !== $order['mode'] ) { return self::error( 'tc_billing_unconfigured', 'Keep the original payment provider configured to verify this checkout before closing it.' ); }
 			if ( ! in_array( $order['status'], array( 'pending', 'checkout', 'canceled', 'cancelled' ), true ) || ! empty( $order['payment_id'] ) ) { return self::error( 'tc_billing_not_unpaid', 'This order may have been paid. Refresh its payment status; use cancellation of renewals for an active subscription.' ); }
 			if ( ! in_array( $order['status'], array( 'canceled', 'cancelled' ), true ) ) {
-				$adapter = self::adapter( $order['provider'] ); $closed = $adapter::close_checkout( $order );
+				$adapter = self::adapter( $order['provider'] );
+				$closed = 'paypal' === $order['provider'] ? $adapter::close_checkout( $order, $explicit_cancel ) : $adapter::close_checkout( $order );
 				if ( is_wp_error( $closed ) ) { if ( $order['checkout_id'] || $order['subscription_id'] || $order['payment_id'] ) { self::queue_reconcile( $order ); } return $closed; }
 				if ( true !== $closed ) { return self::error( 'tc_billing_pending', 'The original provider has not confirmed that this checkout is closed.' ); }
 			}
@@ -255,7 +256,7 @@ final class TC_Billing {
 		if ( 'close_checkout' === $operation ) {
 			if ( '1' !== self::scalar( $data, 'confirm_close' ) ) { return self::error( 'tc_billing_confirm', 'Confirm that you want to close this unpaid checkout.' ); }
 			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $identity['user_id'], static function () use ( $order ): array|WP_Error {
-				$closed = self::close_unpaid( $order );
+				$closed = self::close_unpaid( $order, true );
 				return is_wp_error( $closed ) ? $closed : array( 'message' => 'Unpaid checkout closed. You can now choose a payment method.', 'checkout_plan' => $order['plan'] );
 			} );
 		}
@@ -338,7 +339,7 @@ final class TC_Billing {
 				$audit = array( 'order_id' => $order['id'], 'mode' => $mode, 'action' => $operation, 'target_user' => (int) $order['user_id'], 'at' => gmdate( 'Y-m-d H:i:s' ), 'status' => 'requested' );
 				$audit_id = add_user_meta( get_current_user_id(), '_tc_billing_order_audit', $audit );
 				if ( ! $audit_id ) { return self::error( 'tc_billing_audit', 'The administrator action could not be recorded. No provider action was started.' ); }
-				if ( 'order_close' === $operation ) { $result = self::close_unpaid( $order ); }
+				if ( 'order_close' === $operation ) { $result = self::close_unpaid( $order, true ); }
 				elseif ( 'order_recover_stripe' === $operation ) {
 					if ( 'stripe' !== $order['provider'] ) { $result = self::error( 'tc_billing_provider', 'Stripe recovery is only available for Stripe checkouts.' ); }
 					else { $result = self::recover_stripe_checkout( $order, self::scalar( $data, 'stripe_session_id' ) ); }
