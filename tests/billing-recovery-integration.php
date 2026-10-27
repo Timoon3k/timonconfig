@@ -199,6 +199,47 @@ try {
     $assert( 1 === count( array_filter( $audits, static fn( $x ) => is_array( $x ) && ( $x['order_id'] ?? '' ) === $uncertain[0]['id'] && ( $x['action'] ?? '' ) === 'order_recover_stripe' && ( $x['status'] ?? '' ) === 'accepted' ) ), 'Recovery is attributed to a WordPress financial administrator in the audit trail.' );
 
 
+
+    // An administrator may explicitly release an old, reference-free LOCAL
+    // blocker when provider API credentials are unusable. No Stripe/PayPal
+    // request, charge, entitlement mutation or remote cancellation may occur.
+    wp_set_current_user( $users['admin'] );
+    $local = $must( TC_Billing_Store::create_order( $users['other'], $ids['other'], 'stripe', 'test', 'lifetime' ) );
+    $reason = 'Checked the Stripe Test dashboard and found no settled charge for this order.';
+    $local_cmd = array_merge( $admin( 'order_close_local', $local ), array( 'local_close_reason' => $reason, 'ack_remote_risk' => '1' ) );
+    $before = $writes();
+    $assert( $error_is( TC_Billing::admin_perform( $local_cmd ), 'billing_local_close_ineligible' ) && 'pending' === TC_Billing_Store::order( $local['id'] )['status'], 'A fresh potentially in-flight provider creation may not be locally closed.' );
+    $updated = $wpdb->update( $wpdb->prefix . 'tc_billing_orders', array( 'created_at' => gmdate( 'Y-m-d H:i:s', time() - 900 ) ), array( 'id' => $local['id'] ) );
+    $assert( 1 === $updated, 'The isolated fixture may age only its own synthetic local attempt.' );
+    $_GET['tc_billing_search'] = $local['id'];
+    $admin_html = $render_admin_orders(); $local_forms = $forms_for( $admin_html, 'order_close_local' );
+    $assert( 1 === count( $local_forms ) && str_contains( $local_forms[0], 'name="local_close_reason"' ) && str_contains( $local_forms[0], 'name="ack_remote_risk"' ), 'Aged unlinked order exposes a separate clearly warned administrator local-close control.' );
+    $_GET = $old_get;
+    $nonce_bad = $local_cmd; $nonce_bad['_wpnonce'] = 'invalid';
+    $assert( $error_is( TC_Billing::admin_perform( $nonce_bad ), 'tc_billing_forbidden' ), 'Local-only release never accepts invalid administrator nonce.' );
+    $missing_ack = $local_cmd; $missing_ack['ack_remote_risk'] = '0';
+    $assert( $error_is( TC_Billing::admin_perform( $missing_ack ), 'tc_billing_local_ack' ), 'Admin must acknowledge continuing remote charge risk.' );
+    $short_reason = $local_cmd; $short_reason['local_close_reason'] = 'No';
+    $assert( $error_is( TC_Billing::admin_perform( $short_reason ), 'tc_billing_local_ack' ), 'Local release requires a review reason.' );
+    wp_set_current_user( $users['other'] );
+    $assert( $error_is( TC_Billing::admin_perform( $local_cmd ), 'tc_billing_forbidden' ), 'Other customers cannot release their own financial blocker through admin action.' );
+    wp_set_current_user( $users['admin'] );
+    $must( TC_Billing::admin_perform( $local_cmd ) );
+    $assert( 'canceled' === TC_Billing_Store::order( $local['id'] )['status'] &&
+        array() === $must( TC_Billing_Store::checkout_attempts( $users['other'], 'test', 'lifetime' ) ) &&
+        array() === $must( TC_Billing_Store::active( $users['other'], 'test' ) ) &&
+        $before === $writes(), 'Administrator local-only close releases blocker without provider calls or paid access changes.' );
+    $audit_rows = get_user_meta( $users['admin'], '_tc_billing_order_audit' );
+    $local_audits = array_values( array_filter( $audit_rows, static fn( $a ) => is_array( $a ) && ( $a['order_id'] ?? '' ) === $local['id'] && ( $a['action'] ?? '' ) === 'order_close_local' && ( $a['status'] ?? '' ) === 'accepted' ) );
+    $assert( 1 === count( $local_audits ) && $reason === $local_audits[0]['reason'] && false === $local_audits[0]['remote_canceled'] && $users['other'] === $local_audits[0]['target_user'], 'Administratively released attempt retains an audit reason and explicitly records remote cancellation as false.' );
+    $assert( is_wp_error( TC_Billing::admin_perform( $local_cmd ) ), 'A locally released attempt cannot be freed again.' );
+    $local_with_ref = $must( TC_Billing_Store::create_order( $users['other'], $ids['other'], 'stripe', 'test', 'lifetime' ) );
+    $must( TC_Billing_Store::update_order( $local_with_ref['id'], array( 'checkout_id' => 'cs_test_' . $tag . '_linked', 'status' => 'checkout' ) ) );
+    $wpdb->update( $wpdb->prefix . 'tc_billing_orders', array( 'created_at' => gmdate( 'Y-m-d H:i:s', time() - 900 ) ), array( 'id' => $local_with_ref['id'] ) );
+    $assert( $error_is( TC_Billing::admin_perform( array_merge( $local_cmd, array( 'order_id' => $local_with_ref['id'] ) ) ), 'billing_local_close_ineligible' ) &&
+        'checkout' === TC_Billing_Store::order( $local_with_ref['id'] )['status'], 'A checkout with a Stripe session reference cannot be canceled using local-only authority.' );
+    $assert( $before === $writes(), 'Local-only operations never trigger a provider write.' );
+
     $raced = $make_order( 'race', 'race' ); wp_set_current_user( $users['race'] ); $fault = 'paid-race'; $racing = TC_Billing::perform( $close( $raced ) ); $fault = '';
     $assert( is_wp_error( $racing ) && 'complete' === $sessions[ $raced['checkout_id'] ]['status'] && 'checkout' === TC_Billing_Store::order( $raced['id'] )['status'], 'A payment completing during expiration remains unresolved instead of being falsely canceled locally.' );
     $paid = $must( TC_Billing_Store::create_order( $users['active'], $ids['active'], 'stripe', 'test', 'monthly' ) );
