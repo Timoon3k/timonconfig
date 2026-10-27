@@ -1,0 +1,37 @@
+name: Temporary package Core 0.9.9 and Theme 0.11.3
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/export-core-099-0113.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout published and tested main snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: d1e4a758c0069eb8e5831e108a882e78e371d7ce
+          persist-credentials: false
+      - name: Create installable WordPress archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'Version: 0.9.9' wp-content/plugins/timonconfigs-core/timonconfigs-core.php
+          grep -Fq 'Version: 0.11.3' wp-content/themes/timonconfigs/style.css
+          mkdir -p output
+          (cd wp-content/plugins && zip -q -r ../../output/timonconfigs-core-0.9.9.zip timonconfigs-core)
+          (cd wp-content/themes && zip -q -r ../../output/timonconfigs-theme-0.11.3.zip timonconfigs)
+          unzip -t output/timonconfigs-core-0.9.9.zip >/dev/null
+          unzip -t output/timonconfigs-theme-0.11.3.zip >/dev/null
+          sha256sum output/*.zip
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: timonconfigs-core-099-theme-0113-d1e4a75
+          path: output/*.zip
+          if-no-files-found: error
+          retention-days: 2
