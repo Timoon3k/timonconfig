@@ -297,20 +297,52 @@ final class TC_Billing {
 		$destination = in_array( $result['checkout_plan'] ?? '', array( 'monthly', 'lifetime' ), true ) ? TC_Checkout::get_checkout_url( $result['checkout_plan'] ) : home_url( '/account/' );
 		wp_safe_redirect( $destination, 303 ); exit;
 	}
+	/**
+	 * Recover a lost Stripe session reference, but only after canonical Stripe
+	 * proves it belongs to this still-unpaid order. Never reset by age or guess.
+	 * The surrounding member checkout lease is held by admin_perform().
+	 */
+	private static function recover_stripe_checkout( array $seed, string $session_id ): bool|WP_Error {
+		$mode = $seed['mode'];
+		$linked = TC_Billing_Store::locked( 'provider:stripe:' . $mode, static function () use ( $seed, $session_id, $mode ): bool|WP_Error {
+			$current = TC_Billing_Store::order( $seed['id'] );
+			if ( ! $current || $current['provider'] !== 'stripe' || $current['mode'] !== $mode ||
+				$current['user_id'] !== $seed['user_id'] || $current['discord_id'] !== $seed['discord_id'] ||
+				self::config()['mode'] !== $mode ) { return self::error( 'tc_billing_order', 'The order changed. Reload its details before recovery.' ); }
+			if ( ! is_string( $session_id ) || ! preg_match( '/^cs_' . preg_quote( $mode, '/' ) . '_[A-Za-z0-9_]+$/D', $session_id ) ) {
+				return self::error( 'stripe_checkout_recovery_id', 'Enter a Checkout Session ID from the selected Stripe environment.' );
+			}
+			if ( ! TC_Billing_Store::stripe_session_unclaimed( $mode, $session_id ) ) {
+				return self::error( 'tc_billing_session_claimed', 'This Stripe session is already assigned to an order, or its reference cannot be verified.' );
+			}
+			$verified = TC_Billing_Stripe::inspect_unlinked_checkout( $current, $session_id );
+			if ( is_wp_error( $verified ) ) { return $verified; }
+			return TC_Billing_Store::update_order( $current['id'], array( 'checkout_id' => $session_id ) );
+		} );
+		if ( is_wp_error( $linked ) ) { return $linked; }
+		// Acquire fresh proof and expire the actual session. If payment races us,
+		// keep the reference and the unresolved order for safe reconciliation.
+		return self::close_unpaid( $seed );
+	}
+
 	public static function admin_perform( array $data ): bool|WP_Error {
 		if ( ! current_user_can( 'manage_options' ) || ! wp_verify_nonce( self::scalar( $data, '_wpnonce' ), 'tc_billing_admin' ) ) { return self::error( 'tc_billing_forbidden', 'Administrator authorization is required.' ); }
 		$operation = self::scalar( $data, 'operation' ); $uid = absint( $data['user_id'] ?? 0 ); $mode = self::scalar( $data, 'mode' );
 		if ( ! in_array( $mode, array( 'test', 'live' ), true ) ) { return self::error( 'tc_billing_mode', 'Choose Test or Live.' ); }
-		if ( in_array( $operation, array( 'order_refresh', 'order_close', 'order_cancel' ), true ) ) {
+		if ( in_array( $operation, array( 'order_refresh', 'order_close', 'order_cancel', 'order_recover_stripe' ), true ) ) {
 			if ( ! TC_Billing_Secrets::secure_transport() ) { return self::error( 'tc_billing_https', 'Secure HTTPS administration is required.' ); }
 			$order = TC_Billing_Store::order( self::scalar( $data, 'order_id' ) );
 			if ( ! $order || $order['mode'] !== $mode || self::config()['mode'] !== $mode || ! self::provider_ready( $order['provider'], $mode ) ) { return self::error( 'tc_billing_order', 'Choose an order from the currently configured payment environment.' ); }
 			if ( 'order_refresh' !== $operation && '1' !== self::scalar( $data, 'confirm_order' ) ) { return self::error( 'tc_billing_confirm', 'Confirm the selected order action.' ); }
-			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $order['user_id'], static function () use ( $order, $operation, $mode ): bool|WP_Error {
+			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $order['user_id'], static function () use ( $order, $operation, $mode, $data ): bool|WP_Error {
 				$audit = array( 'order_id' => $order['id'], 'mode' => $mode, 'action' => $operation, 'target_user' => (int) $order['user_id'], 'at' => gmdate( 'Y-m-d H:i:s' ), 'status' => 'requested' );
 				$audit_id = add_user_meta( get_current_user_id(), '_tc_billing_order_audit', $audit );
 				if ( ! $audit_id ) { return self::error( 'tc_billing_audit', 'The administrator action could not be recorded. No provider action was started.' ); }
 				if ( 'order_close' === $operation ) { $result = self::close_unpaid( $order ); }
+				elseif ( 'order_recover_stripe' === $operation ) {
+					if ( 'stripe' !== $order['provider'] ) { $result = self::error( 'tc_billing_provider', 'Stripe recovery is only available for Stripe checkouts.' ); }
+					else { $result = self::recover_stripe_checkout( $order, self::scalar( $data, 'stripe_session_id' ) ); }
+				}
 				else {
 					$result = TC_Billing_Store::locked( 'provider:' . $order['provider'] . ':' . $mode, static function () use ( $order, $operation, $mode ): bool|WP_Error {
 						$current = TC_Billing_Store::order( $order['id'] );

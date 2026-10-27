@@ -153,7 +153,7 @@ final class TC_Billing_UI {
 		if ( ! current_user_can( 'manage_options' ) ) { return; }
 		$mode = TC_Billing::config()['mode'];
 		$search = is_string( $_GET['tc_billing_search'] ?? null ) ? trim( wp_unslash( $_GET['tc_billing_search'] ) ) : '';
-		echo '<section id="tc-billing-orders"><h2>Customer orders</h2><p>WordPress administrators can refresh a customer’s payment status, close a verified unpaid checkout, or stop future subscription renewals. Closing an unpaid checkout does not refund a payment. Canceling renewal preserves already paid access. Discord Owner publishing access alone does not grant billing administration.</p>';
+		echo '<section id="tc-billing-orders"><h2>Customer orders</h2><p>WordPress administrators can refresh a customer’s payment status, close a verified unpaid checkout, recover a missing Stripe session ID from the Stripe Dashboard after verifying its ownership, or stop future subscription renewals. Closing an unpaid checkout does not refund a payment. Canceling renewal preserves already paid access. Discord Owner publishing access alone does not grant billing administration.</p>';
 		echo '<form method="get" action="' . esc_url( admin_url( 'options-general.php' ) ) . '"><input type="hidden" name="page" value="tc-billing"><p><label for="tc-billing-order-search">WordPress user ID, Discord user ID or order ID</label><br><input type="search" class="regular-text" id="tc-billing-order-search" name="tc_billing_search" maxlength="36" value="' . esc_attr( strlen( $search ) <= 36 ? $search : '' ) . '"> <button type="submit" class="button">Find orders</button></p></form><p>Showing up to 20 orders in ' . esc_html( ucfirst( $mode ) ) . '.</p>';
 		if ( strlen( $search ) > 36 ) { echo '<p role="status">Enter a valid user ID or order ID.</p></section>'; return; }
 		$orders = TC_Billing_Store::admin_orders( $mode, $search, 20 );
@@ -166,6 +166,12 @@ final class TC_Billing_UI {
 			self::start( 'order_refresh', $fields, true ); echo '<button type="submit" class="button">Refresh payment status</button></form>';
 			if ( in_array( $order['status'], array( 'pending', 'checkout' ), true ) ) {
 				self::start( 'order_close', $fields, true ); echo '<p><label><input type="checkbox" name="confirm_order" value="1" required> Close only if the provider verifies this checkout is unpaid and cannot charge.</label></p><button type="submit" class="button">Close unpaid checkout</button></form>';
+			}
+			if ( 'stripe' === $order['provider'] && in_array( $order['status'], array( 'pending', 'checkout' ), true ) &&
+				empty( $order['checkout_id'] ) && empty( $order['subscription_id'] ) && empty( $order['payment_id'] ) && empty( $order['customer_id'] ) ) {
+				self::start( 'order_recover_stripe', $fields, true );
+				echo '<p><label>Missing Stripe Checkout Session ID (from Stripe Dashboard)<br><input name="stripe_session_id" class="regular-text" maxlength="160" placeholder="cs_' . esc_attr( $mode ) . '_..." required></label></p>';
+				echo '<p><label><input type="checkbox" name="confirm_order" value="1" required> Confirm exact Stripe session ownership and close only after verification as unpaid.</label></p><button type="submit" class="button">Verify and recover Stripe checkout</button></form>';
 			}
 			if ( 'monthly' === $order['plan'] && ! empty( $order['subscription_id'] ) && empty( $order['cancel_at_period_end'] ) && ! in_array( $order['status'], array( 'canceled', 'cancelled' ), true ) ) {
 				self::start( 'order_cancel', $fields, true ); echo '<p><label><input type="checkbox" name="confirm_order" value="1" required> Stop this customer’s future renewals and retain verified prepaid access.</label></p><button type="submit" class="button">Cancel auto-renewal</button></form>';
