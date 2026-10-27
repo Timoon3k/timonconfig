@@ -133,11 +133,24 @@ try {
         $assert( ! str_contains( $partial_text, '{{' ) && ! preg_match( '/mailto:\s*["\x27]|address is\s*\.|,\s*,/i', $partial_text ) && str_contains( $partial_text, home_url( '/contact/' ) ), 'A policy with omitted address/email uses its actual Contact route and contains no blank contact placeholders: ' . $slug );
     }
     if ( method_exists( TC_Site::class, 'maybe_publish_owner_legal_release' ) ) {
-        delete_option( 'timonconfigs_owner_legal_release' ); wp_set_current_user( $member ); $before_auto = $state();
+        // Simulate an already published 0.9.6 release with the former empty contact fields.
+        update_option( 'timonconfigs_owner_legal_release', '2026-10-26-legal-v1', false ); wp_set_current_user( $member ); $before_auto = $state();
         TC_Site::maybe_publish_owner_legal_release();
         $assert( $before_auto === $state(), 'An ordinary member request cannot perform the owner-authorized legal publication migration.' );
-        wp_set_current_user( $admin ); TC_Site::maybe_publish_owner_legal_release();
-        $assert( false !== get_option( 'timonconfigs_owner_legal_release' ) && TC_Legal::published(), 'The authorized administrator migration records completion only after the legal pages are published.' );
+        wp_set_current_user( $admin );
+        $wpdb->query( 'SAVEPOINT tc_legal_contact_failure' ); add_filter( 'wp_insert_post_data', $downgrade, 99 );
+        TC_Site::maybe_publish_owner_legal_release(); remove_filter( 'wp_insert_post_data', $downgrade, 99 );
+        $assert( '2026-10-26-legal-v1' === get_option( 'timonconfigs_owner_legal_release' ), 'An unsuccessful contact upgrade does not record the new release as completed.' );
+        $wpdb->query( 'ROLLBACK TO SAVEPOINT tc_legal_contact_failure' ); wp_cache_flush();
+        TC_Site::maybe_publish_owner_legal_release();
+        $assert( '2026-10-26-legal-v2' === get_option( 'timonconfigs_owner_legal_release' ) && TC_Legal::published(), 'The authorized administrator migration upgrades the old release only after the legal pages are published.' );
+        $contact_defaults = apply_filters( 'timonconfigs_legal_defaults', array() ); $updated_profile = TC_Legal::profile();
+        $assert( $updated_profile['seller_email'] === $contact_defaults['seller_email'] && $updated_profile['seller_address'] === $contact_defaults['seller_address'] && '' !== $updated_profile['seller_address'], 'The v2 update replaces stored empty contact fields with the owner-supplied address and email.' );
+        $assert( $updated_profile['seller_name'] === $partial['seller_name'] && $updated_profile['seller_registration'] === $partial['seller_registration'], 'The contact update preserves the other administrator-saved identity and business fields.' );
+        foreach ( TC_Legal::pages() as $slug => $title ) {
+            $updated_page = get_page_by_path( $slug, OBJECT, 'page' );
+            $assert( $updated_page->ID === $ids[ $slug ] && 'publish' === $updated_page->post_status && str_contains( $updated_page->post_content, esc_html( $contact_defaults['seller_address'] ) ) && str_contains( $updated_page->post_content, 'mailto:' . $contact_defaults['seller_email'] ), 'The existing published policy receives the new contact information without changing its ID: ' . $slug );
+        }
         $after_auto = $state(); TC_Site::maybe_publish_owner_legal_release();
         $assert( $after_auto === $state(), 'A repeated administrator initialization does not rewrite documents or create more legal archives.' );
     }

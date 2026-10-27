@@ -2,7 +2,7 @@
 /**
  * Plugin Name: TimonConfigs Core
  * Description: TimonConfigs private configuration library, Discord membership and website billing and protected membership access.
- * Version: 0.9.6
+ * Version: 0.9.7
  * Author: TimonConfigs
  * Text Domain: timonconfigs-core
  * Requires at least: 6.5
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_CORE_VERSION', '0.9.6' );
+define( 'TIMONCONFIGS_CORE_VERSION', '0.9.7' );
 define( 'TIMONCONFIGS_CORE_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-tc-checkout.php';
@@ -37,9 +37,9 @@ require_once __DIR__ . '/includes/class-tc-legal.php';
 require_once __DIR__ . '/includes/class-tc-site.php';
 
 // Public seller details and final totals supplied by the site owner for this release.
-// Optional contact data remains empty rather than being inferred or invented.
+// Address spelling and contact information are the details supplied by the owner.
 add_filter( 'timonconfigs_legal_defaults', static function ( array $defaults ): array {
-	return array_merge( array( 'seller_name' => 'Tomasz Majewski', 'seller_registration' => 'Unregistered business activity in Poland', 'seller_address' => '', 'seller_email' => '', 'seller_phone' => '', 'prices_confirmed' => true ), $defaults );
+	return array_merge( array( 'seller_name' => 'Tomasz Majewski', 'seller_registration' => 'Unregistered business activity in Poland', 'seller_address' => 'TimonConfigs, ul. Dąbrowica 21, 05-326 Poświetne, Poland', 'seller_email' => 'contact@timonconfigs.com', 'seller_phone' => '', 'prices_confirmed' => true ), $defaults );
 } );
 
 add_action(

@@ -1,3 +1,13 @@
+# Następna sesja — kontakt prawny, 2026-10-27
+
+Core0.9.7 uzupełnia podany kontakt: contact@timonconfigs.com, TimonConfigs, ul. Dąbrowica 21, 05-326 Poświetne, Poland. Zachowaj pisownię użytkownika i działalność nierejestrowaną; wcześniejszy brak adresu/e-maila jest historyczny. Patrz `docs/LEGAL_CONTACT_UPDATE_0.9.7.md`. Migracja admin_init legal-v2 obsługuje stare zapisane puste pola i v1; po aktualizacji wtyczki otwórz kokpitadministrator, potem sprawdź publiczne treści/cache. Lokalnie wszystkie trzy strony publish mają dane, Hostinger bez potwierdzonej instalacji.
+
+Zaliczone: 61PHPpublikator, 161browser/12widoków/2redirecty,100freshZIP, lintzmienionychplików. Nie powtarzaj szerokiego audytu dla zmiany kontaktu. Zachowaj płatności/OAuth/role i dane klientów. Bieżące dalsze zadanie użytkownika: Lifetime€80 jako MostPopular, benefity obuVIP250unikatowychskryptów o deklarowanejwartości€10,000, diagnostyka niewidocznychStripe/PayPal oraz sprawdzenie publicznegoSEO. ZrzutStripepokazujeuciętyURLstaging.timon..., dokładnyerrorcheckoutpending; nie zakładajprzyczyny bezkodu.
+
+---
+
+## Historyczne przekazania — aktualne dane powyżej mają pierwszeństwo
+
 # Następna sesja — opublikowane regulaminy, 2026-10-26
 
 Kontynuuj Core0.9.6/theme0.11.2, kod `2109f39` już wypchnięty na GitHub main (potwierdzony zdalny ref); przeczytaj początek PROGRESS oraz `docs/LEGAL_PUBLICATION_0.9.6.md`. Właściciel wyraźnie zlecił published + push, więc nie przywracaj historycznej blokady draft-only. Trzy regulaminy są faktycznie opublikowane lokalnie. Kod aktualizuje je jednorazowo po wejściu administratora do kokpitu na zaktualizowanej instalacji, z archiwum oryginałów i 301 starych Cookie/Lifetime stron. Ustawienia → Legal documents edytuje dane i ponownie publikuje treści.

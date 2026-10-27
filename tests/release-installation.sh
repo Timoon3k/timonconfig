@@ -5,7 +5,7 @@ set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.11.2.zip}")"
-core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.9.6.zip}")"
+core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.9.7.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
 db_image='mariadb:11.4'
@@ -147,6 +147,7 @@ TC_Site::maybe_publish_owner_legal_release();
 foreach ( TC_Legal::pages() as $legal_slug => $legal_title ) {
 	$legal_page = get_page_by_path( $legal_slug, OBJECT, 'page' );
 	$expect( $legal_page instanceof WP_Post && 'publish' === $legal_page->post_status && ! str_contains( $legal_page->post_content, 'Draft policy' ) && ! str_contains( $legal_page->post_content, '{{' ), 'owner-authorized legal release is published without placeholders: ' . $legal_slug );
+	$expect( str_contains( $legal_page->post_content, 'TimonConfigs, ul. Dąbrowica 21, 05-326 Poświetne, Poland' ) && str_contains( $legal_page->post_content, 'mailto:contact@timonconfigs.com' ), 'the supplied postal address and direct email are published: ' . $legal_slug );
 }
 foreach ( array( 'account', 'my-downloads' ) as $member_slug ) {
 	$member_page = get_page_by_path( $member_slug, OBJECT, 'page' );

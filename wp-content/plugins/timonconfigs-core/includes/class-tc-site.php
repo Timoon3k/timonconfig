@@ -20,10 +20,14 @@ final class TC_Site {
 
 	/** Explicit owner-authorized release: only an administrator request may publish the new documents. */
 	public static function maybe_publish_owner_legal_release(): void {
-		if ( ! current_user_can( 'manage_options' ) || '2026-10-26-legal-v1' === get_option( 'timonconfigs_owner_legal_release' ) || ! class_exists( 'TC_Legal' ) || ! TC_Legal::ready() ) { return; }
-		$result = TC_Legal::publish( TC_Legal::profile() );
+		if ( ! current_user_can( 'manage_options' ) || '2026-10-26-legal-v2' === get_option( 'timonconfigs_owner_legal_release' ) || ! class_exists( 'TC_Legal' ) || ! TC_Legal::ready() ) { return; }
+		// Apply the newly supplied contact details even when 0.9.6 saved empty fields.
+		// Only these two fields are updated; preserve other administrator-saved seller details.
+		$defaults = apply_filters( 'timonconfigs_legal_defaults', array() );
+		$profile = array_replace( TC_Legal::profile(), array_intersect_key( is_array( $defaults ) ? $defaults : array(), array( 'seller_address' => true, 'seller_email' => true ) ) );
+		$result = TC_Legal::publish( $profile );
 		if ( is_wp_error( $result ) ) { set_transient( 'tc_legal_release_error', $result->get_error_message(), DAY_IN_SECONDS ); return; }
-		update_option( 'timonconfigs_owner_legal_release', '2026-10-26-legal-v1', false );
+		update_option( 'timonconfigs_owner_legal_release', '2026-10-26-legal-v2', false );
 		delete_transient( 'tc_legal_release_error' );
 	}
 

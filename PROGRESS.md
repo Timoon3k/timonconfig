@@ -1,3 +1,9 @@
+## Kontakt w opublikowanych regulaminach — 2026-10-27
+
+- Core **0.9.7**, motyw **0.11.2** bez zmian. Właściciel uzupełnił e-mail `contact@timonconfigs.com` i adres **TimonConfigs, ul. Dąbrowica 21, 05-326 Poświetne, Poland**. Zachowano podaną pisownię miejscowości, nazwę Tomasz Majewski oraz wcześniejszą formę działalności nierejestrowanej. Nie poświadczano niezależnie adresu ani działania skrzynki.
+- Nowa jednorazowa migracja `legal-v2` zastępuje dwa pola kontaktowe również w instalacji 0.9.6 z zapisanymi pustymi wartościami i ukończonym `v1`. Zachowuje inne dane administratora, ID i status publish wszystkich trzech stron oraz prywatne archiwum. Późniejsze wejścia po sukcesie nie nadpisują edycji. Brak zmian billing/OAuth, sekretów i zamówień.
+- **61 asercji publikatora** zaliczonych, w tym aktualizacja v1, błąd bez znacznika sukcesu i idempotencja. **161 asercji przeglądarkowych**, 12 widoków/2przekierowania: rzeczywisty adres i link mailto na wszystkich stronach. Lint3 zmienionych PHP/JS/diff poprawny. **100 kontroli świeżej instalacji ZIP** zaliczonych na osobnym offline WP6.8.3/PHP8.2. Lokalnie dane już opublikowane; Hostinger nie był aktualizowany. Core25plików zgodnych ze źródłami; `artifacts/legal-097-release-manifest.json`, instrukcja `docs/LEGAL_CONTACT_UPDATE_0.9.7.md`.
+
 ## Opublikowane regulaminy — 2026-10-26
 
 - Kontynuacja GitHub main `c08026b`, Core **0.9.6** / motyw **0.11.2**. Właściciel jawnie zlecił podmianę treści, status published i push. Kod `2109f39` wypchnięto fast-forward na GitHub main i potwierdzono zdalny ref. Trzy pełne angielskie dokumenty: Terms of Service, Privacy Policy, Refund & Cancellation Policy, bez Draft i niewypełnionych makr. Lokalnie opublikowano je i sprawdzono w działającym WordPressie; to nie jest potwierdzenie instalacji na Hostingerze.
