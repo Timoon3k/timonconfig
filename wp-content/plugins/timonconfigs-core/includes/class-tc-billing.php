@@ -326,20 +326,48 @@ final class TC_Billing {
 		return self::close_unpaid( $seed );
 	}
 
+	/**
+	 * Break a stale LOCAL checkout blocker without asserting a Stripe/PayPal
+	 * cancellation. Only administrators who reviewed the provider can do this.
+	 * A later verified provider payment remains an independent financial fact.
+	 */
+	private static function close_local_unlinked( array $seed ): bool|WP_Error {
+		return TC_Billing_Store::locked( 'provider:' . $seed['provider'] . ':' . $seed['mode'], static function () use ( $seed ): bool|WP_Error {
+			$order = TC_Billing_Store::order( $seed['id'] );
+			if ( ! $order || $order['id'] !== $seed['id'] || $order['user_id'] !== $seed['user_id'] ||
+				$order['discord_id'] !== $seed['discord_id'] || $order['mode'] !== $seed['mode'] ||
+				$order['provider'] !== $seed['provider'] || self::config()['mode'] !== $seed['mode'] ) {
+				return self::error( 'tc_billing_order', 'The order changed. Reload its details.' );
+			}
+			// The transactional store method checks the same conditions again under
+			// a row lock, plus entitlement history, to prevent concurrent late writes.
+			return TC_Billing_Store::close_unpaid_order( $order['id'], true );
+		} );
+	}
+
 	public static function admin_perform( array $data ): bool|WP_Error {
 		if ( ! current_user_can( 'manage_options' ) || ! wp_verify_nonce( self::scalar( $data, '_wpnonce' ), 'tc_billing_admin' ) ) { return self::error( 'tc_billing_forbidden', 'Administrator authorization is required.' ); }
 		$operation = self::scalar( $data, 'operation' ); $uid = absint( $data['user_id'] ?? 0 ); $mode = self::scalar( $data, 'mode' );
 		if ( ! in_array( $mode, array( 'test', 'live' ), true ) ) { return self::error( 'tc_billing_mode', 'Choose Test or Live.' ); }
-		if ( in_array( $operation, array( 'order_refresh', 'order_close', 'order_cancel', 'order_recover_stripe' ), true ) ) {
+		if ( in_array( $operation, array( 'order_refresh', 'order_close', 'order_cancel', 'order_recover_stripe', 'order_close_local' ), true ) ) {
 			if ( ! TC_Billing_Secrets::secure_transport() ) { return self::error( 'tc_billing_https', 'Secure HTTPS administration is required.' ); }
 			$order = TC_Billing_Store::order( self::scalar( $data, 'order_id' ) );
-			if ( ! $order || $order['mode'] !== $mode || self::config()['mode'] !== $mode || ! self::provider_ready( $order['provider'], $mode ) ) { return self::error( 'tc_billing_order', 'Choose an order from the currently configured payment environment.' ); }
+			if ( ! $order || $order['mode'] !== $mode || self::config()['mode'] !== $mode || ( 'order_close_local' !== $operation && ! self::provider_ready( $order['provider'], $mode ) ) ) { return self::error( 'tc_billing_order', 'Choose an order from the currently configured payment environment.' ); }
 			if ( 'order_refresh' !== $operation && '1' !== self::scalar( $data, 'confirm_order' ) ) { return self::error( 'tc_billing_confirm', 'Confirm the selected order action.' ); }
-			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $order['user_id'], static function () use ( $order, $operation, $mode, $data ): bool|WP_Error {
+			$local_reason = '';
+			if ( 'order_close_local' === $operation ) {
+				$local_reason = trim( sanitize_textarea_field( self::scalar( $data, 'local_close_reason' ) ) );
+				if ( '1' !== self::scalar( $data, 'ack_remote_risk' ) || strlen( $local_reason ) < 15 || strlen( $local_reason ) > 300 ) {
+					return self::error( 'tc_billing_local_ack', 'Review provider activity, acknowledge that this does not cancel any remote payment, and enter a reason (15–300 characters).' );
+				}
+			}
+			return TC_Billing_Store::locked( 'checkout:' . $mode . ':' . $order['user_id'], static function () use ( $order, $operation, $mode, $data, $local_reason ): bool|WP_Error {
 				$audit = array( 'order_id' => $order['id'], 'mode' => $mode, 'action' => $operation, 'target_user' => (int) $order['user_id'], 'at' => gmdate( 'Y-m-d H:i:s' ), 'status' => 'requested' );
+				if ( 'order_close_local' === $operation ) { $audit['reason'] = $local_reason; $audit['remote_canceled'] = false; }
 				$audit_id = add_user_meta( get_current_user_id(), '_tc_billing_order_audit', $audit );
 				if ( ! $audit_id ) { return self::error( 'tc_billing_audit', 'The administrator action could not be recorded. No provider action was started.' ); }
 				if ( 'order_close' === $operation ) { $result = self::close_unpaid( $order, true ); }
+				elseif ( 'order_close_local' === $operation ) { $result = self::close_local_unlinked( $order ); }
 				elseif ( 'order_recover_stripe' === $operation ) {
 					if ( 'stripe' !== $order['provider'] ) { $result = self::error( 'tc_billing_provider', 'Stripe recovery is only available for Stripe checkouts.' ); }
 					else { $result = self::recover_stripe_checkout( $order, self::scalar( $data, 'stripe_session_id' ) ); }
