@@ -248,12 +248,12 @@ final class TC_Billing_Store {
 	 * checkout and provider leases while obtaining proof and invoking this method.
 	 * Financial history is retained and cannot be relabelled as an unpaid attempt.
 	 */
-	public static function close_unpaid_order( string $id ): bool|WP_Error {
+	public static function close_unpaid_order( string $id, bool $local_only = false ): bool|WP_Error {
 		global $wpdb;
 		$seed = self::order( $id );
 		if ( '' !== $wpdb->last_error ) { return self::error( 'billing_order_read_failed' ); }
 		if ( ! $seed ) { return self::error( 'billing_order_missing' ); }
-		return self::transaction( static function () use ( $wpdb, $id, $seed ) {
+		return self::transaction( static function () use ( $wpdb, $id, $seed, $local_only ) {
 			$leases = array();
 			foreach ( array( 'provider:' . $seed['provider'] . ':' . $seed['mode'], 'checkout:' . $seed['mode'] . ':' . $seed['user_id'] ) as $lease_key ) {
 				$key = hash( 'sha256', $lease_key ); $nonce = self::$held_leases[ $key ] ?? '';
@@ -265,6 +265,16 @@ final class TC_Billing_Store {
 			if ( '' !== $wpdb->last_error ) { return self::error( 'billing_order_read_failed' ); }
 			if ( ! $order || ! self::same_identity( $order, $seed ) ) { return self::error( 'billing_order_missing' ); }
 			if ( ! in_array( $order['status'], array( 'pending', 'checkout', 'canceled', 'cancelled' ), true ) || ! empty( $order['payment_id'] ) ) { return self::error( 'billing_order_not_unpaid' ); }
+			// A LOCAL closure is not a provider cancellation. Limit it to old,
+			// completely unlinked attempts; no session, customer, charge or
+			// subscription can be detached or mislabeled as canceled remotely.
+			if ( $local_only ) {
+				$created = strtotime( $order['created_at'] . ' UTC' );
+				if ( ! in_array( $order['status'], array( 'pending', 'checkout' ), true ) ||
+					! empty( $order['checkout_id'] ) || ! empty( $order['customer_id'] ) ||
+					! empty( $order['subscription_id'] ) || ! empty( $order['payment_id'] ) ||
+					false === $created || $created > time() - 600 ) { return self::error( 'billing_local_close_ineligible' ); }
+			}
 			$linked = 'order_id=%s'; $values = array( $id );
 			$external = array_values( array_filter( array( $order['checkout_id'], $order['subscription_id'] ), static fn( mixed $value ): bool => is_string( $value ) && '' !== $value ) );
 			if ( $external ) {
@@ -276,7 +286,8 @@ final class TC_Billing_Store {
 			if ( $history ) { return self::error( 'billing_order_not_unpaid' ); }
 			if ( in_array( $order['status'], array( 'canceled', 'cancelled' ), true ) ) { return true; }
 			$provider = $leases[0]; $checkout = $leases[1];
-			$sql = $wpdb->prepare( 'UPDATE ' . self::table( 'orders' ) . " SET status='canceled', updated_at=%s WHERE id=%s AND status IN ('pending','checkout') AND COALESCE(payment_id,'')='' AND EXISTS (SELECT 1 FROM " . self::table( 'leases' ) . ' WHERE lease_key=%s AND nonce=%s AND expires_at>UTC_TIMESTAMP()) AND EXISTS (SELECT 1 FROM ' . self::table( 'leases' ) . ' WHERE lease_key=%s AND nonce=%s AND expires_at>UTC_TIMESTAMP())', self::now(), $id, $provider[0], $provider[1], $checkout[0], $checkout[1] );
+			$unlinked_guard = $local_only ? " AND COALESCE(checkout_id,'')='' AND COALESCE(customer_id,'')='' AND COALESCE(subscription_id,'')=''" : '';
+			$sql = $wpdb->prepare( 'UPDATE ' . self::table( 'orders' ) . " SET status='canceled', updated_at=%s WHERE id=%s AND status IN ('pending','checkout') AND COALESCE(payment_id,'')=''$unlinked_guard AND EXISTS (SELECT 1 FROM " . self::table( 'leases' ) . ' WHERE lease_key=%s AND nonce=%s AND expires_at>UTC_TIMESTAMP()) AND EXISTS (SELECT 1 FROM ' . self::table( 'leases' ) . ' WHERE lease_key=%s AND nonce=%s AND expires_at>UTC_TIMESTAMP())', self::now(), $id, $provider[0], $provider[1], $checkout[0], $checkout[1] );
 			$changed = $wpdb->query( $sql );
 			return false === $changed ? self::error( 'billing_order_write_failed' ) : ( 1 === $changed ? true : self::error( 'billing_busy' ) );
 		} );
