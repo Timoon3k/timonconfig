@@ -1,0 +1,75 @@
+/* TimonConfigs private digital-VIP checkout — scoped, mobile first, English labels. */
+.tc-vip-checkout{padding:48px 0 88px;min-height:80vh;background:radial-gradient(ellipse at 80% 8%,rgba(255,101,22,.12),transparent 36%),#080b10;color:#f6f7fa}
+.tc-vip-checkout__shell{max-width:1190px}
+.tc-vip-checkout__heading{max-width:900px;margin-bottom:36px}
+.tc-vip-checkout__back{display:inline-flex;align-items:center;gap:8px;color:#bac2ce;font-size:.82rem;font-weight:600;margin-bottom:32px}
+.tc-vip-checkout__back:hover{color:#ff9a57}
+.tc-vip-checkout__eyebrow{display:flex;gap:10px;align-items:center;color:#ff995c;font-weight:800;font-size:.71rem;letter-spacing:.17em;margin-bottom:15px}
+.tc-vip-checkout__eyebrow span{height:3px;width:23px;background:#fa6a1a}
+.tc-vip-checkout h1{font-size:clamp(2.8rem,6.1vw,5.4rem);margin:0 0 13px;line-height:1.04;letter-spacing:-.025em}
+.tc-vip-checkout h1 em{font-style:normal;color:#ff792d}
+.tc-vip-checkout__heading>p{font-size:1.01rem;color:#9faab8;max-width:750px;margin:0 0 20px}
+.tc-vip-checkout__benefits{display:flex;flex-wrap:wrap;gap:11px 22px;font-size:.73rem;color:#bdc4cd;font-weight:700}
+.tc-vip-checkout__benefits span{display:inline-flex;gap:6px;align-items:center}
+.tc-vip-checkout__benefits strong{color:#ff893f}
+.tc-vip-checkout .woocommerce{width:100%;min-width:0}
+.tc-vip-checkout .woocommerce form.checkout,.tc-vip-checkout .woocommerce form.woocommerce-checkout{padding:0;background:none;border:0;box-shadow:none;max-width:none;border-radius:0}
+.tc-vip-checkout__grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.91fr);gap:22px;align-items:start}
+.tc-vip-checkout__customer,.tc-vip-checkout__summary{min-width:0;padding:clamp(23px,3vw,36px);border:1px solid #343c49;background:linear-gradient(153deg,#151b24,#0d1219);border-radius:19px;box-shadow:0 18px 50px rgba(0,0,0,.16)}
+.tc-vip-checkout__summary{border-color:#5e4538;background:linear-gradient(150deg,#1a1b20,#101217);position:relative}
+.tc-vip-checkout__summary:before{content:'';position:absolute;top:-1px;left:24px;right:24px;height:2px;background:linear-gradient(90deg,transparent,#f7782d,transparent)}
+.tc-vip-checkout__step{display:flex;gap:16px;align-items:flex-start;margin-bottom:25px}
+.tc-vip-checkout__step>span{display:grid;place-items:center;width:40px;height:40px;flex-shrink:0;border:1px solid #6e422d;border-radius:10px;background:#2a1a16;color:#ff965d;font-size:.83rem;font-weight:800}
+.tc-vip-checkout__step h2{font-size:1.42rem;letter-spacing:0;margin:0 0 5px;font-weight:700;font-family:Inter,system-ui,sans-serif}
+.tc-vip-checkout__step p{font-size:.77rem;color:#9da8b5;margin:0}
+.tc-vip-checkout__connected{display:flex;align-items:flex-start;gap:11px;border:1px solid #294b43;border-radius:11px;background:rgba(27,95,73,.11);padding:15px;margin-bottom:25px}
+.tc-vip-checkout__connected-dot{display:block;flex-shrink:0;margin-top:6px;width:9px;height:9px;border-radius:50%;background:#41ce90;box-shadow:0 0 12px #41ce9055}
+.tc-vip-checkout__connected strong{font-size:.84rem;color:#c3f8df;display:block}
+.tc-vip-checkout__connected small{font-size:.73rem;display:block;color:#a9c7bb;line-height:1.5;margin-top:3px}
+.tc-vip-checkout .woocommerce-billing-fields .form-row{display:block;width:100%;float:none;clear:both;margin:0 0 18px}
+.tc-vip-checkout .woocommerce-billing-fields label{display:block;margin-bottom:8px;color:#f6f7fa;font-weight:650;font-size:.82rem;line-height:1.5}
+.tc-vip-checkout .woocommerce-billing-fields .optional{font-size:.7rem;color:#8f9ba9}
+.tc-vip-checkout .woocommerce-billing-fields input.input-text,.tc-vip-checkout .woocommerce-billing-fields select,
+.tc-vip-checkout .select2-container .select2-selection--single{width:100%;min-height:52px;padding:12px 14px;border-radius:10px;border:1px solid #485465;background:#111925;color:#f5f7fa;outline:none;font-size:.92rem}
+.tc-vip-checkout .woocommerce-billing-fields input.input-text:focus,.tc-vip-checkout .woocommerce-billing-fields select:focus,
+.tc-vip-checkout .select2-container--focus .select2-selection--single{border-color:#ff7d39;box-shadow:0 0 0 3px rgba(255,125,57,.12)}
+.tc-vip-checkout .select2-container .select2-selection__rendered{color:#f7f9ff!important;line-height:26px!important}
+.tc-vip-checkout .select2-container .select2-selection__arrow{height:100%}
+.tc-vip-checkout #order_review_heading{font:700 1.02rem Inter,system-ui,sans-serif;letter-spacing:0;margin:3px 0 11px}
+.tc-vip-checkout #order_review{width:100%;float:none!important;min-width:0}
+.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table{border:0;background:none;padding:0;width:100%;margin:0 0 24px;border-collapse:collapse}
+.tc-vip-checkout .woocommerce-checkout-review-order-table th,.tc-vip-checkout .woocommerce-checkout-review-order-table td{font-size:.82rem;padding:13px 2px;border:0;border-bottom:1px solid #323944;color:#d8e0ea;overflow-wrap:anywhere}
+.tc-vip-checkout .woocommerce-checkout-review-order-table th:last-child,.tc-vip-checkout .woocommerce-checkout-review-order-table td:last-child{text-align:right}
+.tc-vip-checkout .woocommerce-checkout-review-order-table thead{display:none}
+.tc-vip-checkout .woocommerce-checkout-review-order-table tbody .product-name{font-weight:800;color:#f6f7fa}
+.tc-vip-checkout .woocommerce-checkout-review-order-table .product-quantity{color:#8e9ba9;font-size:.76rem}
+.tc-vip-checkout .woocommerce-checkout-review-order-table tfoot .order-total th,.tc-vip-checkout .woocommerce-checkout-review-order-table tfoot .order-total td{color:#fff;border-top:1px solid #ff782b;font-size:1.18rem;font-weight:900}
+.tc-vip-checkout .woocommerce #payment,.tc-vip-checkout #payment{background:#0c121a!important;border:1px solid #2a3541;border-radius:13px;color:#f6f7fa}
+.tc-vip-checkout #payment ul.payment_methods{padding:16px!important;border-bottom:1px solid #343d48}
+.tc-vip-checkout #payment ul.payment_methods>li{padding:10px 0;border-bottom:1px solid #27303c}
+.tc-vip-checkout #payment ul.payment_methods>li:last-child{border:0}
+.tc-vip-checkout #payment ul.payment_methods label{color:#f7f7f9;font-size:.82rem;font-weight:750;line-height:1.5}
+.tc-vip-checkout #payment ul.payment_methods label img{max-height:21px;width:auto;vertical-align:middle}
+.tc-vip-checkout #payment input[type=radio]{accent-color:#ff792d}
+.tc-vip-checkout #payment div.payment_box{background:#151f2c!important;border-radius:9px!important;color:#d3deeb!important;font-size:.82rem;padding:14px!important;margin:12px 0 8px!important;max-width:100%}
+.tc-vip-checkout #payment div.payment_box:before{border-bottom-color:#151f2c!important}
+.tc-vip-checkout #payment div.payment_box input,.tc-vip-checkout #payment div.payment_box select{max-width:100%}
+.tc-vip-checkout #payment .place-order{padding:17px!important}
+.tc-vip-checkout #payment #place_order{width:100%;float:none;min-height:54px;border:0;background:linear-gradient(105deg,#ff853b,#e85c16)!important;color:#130c09!important;border-radius:10px!important;font-size:.98rem;font-weight:900;letter-spacing:0;box-shadow:0 12px 30px rgba(244,104,32,.18)}
+.tc-vip-checkout #payment #place_order:hover{background:linear-gradient(105deg,#ffa367,#ff7c38)!important}
+.tc-vip-checkout #payment .woocommerce-privacy-policy-text,.tc-vip-checkout #payment .woocommerce-terms-and-conditions-wrapper{color:#a5aebb;font-size:.73rem;line-height:1.6}
+.tc-vip-checkout #payment a,.tc-vip-checkout .woocommerce a{color:#ffad78}
+.tc-vip-checkout .woocommerce-notices-wrapper .woocommerce-error,.tc-vip-checkout .woocommerce-notices-wrapper .woocommerce-info{background:#1f2735!important;border-color:#ff782b!important;color:#fff!important;padding:13px 20px!important;border-radius:10px!important}
+.tc-vip-checkout__safe{font-size:.71rem;color:#9fa9b3;margin-top:15px;text-align:center}
+.tc-vip-checkout__safe span{color:#35c78d}
+.tc-vip-checkout__trust{max-width:810px;margin:28px auto 0;text-align:center;color:#89949f;font-size:.72rem}
+.tc-vip-checkout__unavailable{padding:20px;border:1px solid #995d31;background:#291c15;border-radius:12px}
+/* Restrict modifications to the checkout only. Keep Woo account/subscription screens functional. */
+body:has(.tc-vip-checkout) .tc-menu-toggle,body:has(.tc-vip-checkout) .tc-nav{display:none!important}
+body:has(.tc-vip-checkout) .tc-header__inner{justify-content:center}
+body:has(.tc-vip-checkout) .tc-footer__nav{display:none!important}
+body:has(.tc-vip-checkout) .tc-footer__grid{grid-template-columns:1fr}
+/* Hide generic WooCommerce image placeholders and express wallets on the VIP checkout. */
+.tc-vip-checkout img.woocommerce-placeholder,.tc-vip-checkout img[src*='placeholder'],.tc-vip-checkout .wc-stripe-payment-request-wrapper,.tc-vip-checkout .wc-stripe-payment-request-button-separator,.tc-vip-checkout #wc-stripe-payment-request-wrapper,.tc-vip-checkout .wc-ppcp-express-checkout,.tc-vip-checkout .wc-ppcp-express-checkout-wrapper{display:none!important}
+@media(max-width:820px){.tc-vip-checkout{padding:28px 0 55px}.tc-vip-checkout__grid{grid-template-columns:1fr}.tc-vip-checkout__summary{position:static}.tc-vip-checkout__benefits{gap:10px 14px}.tc-vip-checkout__customer,.tc-vip-checkout__summary{padding:21px 17px}.tc-vip-checkout__step h2{font-size:1.25rem}}
+@media(max-width:420px){.tc-vip-checkout h1{font-size:2.75rem}.tc-vip-checkout__back{margin-bottom:24px}.tc-vip-checkout__benefits span{font-size:.66rem}.tc-vip-checkout .woocommerce-checkout-review-order-table th,.tc-vip-checkout .woocommerce-checkout-review-order-table td{font-size:.77rem}}

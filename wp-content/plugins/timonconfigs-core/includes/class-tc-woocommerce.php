@@ -1,0 +1,543 @@
+<?php
+/**
+ * WooCommerce + ArraySubs are the ONLY payment source of truth. This class never creates or
+ * captures charges; it reconciles independently verified paid WooCommerce data
+ * with only the Discord roles this installation actually assigned.
+ *
+ * @package TimonConfigs_Core
+ */
+defined( 'ABSPATH' ) || exit;
+
+final class TC_Woo_Bridge {
+    private const OPTION = 'timonconfigs_woo';
+    private const TRACKED = '_tc_woo_tracked';
+    private const OWNED = '_tc_woo_owned_roles';
+    private const TOKEN = 'TIMONCONFIGS_WOO_DISCORD_BOT_TOKEN';
+
+    public static function init(): void {
+        add_filter( 'cron_schedules', static function ( array $s ): array {
+            $s['tc_woo_5min'] = array( 'interval' => 300, 'display' => 'TimonConfigs Woo Discord reconciliation' );
+            return $s;
+        } );
+        add_action( 'init', array( __CLASS__, 'schedule' ), 20 );
+        add_action( 'tc_woo_reconcile', array( __CLASS__, 'reconcile' ) );
+        add_action( 'tc_woo_sync_one', array( __CLASS__, 'sync_user' ), 10, 1 );
+        add_action( 'woocommerce_payment_complete', array( __CLASS__, 'order_paid' ) );
+        add_action( 'woocommerce_order_status_changed', array( __CLASS__, 'order_changed' ), 10, 4 );
+        add_action( 'woocommerce_order_refunded', array( __CLASS__, 'order_refunded' ), 10, 2 );
+        // Native ArraySubs 2.0.9 hooks (the documented normalized lifecycle event
+        // is not guaranteed in the released 2.0.9 source tree).
+        add_action( 'arraysubs_data_activated', array( __CLASS__, 'array_native_event' ), 50, 1 );
+        add_action( 'arraysubs_data_status_changed', array( __CLASS__, 'array_native_event' ), 50, 1 );
+        add_action( 'arraysubs_renewal_payment_complete', array( __CLASS__, 'array_native_event' ), 50, 1 );
+        add_action( 'arraysubs_lifecycle_event', array( __CLASS__, 'array_event' ), 10, 2 );
+        add_action( 'woocommerce_checkout_process', array( __CLASS__, 'validate_checkout' ) );
+        add_action( 'woocommerce_store_api_checkout_order_processed', array( __CLASS__, 'validate_store_api_checkout' ) );
+        add_action( 'admin_menu', static function (): void {
+            add_options_page( 'TimonConfigs Woo + Discord', 'TimonConfigs Woo + Discord', 'manage_options', 'tc-woo', array( __CLASS__, 'admin' ) );
+        } );
+        add_action( 'admin_init', static function (): void {
+            register_setting( 'tc_woo', self::OPTION, array( 'type' => 'array', 'sanitize_callback' => array( __CLASS__, 'sanitize' ), 'show_in_rest' => false ) );
+        } );
+        add_action( 'before_woocommerce_init', static function (): void {
+            if ( class_exists( '\\Automattic\\WooCommerce\\Utilities\\FeaturesUtil' ) ) {
+                \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', TIMONCONFIGS_CORE_FILE, true );
+            }
+        } );
+    }
+
+    public static function config(): array {
+        $saved = get_option( self::OPTION, array() );
+        return array_merge( array( 'enabled' => 0, 'public_login' => 1, 'monthly_product' => 0, 'lifetime_product' => 0 ), is_array( $saved ) ? $saved : array() );
+    }
+    public static function sanitize( mixed $input ): array {
+        $old = self::config();
+        if ( ! current_user_can( 'manage_options' ) || ! is_array( $input ) ) { return $old; }
+        $out = array( 'enabled' => empty( $input['enabled'] ) ? 0 : 1, 'public_login' => empty( $input['public_login'] ) ? 0 : 1 );
+        foreach ( array( 'monthly_product', 'lifetime_product' ) as $key ) {
+            $out[ $key ] = absint( $input[ $key ] ?? 0 );
+        }
+        if ( $out['monthly_product'] && $out['monthly_product'] === $out['lifetime_product'] ) { $out['enabled'] = 0; }
+        return $out;
+    }
+    public static function public_accounts_enabled(): bool {
+        return (bool) self::config()['public_login'] && is_ssl();
+    }
+    private static function woo_loaded(): bool { return function_exists( 'wc_get_product' ) && function_exists( 'wc_get_orders' ); }
+    /** ArraySubs 2.0.9 ships a procedural helper API, not Developer classes. */
+    private static function subscriptions_loaded(): bool {
+        return defined( 'ARRAYSUBS_VERSION' ) && did_action( 'arraysubs_after_boot' ) > 0
+            && function_exists( 'arraysubs_is_subscription_product' )
+            && function_exists( 'arraysubs_get_product_subscription_data' )
+            && function_exists( 'arraysubs_get_customer_subscriptions' )
+            && function_exists( 'arraysubs_get_subscription' );
+    }
+    private static function discord_config(): array {
+        $s = get_option( 'timonconfigs_discord', array() );
+        return is_array( $s ) ? $s : array();
+    }
+    private static function bot_token(): string {
+        if ( defined( self::TOKEN ) && is_string( constant( self::TOKEN ) ) ) { return trim( constant( self::TOKEN ) ); }
+        // Temporary migration fallback; never expose in HTML or logs.
+        if ( defined( 'TIMONCONFIGS_BILLING_LIVE_DISCORD_BOT_TOKEN' ) ) { return trim( (string) TIMONCONFIGS_BILLING_LIVE_DISCORD_BOT_TOKEN ); }
+        return '';
+    }
+    private static function snowflake( mixed $s ): bool { return is_string( $s ) && 1 === preg_match( '/^[1-9][0-9]{16,19}$/D', $s ); }
+    private static function linked_discord( int $uid ): string {
+        $id = get_user_meta( $uid, '_tc_discord_id', true );
+        return self::snowflake( $id ) && (int) get_option( '_tc_discord_binding_' . $id ) === $uid ? $id : '';
+    }
+    private static function product( string $plan ): int {
+        $key = 'monthly' === $plan ? 'monthly_product' : 'lifetime_product';
+        return absint( self::config()[ $key ] );
+    }
+    /** ArraySubs 2.0.9 storefront helpers: monthly is Subscription [AS], lifetime is ordinary WooCommerce. */
+    private static function product_issues(): array {
+        $issues = array();
+        if ( ! self::woo_loaded() ) { $issues[] = 'WooCommerce functions unavailable'; return $issues; }
+        if ( ! self::subscriptions_loaded() ) {
+            $issues[] = 'ArraySubs 2.0.9 helper API not loaded — check activation, dependencies, and plugin version; unsupported Developer classes are not required';
+            return $issues;
+        }
+        if ( get_woocommerce_currency() !== 'EUR' ) { $issues[] = 'Store currency must be EUR'; }
+        $monthly_id = self::product( 'monthly' ); $lifetime_id = self::product( 'lifetime' );
+        if ( ! $monthly_id || ! $lifetime_id || $monthly_id === $lifetime_id ) { $issues[] = 'Set two different product IDs'; return $issues; }
+        $monthly = wc_get_product( $monthly_id ); $lifetime = wc_get_product( $lifetime_id );
+        if ( ! $monthly || ! $lifetime ) { $issues[] = 'Missing WooCommerce product'; return $issues; }
+        if ( ! $monthly->is_type( 'simple' ) || ! $lifetime->is_type( 'simple' ) ) { $issues[] = 'Both VIP products must be Simple products'; }
+        if ( 'publish' !== $monthly->get_status() || 'publish' !== $lifetime->get_status() ) { $issues[] = 'Both VIP products must be published'; }
+        if ( ! $monthly->is_virtual() || ! $lifetime->is_virtual() ) { $issues[] = 'Both VIP products must be Virtual'; }
+        if ( ! self::money( $monthly->get_price(), '29.99' ) || ! self::money( $lifetime->get_price(), '80.00' ) ) { $issues[] = 'Product prices must be €29.99 and €80.00'; }
+        try {
+            // Use real helpers shipped in the public ArraySubs 2.0.9 release.
+            if ( ! arraysubs_is_subscription_product( $monthly_id ) ) {
+                $issues[] = 'VIP Monthly must have Subscription [AS] enabled';
+            } else {
+                $terms = arraysubs_get_product_subscription_data( $monthly_id );
+                if ( ! is_array( $terms ) ) {
+                    $issues[] = 'ArraySubs could not read VIP Monthly terms';
+                } else {
+                    if ( 'month' !== ( $terms['period'] ?? '' ) || 1 !== (int) ( $terms['interval'] ?? 0 )
+                         || 0 !== (int) ( $terms['length'] ?? -1 ) ) {
+                        $issues[] = 'VIP Monthly must renew every 1 month without an automatic end';
+                    }
+                    if ( 0 !== (int) ( $terms['trial_length'] ?? -1 ) || ! self::money( $terms['signup_fee'] ?? null, '0.00' ) ) {
+                        $issues[] = 'VIP Monthly must have no trial and no signup fee';
+                    }
+                    if ( ! self::money( $terms['price'] ?? null, '29.99' ) ) {
+                        $issues[] = 'ArraySubs VIP Monthly price differs from WooCommerce';
+                    }
+                }
+            }
+            if ( arraysubs_is_subscription_product( $lifetime_id ) ) {
+                $issues[] = 'VIP Lifetime must be an ordinary product without Subscription [AS]';
+            }
+        } catch ( \Throwable $e ) {
+            $issues[] = 'ArraySubs 2.0.9 helper API read failed (check plugin compatibility)';
+        }
+        return $issues;
+    }
+    private static function valid_products(): bool { return array() === self::product_issues(); }
+    private static function money( mixed $actual, string $expected ): bool {
+        return is_numeric( $actual ) && abs( (float) $actual - (float) $expected ) < 0.00001;
+    }
+    private static function roles_configured(): bool {
+        $s = self::discord_config();
+        return '' !== self::bot_token() && self::snowflake( $s['guild_id'] ?? null )
+            && self::snowflake( $s['monthly_role'] ?? null ) && self::snowflake( $s['lifetime_role'] ?? null )
+            && $s['monthly_role'] !== $s['lifetime_role'];
+    }
+    public static function checkout_ready(): bool {
+        return ! empty( self::config()['enabled'] ) && self::valid_products() && self::roles_configured()
+            && class_exists( 'TC_Discord' ) && TC_Discord::is_ready() && is_ssl();
+    }
+    public static function display_price( string $plan ): string {
+        if ( 'free' === $plan ) { return '€0'; }
+        // Display amounts do not set prices. WooCommerce product data sets the charge.
+        return 'monthly' === $plan ? '€29.99' : ( 'lifetime' === $plan ? '€80' : '' );
+    }
+    public static function checkout_url( string $plan ): string {
+        return in_array( $plan, array( 'monthly', 'lifetime' ), true ) ? home_url( '/checkout/' . $plan . '/' ) : '';
+    }
+    public static function checkout( string $plan ): void {
+        if ( ! in_array( $plan, array( 'monthly', 'lifetime' ), true ) ) { wp_die( 'Unknown membership.', '', array( 'response' => 404 ) ); }
+        nocache_headers();
+        if ( ! self::checkout_ready() ) {
+            wp_die( 'Checkout setup is not complete. Please contact support.', 'Checkout unavailable', array( 'response' => 503 ) );
+        }
+        if ( ! is_user_logged_in() ) {
+            wp_safe_redirect( TC_Discord::login_url( self::checkout_url( $plan ) ), 302 ); exit;
+        }
+        $uid = get_current_user_id();
+        if ( ! self::linked_discord( $uid ) || ! self::current_discord_verified( $uid ) ) {
+            wp_die( 'Please reconnect and verify your Discord account before purchasing.', 'Discord required', array( 'response' => 403 ) );
+        }
+        if ( ! self::delivery_ready( $uid ) ) {
+            wp_die( 'Discord VIP delivery is temporarily unavailable. No payment was started. Please try again later.', '', array( 'response' => 503 ) );
+        }
+        $desired = self::paid_access( $uid );
+        if ( ! empty( $desired['unknown'] ) ) { wp_die( 'Subscription status is temporarily unavailable. No checkout was started.', '', array( 'response' => 503 ) ); }
+        if ( ( 'monthly' === $plan && ( $desired['monthly'] || $desired['lifetime'] ) ) || ( 'lifetime' === $plan && $desired['lifetime'] ) ) {
+            wp_safe_redirect( home_url( '/account/' ), 302 ); exit;
+        }
+        if ( ! function_exists( 'WC' ) || ! WC()->cart ) {
+            wp_die( 'Shopping cart is unavailable. Contact support.', '', array( 'response' => 503 ) );
+        }
+        // Lifetime does not silently cancel an already-running PayPal recurring agreement.
+        if ( 'lifetime' === $plan && $desired['monthly'] && function_exists( 'wc_add_notice' ) ) {
+            wc_add_notice( 'VIP Lifetime does not automatically cancel your existing Monthly subscription. Cancel Monthly in My Account to avoid further renewals.', 'notice' );
+        }
+        // PayPal Subscriptions cannot be mixed with other products.
+        WC()->cart->empty_cart();
+        if ( ! WC()->cart->add_to_cart( self::product( $plan ) ) ) {
+            wp_die( 'Could not add the selected membership to checkout.', '', array( 'response' => 503 ) );
+        }
+        wp_safe_redirect( wc_get_checkout_url(), 303 ); exit;
+    }
+    private static function current_discord_verified( int $uid ): bool {
+        if ( ! class_exists( 'TC_Discord' ) ) { return false; }
+        $state = TC_Discord::status( $uid, true );
+        return is_array( $state ) && in_array( $state['state'] ?? '', array( 'free', 'monthly', 'lifetime' ), true );
+    }
+    /** Enforce Discord ownership even when buyer uses Woo's Checkout Block API. */
+    public static function validate_store_api_checkout( $order ): void {
+        if ( ! is_object( $order ) || ! method_exists( $order, 'get_customer_id' ) ) { return; }
+        if ( ! self::has_product( $order, self::product( 'monthly' ) ) && ! self::has_product( $order, self::product( 'lifetime' ) ) ) { return; }
+        $uid = get_current_user_id();
+        if ( $uid < 1 || (int) $order->get_customer_id() !== $uid || ! self::linked_discord( $uid ) ) {
+            self::checkout_error( 'A linked Discord account is required to purchase a VIP membership.' );
+        }
+        $paid = self::paid_access( $uid );
+        if ( ! empty( $paid['unknown'] ) ) { self::checkout_error( 'Subscription service unavailable. Please try later.' ); }
+        if ( ( self::has_product( $order, self::product( 'monthly' ) ) && ( $paid['monthly'] || $paid['lifetime'] ) ) ||
+            ( self::has_product( $order, self::product( 'lifetime' ) ) && $paid['lifetime'] ) ) {
+            self::checkout_error( 'This VIP membership is already active. Manage your existing subscription in My Account.' );
+        }
+    }
+    private static function checkout_error( string $message ): void {
+        $klass = '\Automattic\WooCommerce\StoreApi\Exceptions\RouteException';
+        if ( class_exists( $klass ) ) { throw new $klass( 'tc_discord_checkout', $message, 403 ); }
+        throw new RuntimeException( $message );
+    }
+    public static function validate_checkout(): void {
+        if ( ! function_exists( 'WC' ) || ! WC()->cart ) { return; }
+        $vip = false;
+        foreach ( WC()->cart->get_cart() as $item ) {
+            if ( in_array( (int) ( $item['product_id'] ?? 0 ), array( self::product( 'monthly' ), self::product( 'lifetime' ) ), true ) ) { $vip = true; break; }
+        }
+        if ( $vip && ( ! is_user_logged_in() || ! self::linked_discord( get_current_user_id() ) ) ) {
+            wc_add_notice( 'Please sign in through Discord before buying a VIP membership.', 'error' );
+            return;
+        }
+        if ( $vip ) {
+            $access = self::paid_access( get_current_user_id() );
+            if ( ! empty( $access['unknown'] ) ) { wc_add_notice( 'Subscription status unavailable. Please try again later.', 'error' ); return; }
+            foreach ( WC()->cart->get_cart() as $item ) {
+                $pid = (int) ( $item['product_id'] ?? 0 );
+                if ( ( $pid === self::product( 'monthly' ) && ( $access['monthly'] || $access['lifetime'] ) ) || ( $pid === self::product( 'lifetime' ) && $access['lifetime'] ) ) {
+                    wc_add_notice( 'You already have this VIP membership. Manage your subscription in My Account.', 'error' );
+                    break;
+                }
+            }
+        }
+    }
+    private static function has_product( $order, int $product_id ): bool {
+        if ( ! $product_id || ! is_object( $order ) || ! method_exists( $order, 'get_items' ) ) { return false; }
+        foreach ( $order->get_items( 'line_item' ) as $item ) {
+            if ( (int) $item->get_product_id() === $product_id ) { return true; }
+        }
+        return false;
+    }
+    private static function track( int $uid ): void {
+        if ( $uid && self::linked_discord( $uid ) ) {
+            update_user_meta( $uid, self::TRACKED, '1' );
+            if ( ! wp_next_scheduled( 'tc_woo_sync_one', array( $uid ) ) ) { wp_schedule_single_event( time() + 5, 'tc_woo_sync_one', array( $uid ) ); }
+        }
+    }
+    public static function order_paid( int $order_id ): void {
+        if ( ! self::woo_loaded() ) { return; }
+        $order = wc_get_order( $order_id );
+        if ( ! $order || ! $order->is_paid() || ! $order->get_date_paid() ) { return; }
+        if ( self::has_product( $order, self::product( 'lifetime' ) ) || self::has_product( $order, self::product( 'monthly' ) ) ) { self::track( (int) $order->get_customer_id() ); }
+    }
+    public static function order_changed( int $order_id, string $old, string $new, $order ): void {
+        if ( self::has_product( $order, self::product( 'lifetime' ) ) || self::has_product( $order, self::product( 'monthly' ) ) ) { self::track( (int) $order->get_customer_id() ); }
+        if ( 'refunded' === $new ) { self::order_refunded( $order_id, 0 ); }
+    }
+    public static function order_refunded( int $order_id, int $refund_id ): void {
+        if ( ! self::woo_loaded() ) { return; }
+        $order = wc_get_order( $order_id );
+        if ( $order && self::has_product( $order, self::product( 'lifetime' ) ) ) { self::track( (int) $order->get_customer_id() ); }
+        // ArraySubs publishes a lifecycle event for its own subscription refunds.
+        // Never mutate ArraySubs private meta or the provider's subscription.
+    }
+    /** Native 2.0.9 lifecycle events enqueue a recheck; no payment is trusted here. */
+    public static function array_native_event( $subscription_id ): void {
+        $id = is_numeric( $subscription_id ) ? absint( $subscription_id ) : 0;
+        if ( ! $id || ! self::subscriptions_loaded() ) { return; }
+        try {
+            if ( ! arraysubs_get_subscription( $id ) ) { return; }
+            $uid = absint( get_post_meta( $id, '_customer_id', true ) );
+            $pid = absint( get_post_meta( $id, '_variation_id', true ) );
+            if ( ! $pid ) { $pid = absint( get_post_meta( $id, '_product_id', true ) ); }
+            if ( $uid && $pid === self::product( 'monthly' ) ) { self::track( $uid ); }
+        } catch ( \Throwable $e ) { return; }
+    }
+    /** Events only queue work; authoritative paid state is reread in sync_user(). */
+    public static function array_event( string $event, array $payload ): void {
+        $id = absint( $payload['subscription_id'] ?? 0 );
+        if ( ! $id || ! self::subscriptions_loaded() ) { return; }
+        try {
+            $subscription = arraysubs_get_subscription( $id );
+            if ( ! $subscription ) { return; }
+            $owner = absint( get_post_meta( $id, '_customer_id', true ) );
+            $incoming = absint( $payload['user_id'] ?? 0 );
+            if ( ! $owner || ( $incoming && $owner !== $incoming ) ) { return; }
+            $pid = absint( get_post_meta( $id, '_variation_id', true ) );
+            if ( ! $pid ) { $pid = absint( get_post_meta( $id, '_product_id', true ) ); }
+            if ( self::product( 'monthly' ) === $pid ) { self::track( $owner ); }
+        } catch ( \Throwable $e ) { return; }
+    }
+    /** Read-only ArraySubs 2.0.9 subscription status plus independently paid initial WC order. */
+    private static function monthly_status( int $uid ): array {
+        $value = array( 'active' => false, 'until' => 0, 'unknown' => false );
+        if ( ! self::subscriptions_loaded() ) { $value['unknown'] = true; return $value; }
+        try {
+            $ids = arraysubs_get_customer_subscriptions( $uid, array( 'arraysubs-active' ) );
+            if ( ! is_array( $ids ) ) { $value['unknown'] = true; return $value; }
+            foreach ( $ids as $raw_id ) {
+                $id = absint( $raw_id );
+                $sub = $id ? arraysubs_get_subscription( $id ) : null;
+                if ( ! $sub || 'arraysubs-active' !== $sub->post_status ) { continue; }
+                if ( $uid !== absint( get_post_meta( $id, '_customer_id', true ) ) ) {
+                    $value['unknown'] = true; return $value;
+                }
+                $pid = absint( get_post_meta( $id, '_variation_id', true ) );
+                if ( ! $pid ) { $pid = absint( get_post_meta( $id, '_product_id', true ) ); }
+                if ( $pid !== self::product( 'monthly' ) ) { continue; }
+                if ( 'month' !== get_post_meta( $id, '_billing_period', true ) ||
+                     1 !== (int) get_post_meta( $id, '_billing_interval', true ) ||
+                     'EUR' !== get_post_meta( $id, '_currency', true ) ||
+                     ! self::money( get_post_meta( $id, '_recurring_amount', true ), '29.99' ) ) {
+                    $value['unknown'] = true; return $value;
+                }
+                if ( (int) get_post_meta( $id, '_trial_length', true ) > 0 ||
+                     (int) get_post_meta( $id, '_completed_payments', true ) < 1 ) { continue; }
+                $initial_id = absint( get_post_meta( $id, '_parent_order_id', true ) );
+                $initial = $initial_id ? wc_get_order( $initial_id ) : null;
+                if ( ! $initial || (int) $initial->get_customer_id() !== $uid ||
+                     ! $initial->is_paid() || ! $initial->get_date_paid() ||
+                     ! self::has_product( $initial, self::product( 'monthly' ) ) ) {
+                    $value['unknown'] = true; return $value;
+                }
+                $payments = (int) get_post_meta( $id, '_completed_payments', true );
+                if ( (float) $initial->get_total() > 0 &&
+                     (float) $initial->get_total_refunded() + 0.0001 >= (float) $initial->get_total()
+                     && $payments === 1 ) { continue; }
+                $renewal = self::utc_time( get_post_meta( $id, '_next_payment_date', true ) );
+                $ending = self::utc_time( get_post_meta( $id, '_end_date', true ) );
+                $cancel = 0;
+                if ( function_exists( 'arraysubs_is_waiting_cancellation' ) && arraysubs_is_waiting_cancellation( $id ) &&
+                     function_exists( 'arraysubs_get_scheduled_cancel_date' ) ) {
+                    $cancel = self::utc_time( arraysubs_get_scheduled_cancel_date( $id ) );
+                }
+                $dates = array_filter( array( $renewal, $ending, $cancel ), static fn( int $t ): bool => $t > 0 );
+                if ( ! $dates ) { $value['unknown'] = true; return $value; }
+                $until = min( $dates );
+                if ( $until > time() ) {
+                    $value['active'] = true;
+                    $value['until'] = max( $value['until'], $until );
+                }
+            }
+        } catch ( \Throwable $e ) { $value['unknown'] = true; }
+        return $value;
+    }
+    private static function utc_time( mixed $date ): int {
+        if ( is_int( $date ) ) { return $date > 0 ? $date : 0; }
+        if ( ! is_string( $date ) || '' === $date ) { return 0; }
+        try { return ( new \DateTimeImmutable( $date, new \DateTimeZone( 'UTC' ) ) )->getTimestamp(); }
+        catch ( \Throwable $e ) { return 0; }
+    }
+    public static function paid_access( int $uid ): array {
+        $access = array( 'monthly' => false, 'lifetime' => false, 'monthly_until' => 0, 'unknown' => false );
+        if ( ! $uid || ! self::woo_loaded() || ! self::linked_discord( $uid ) ) { return $access; }
+        $life = self::product( 'lifetime' );
+        if ( $life ) {
+            // HPOS safe: Woo order CRUD, never query wp_posts / postmeta directly.
+            $page = 1;
+            do {
+                $orders = wc_get_orders( array( 'customer_id' => $uid, 'limit' => 50, 'paged' => $page, 'orderby' => 'date', 'order' => 'DESC', 'status' => array( 'processing', 'completed' ), 'return' => 'objects' ) );
+                foreach ( $orders as $order ) {
+                    if ( ! $order->get_date_paid() || ! $order->is_paid() || ! self::has_product( $order, $life ) ) { continue; }
+                    if ( (float) $order->get_total() <= 0.0 || (float) $order->get_total_refunded() + 0.0001 >= (float) $order->get_total() ) { continue; }
+                    $access['lifetime'] = true; break;
+                }
+                if ( $access['lifetime'] || count( $orders ) < 50 ) { break; }
+                $page++;
+            } while ( $page <= 10 );
+        }
+        $monthly = self::monthly_status( $uid );
+        $access['monthly'] = $monthly['active'];
+        $access['monthly_until'] = $monthly['until'];
+        $access['unknown'] = $monthly['unknown'];
+        return $access;
+    }
+    /** Woo purchase state cannot be bypassed by a stale Discord role. */
+    public static function access_constraint( string $tier, int $uid ): ?bool {
+        if ( '1' !== get_user_meta( $uid, self::TRACKED, true ) ) { return null; } // Preserve externally granted / historical roles.
+        if ( ! in_array( $tier, array( 'monthly', 'lifetime' ), true ) ) { return null; }
+        $a = self::paid_access( $uid );
+        return 'lifetime' === $tier ? $a['lifetime'] : ( $a['lifetime'] || ( empty( $a['unknown'] ) && $a['monthly'] ) );
+    }
+    private static function discord_api( string $method, string $path ): array|WP_Error {
+        $token = self::bot_token();
+        if ( ! $token ) { return new WP_Error( 'discord_token_missing', 'Discord bot token is not configured.' ); }
+        $res = wp_remote_request( 'https://discord.com/api/v10' . $path, array( 'method' => $method, 'timeout' => 12, 'redirection' => 0, 'headers' => array( 'Authorization' => 'Bot ' . $token, 'Accept' => 'application/json' ) ) );
+        if ( is_wp_error( $res ) ) { return new WP_Error( 'discord_transport', 'Discord API request failed.' ); }
+        $code = (int) wp_remote_retrieve_response_code( $res );
+        if ( $code < 200 || $code >= 300 ) { return new WP_Error( 'discord_http_' . $code, 'Discord API refused the role operation.' ); }
+        if ( 'GET' !== $method ) { return array(); }
+        $raw = json_decode( (string) wp_remote_retrieve_body( $res ), true );
+        return is_array( $raw ) ? $raw : new WP_Error( 'discord_response', 'Invalid Discord member response.' );
+    }
+    /** Discord permissions are decimal bitfields that may exceed PHP_INT_MAX. */
+    private static function has_permission( string $decimal, int $bit ): bool {
+        if ( ! ctype_digit( $decimal ) ) { return false; }
+        for ( $position = 0; $position <= $bit; ++$position ) {
+            $quotient = ''; $carry = 0;
+            foreach ( str_split( $decimal ) as $digit ) {
+                $value = $carry * 10 + (int) $digit;
+                $quotient .= (string) intdiv( $value, 2 );
+                $carry = $value % 2;
+            }
+            if ( $position === $bit ) { return 1 === $carry; }
+            $decimal = ltrim( $quotient, '0' );
+            if ( '' === $decimal ) { return false; }
+        }
+        return false;
+    }
+    /** Reject a new purchase when the bot cannot deliver roles. */
+    private static function delivery_ready( int $uid ): bool {
+        $settings = self::discord_config(); $discord_id = self::linked_discord( $uid );
+        if ( ! $discord_id || ! self::roles_configured() ) { return false; }
+        $guild = $settings['guild_id'];
+        $bot = self::discord_api( 'GET', '/users/@me' );
+        if ( is_wp_error( $bot ) || ! self::snowflake( $bot['id'] ?? null ) || true !== ( $bot['bot'] ?? null ) ) { return false; }
+        $roles = self::discord_api( 'GET', '/guilds/' . $guild . '/roles' );
+        $bot_member = self::discord_api( 'GET', '/guilds/' . $guild . '/members/' . $bot['id'] );
+        $buyer = self::discord_api( 'GET', '/guilds/' . $guild . '/members/' . $discord_id );
+        if ( is_wp_error( $roles ) || is_wp_error( $bot_member ) || is_wp_error( $buyer ) ||
+             ! is_array( $bot_member['roles'] ?? null ) || (string) ( $buyer['user']['id'] ?? '' ) !== $discord_id ) { return false; }
+        $map = array(); foreach ( $roles as $role ) { if ( is_array( $role ) && self::snowflake( $role['id'] ?? null ) ) { $map[ $role['id'] ] = $role; } }
+        $high = -1; $manage = false;
+        foreach ( $bot_member['roles'] as $bot_role ) {
+            if ( ! isset( $map[ $bot_role ] ) ) { continue; }
+            $high = max( $high, (int) $map[ $bot_role ]['position'] );
+            $bits = (string) ( $map[ $bot_role ]['permissions'] ?? '0' );
+            $manage = $manage || self::has_permission( $bits, 28 ) || self::has_permission( $bits, 3 );
+        }
+        foreach ( array( 'monthly_role', 'lifetime_role' ) as $key ) {
+            $role = $map[ $settings[ $key ] ] ?? null;
+            if ( ! $role || ! empty( $role['managed'] ) || (int) $role['position'] >= $high ) { return false; }
+        }
+        return $manage;
+    }
+    public static function sync_user( int $uid ): void {
+        if ( $uid < 1 || ! self::roles_configured() || ! self::woo_loaded() || ! self::subscriptions_loaded() ) { return; }
+        $id = self::linked_discord( $uid ); if ( ! $id ) { return; }
+        $settings = self::discord_config(); $guild = $settings['guild_id'];
+        $roles = array( 'monthly' => $settings['monthly_role'], 'lifetime' => $settings['lifetime_role'] );
+        $path = '/guilds/' . rawurlencode( $guild ) . '/members/' . rawurlencode( $id );
+        $member = self::discord_api( 'GET', $path );
+        if ( is_wp_error( $member ) || ! is_array( $member['roles'] ?? null ) || (string) ( $member['user']['id'] ?? '' ) !== $id ) {
+            update_user_meta( $uid, '_tc_woo_sync_error', is_wp_error( $member ) ? $member->get_error_code() : 'member_unverified' ); return;
+        }
+        $present = array_fill_keys( array_map( 'strval', $member['roles'] ), true );
+        $owned = get_user_meta( $uid, self::OWNED, true ); $owned = is_array( $owned ) ? $owned : array();
+        $wanted = self::paid_access( $uid );
+        if ( ! empty( $wanted['unknown'] ) ) { update_user_meta( $uid, '_tc_woo_sync_error', 'arraysubs_read_failed' ); return; }
+        foreach ( $roles as $plan => $role ) {
+            $exists = isset( $present[ $role ] ); $is_owned = ! empty( $owned[ $role ] );
+            if ( ! $exists && $is_owned ) { unset( $owned[ $role ] ); $is_owned = false; }
+            $need = (bool) $wanted[ $plan ];
+            // Lifetime supersedes Monthly access; do not newly grant Monthly,
+            // but preserve an owned Monthly badge until its own period ends.
+            if ( 'monthly' === $plan && $wanted['lifetime'] && ! $wanted['monthly'] ) { $need = false; }
+            if ( $need && ! $exists ) {
+                $fresh = self::paid_access( $uid );
+                if ( ! empty( $fresh['unknown'] ) || ! $fresh[ $plan ] ) { continue; }
+                $owned[ $role ] = 1;
+                if ( ! update_user_meta( $uid, self::OWNED, $owned ) ) {
+                    update_user_meta( $uid, '_tc_woo_sync_error', 'owned_marker_write_failed' ); continue;
+                }
+                $resp = self::discord_api( 'PUT', $path . '/roles/' . rawurlencode( $role ) );
+                if ( is_wp_error( $resp ) ) { unset( $owned[ $role ] ); update_user_meta( $uid, self::OWNED, $owned ); update_user_meta( $uid, '_tc_woo_sync_error', $resp->get_error_code() ); continue; }
+                $present[ $role ] = true;
+            } elseif ( ! $need && $exists && $is_owned ) {
+                $fresh = self::paid_access( $uid );
+                if ( ! empty( $fresh['unknown'] ) || $fresh[ $plan ] || ( 'monthly' === $plan && $fresh['lifetime'] && $fresh['monthly'] ) ) { continue; }
+                $resp = self::discord_api( 'DELETE', $path . '/roles/' . rawurlencode( $role ) );
+                if ( is_wp_error( $resp ) ) { update_user_meta( $uid, '_tc_woo_sync_error', $resp->get_error_code() ); continue; }
+                unset( $owned[ $role ] ); unset( $present[ $role ] );
+            }
+            // Pre-existing, externally granted Discord roles are never adopted
+            // or deleted by our service, even if there is no paid Woo access.
+        }
+        update_user_meta( $uid, self::OWNED, $owned );
+        update_user_meta( $uid, '_tc_woo_last_sync', gmdate( 'Y-m-d H:i:s' ) );
+        // If any operation fails it will be retried on the next cron tick.
+    }
+    public static function schedule(): void {
+        if ( self::woo_loaded() && ! wp_next_scheduled( 'tc_woo_reconcile' ) ) {
+            wp_schedule_event( time() + 60, 'tc_woo_5min', 'tc_woo_reconcile' );
+        }
+        if ( get_option( 'tc_woo_legacy_cron_cleanup' ) !== '1' ) {
+            wp_clear_scheduled_hook( 'tc_billing_tick' );
+            update_option( 'tc_woo_legacy_cron_cleanup', '1', false );
+        }
+    }
+    public static function reconcile(): void {
+        if ( ! self::woo_loaded() || ! self::subscriptions_loaded() ) { return; }
+        $offset = absint( get_option( 'tc_woo_reconcile_offset', 0 ) );
+        $users = get_users( array( 'fields' => 'ID', 'meta_key' => self::TRACKED, 'meta_value' => '1', 'orderby' => 'ID', 'order' => 'ASC', 'number' => 100, 'offset' => $offset ) );
+        foreach ( $users as $uid ) { self::sync_user( (int) $uid ); }
+        update_option( 'tc_woo_reconcile_offset', count( $users ) < 100 ? 0 : $offset + count( $users ), false );
+    }
+    public static function account( int $uid ): string {
+        if ( ! self::woo_loaded() || ! self::subscriptions_loaded() ) { return '<p>WooCommerce or ArraySubs is not available.</p>'; }
+        $access = self::paid_access( $uid );
+        $summary = ! empty( $access['unknown'] ) ? 'Subscription status temporarily unavailable — please retry.' : ( $access['lifetime'] ? 'VIP Lifetime active' : ( $access['monthly'] ? 'VIP Monthly paid through ' . wp_date( 'j M Y, H:i T', $access['monthly_until'] ) : 'No active WooCommerce VIP entitlement' ) );
+        $url = wc_get_page_permalink( 'myaccount' );
+        return '<section class="tc-member-management"><h2>Billing & subscriptions</h2><p>' . esc_html( $summary ) . '</p><p><a class="tc-button" href="' . esc_url( $url ) . '">Manage WooCommerce orders and subscriptions</a></p><p>VIP roles update after verified payment and Discord synchronization. Cancellation retains access until the end of the paid period.</p></section>';
+    }
+    public static function admin(): void {
+        if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'Not authorized.' ); }
+        $c = self::config();
+        echo '<div class="wrap"><h1>TimonConfigs — WooCommerce + Discord</h1><p>WooCommerce, Stripe Gateway and ArraySubs payment gateways handle charges and renewals. TimonConfigs handles Discord identity and roles ONLY. The old Stripe/PayPal checkout and webhooks are disabled in this plugin.</p>';
+        echo '<p><strong>WooCommerce:</strong> ' . esc_html( self::woo_loaded() ? 'installed' : 'missing' ) . ' | <strong>ArraySubs Free:</strong> ' . esc_html( self::subscriptions_loaded() ? 'installed' : 'missing' ) . ' | <strong>Discord bot:</strong> ' . esc_html( self::roles_configured() ? 'configured' : 'missing or invalid roles/token' ) . '</p>';
+        echo '<p><strong>Product validation:</strong> ' . esc_html( self::valid_products() ? 'OK — ArraySubs monthly 1 month €29.99 without trial + Lifetime €80, virtual products, EUR' : 'not ready'  ) . '</p>';
+        $issues = self::product_issues();
+        if ( $issues ) {
+            echo '<div class="notice notice-warning"><p><strong>Product validation details:</strong></p><ul>';
+            foreach ( $issues as $issue ) { echo '<li>' . esc_html( $issue ) . '</li>'; }
+            echo '</ul></div>';
+        }
+        if ( ! class_exists( 'TC_Discord' ) || ! TC_Discord::is_ready() ) {
+            echo '<p><strong>Discord OAuth:</strong> not ready — check Discord membership settings.</p>';
+        }
+        echo '<p><strong>ArraySubs version:</strong> ' . esc_html( defined( 'ARRAYSUBS_VERSION' ) ? ARRAYSUBS_VERSION : 'not defined' ) . ' | <strong>Boot:</strong> ' . esc_html( did_action( 'arraysubs_after_boot' ) ? 'complete' : 'not complete' ) . '</p>';
+        echo '<p><strong>ArraySubs API:</strong> ' . esc_html( self::subscriptions_loaded() ? 'Developer API available' : 'Developer API not loaded' ) . '</p>';
+        echo '<p><strong>Checkout:</strong> ' . esc_html( self::checkout_ready() ? 'enabled' : 'not available yet' ) . '</p>';
+        echo '<form action="options.php" method="post">'; settings_fields( 'tc_woo' );
+        foreach ( array( 'monthly_product' => 'WooCommerce VIP Monthly (Simple product + Subscription [AS]) product ID', 'lifetime_product' => 'WooCommerce VIP Lifetime (Simple Product) product ID' ) as $key => $label ) {
+            echo '<p><label>' . esc_html( $label ) . ' <input type="number" name="' . esc_attr( self::OPTION . '[' . $key . ']' ) . '" min="0" value="' . esc_attr( (string) $c[ $key ] ) . '"></label></p>';
+        }
+        echo '<p><label><input type="checkbox" name="' . esc_attr( self::OPTION ) . '[public_login]" value="1" ' . checked( ! empty( $c['public_login'] ), true, false ) . '> Allow public Discord OAuth login independently of old billing</label></p>';
+        echo '<p><label><input type="checkbox" name="' . esc_attr( self::OPTION ) . '[enabled]" value="1" ' . checked( ! empty( $c['enabled'] ), true, false ) . '> Enable NEW WooCommerce VIP checkout (only after tests)</label></p>';
+        submit_button( 'Save WooCommerce mapping' ); echo '</form>';
+        echo '<p>Bot token: add <code>define(\'TIMONCONFIGS_WOO_DISCORD_BOT_TOKEN\', \'YOUR_TOKEN\');</code> privately to wp-config.php. Existing live token constant is temporarily supported. Never put secrets in GitHub.</p>';
+        echo '<p>Use the existing Discord membership settings for Guild, Monthly and Lifetime role IDs. Keep the bot role above VIP roles with Manage Roles permission. The role remover never deletes unowned/external roles.</p>';
+        echo '<p>Configure guest checkout OFF in WooCommerce. For recurring PayPal use PayPal (ArraySubs). For recurring Stripe use WooCommerce Stripe Gateway with the ArraySubs Config tab. Keep Action Scheduler / WP-Cron running.</p>';
+        echo '<p><strong>Last Woo reconciliation:</strong> ' . esc_html( wp_next_scheduled( 'tc_woo_reconcile' ) ? wp_date( 'Y-m-d H:i:s T', wp_next_scheduled( 'tc_woo_reconcile' ) ) : 'not scheduled yet' ) . '</p></div>';
+    }
+}
