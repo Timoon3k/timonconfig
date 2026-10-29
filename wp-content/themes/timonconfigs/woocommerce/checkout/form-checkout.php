@@ -21,6 +21,7 @@ if ( ! $checkout->is_registration_enabled() && $checkout->is_registration_requir
         <div class="tc-vip-checkout__step"><span>02</span><div><h2>Review &amp; pay</h2><p>Confirm your membership and choose a payment method.</p></div></div>
         <?php do_action( 'woocommerce_checkout_before_order_review_heading' ); ?>
         <h3 id="order_review_heading">Order summary</h3>
+        <p>Payment verification and automatic Discord role assignment may take 1&ndash;10 minutes.</p>
         <?php do_action( 'woocommerce_checkout_before_order_review' ); ?>
         <div id="order_review" class="woocommerce-checkout-review-order">
             <?php do_action( 'woocommerce_checkout_order_review' ); ?>

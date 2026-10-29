@@ -1,3 +1,10 @@
+## Informacja o czasie aktywacji przy checkout — theme 0.14.3, 2026-10-30
+
+- Dodano przy podsumowaniu płatności: “Payment verification and automatic Discord role assignment may take 1–10 minutes.” Usunięto obietnicę Instant z nagłówka checkoutu. Core pozostaje1.1.9; logika płatności i synchronizacji nie zmienia się.
+- Zmiana tekstowa: kontrola składni zmienionego PHP i diff; bez zakupów lub zmian na Hostingerze. Paczka motywu `artifacts/timonconfigs-theme-0.14.3.zip`.
+
+---
+
 ## Usunięcie reCAPTCHA — Core 1.1.9, 2026-10-30
 
 - Na wyraźne polecenie właściciela usunięto moduł reCAPTCHA, jego inicjalizację, widget, Google siteverify i blokady klasycznego checkoutu/Store API. Brak kluczy reCAPTCHA nie blokuje już zakupu. Motyw pozostaje0.14.2.

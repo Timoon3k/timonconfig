@@ -1,3 +1,9 @@
+# Aktualizacja checkoutu — theme 0.14.3 / Core 1.1.9, 2026-10-30
+
+Przy podsumowaniu płatności jest angielska informacja o 1–10 minutach na weryfikację i automatyczne nadanie rangi Discord. Checkout nie obiecuje już Instant access. Zmiana dotyczy treści motywu; instalacja na Hostingerze pozostaje niepotwierdzona.
+
+---
+
 # Bieżący etap — Core 1.1.9, 2026-10-30
 
 Właściciel zlecił usunięcie reCAPTCHA i push main. Moduł TC_Woo_Captcha i jego hooki zostały usunięte; wcześniejsze zalecenia obowiązkowej CAPTCHA są historyczne i nie mają zastosowania od1.1.9. Nie przywracaj ich. Obecna architektura WooCommerce/ArraySubs, Discord i motyw0.14.2 pozostają. Wyniki testów i stan publikacji: początek PROGRESS.md. Push GitHub nie potwierdza instalacji na Hostingerze.
