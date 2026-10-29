@@ -7,9 +7,12 @@
 defined( 'ABSPATH' ) || exit;
 
 final class TC_Woo_Checkout_Presentation {
+    /** Lazy activation: never inspect WooCommerce state from a global gettext callback. */
+    private static bool $translate_vip_checkout = false;
     public static function init(): void {
         add_action( 'init', array( __CLASS__, 'ajax_checkout_locale' ), 0 );
         add_action( 'wp', array( __CLASS__, 'checkout_locale' ), 5 );
+        add_action( 'wp', array( __CLASS__, 'enable_checkout_translations' ), 25 );
         add_action( 'template_redirect', array( __CLASS__, 'require_discord' ), 8 );
         add_filter( 'woocommerce_checkout_fields', array( __CLASS__, 'minimal_fields' ), 50 );
         add_filter( 'woocommerce_checkout_registration_enabled', '__return_false' );
@@ -24,8 +27,6 @@ final class TC_Woo_Checkout_Presentation {
         add_filter( 'woocommerce_account_menu_items', array( __CLASS__, 'account_menu' ), 100 );
         add_filter( 'pre_option_woocommerce_enable_myaccount_registration', array( __CLASS__, 'no_woo_registration' ) );
         add_filter( 'woocommerce_get_privacy_policy_text', array( __CLASS__, 'checkout_privacy_notice' ), 50, 2 );
-        add_filter( 'gettext', array( __CLASS__, 'english_checkout_gettext' ), 100, 3 );
-        add_filter( 'gettext_with_context', array( __CLASS__, 'english_checkout_gettext_context' ), 100, 4 );
     }
 
     private static function checkout_page(): bool {
@@ -74,9 +75,22 @@ final class TC_Woo_Checkout_Presentation {
         return self::vip_cart() && ( self::checkout_page() || self::checkout_ajax() );
     }
 
+    /**
+     * Install gettext only after the checkout query and Woo cart are loaded.
+     * Global gettext during plugin boot can recursively invoke cart/option APIs
+     * while those APIs translate their own strings, exhausting PHP memory.
+     */
+    public static function enable_checkout_translations(): void {
+        if ( self::$translate_vip_checkout || ( ! self::checkout_page() && ! self::checkout_ajax() ) ) { return; }
+        if ( ! self::vip_cart() ) { return; }
+        self::$translate_vip_checkout = true;
+        add_filter( 'gettext', array( __CLASS__, 'english_checkout_gettext' ), 100, 3 );
+        add_filter( 'gettext_with_context', array( __CLASS__, 'english_checkout_gettext_context' ), 100, 4 );
+    }
+
     /** Prevent Polish WooCommerce strings from leaking into otherwise English checkout. */
     public static function english_checkout_gettext( $translation, $text, $domain ) {
-        if ( ! self::vip_checkout_context() ) { return $translation; }
+        if ( ! self::$translate_vip_checkout ) { return $translation; }
         $domains = array( 'woocommerce', 'woocommerce-gateway-stripe', 'woocommerce-paypal-payments', 'arraysubs', 'default' );
         return in_array( $domain, $domains, true ) ? $text : $translation;
     }

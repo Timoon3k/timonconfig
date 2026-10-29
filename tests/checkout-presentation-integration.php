@@ -17,6 +17,10 @@ final class FakeTCWC {
 }
 $GLOBALS['tc_wc'] = new FakeTCWC();
 $GLOBALS['tc_checkout_page'] = true;
+$GLOBALS['tc_filters'] = array();
+$GLOBALS['tc_actions'] = array();
+function add_filter( $name, $callback, $priority = 10, $args = 1 ): void { $GLOBALS['tc_filters'][$name][] = $callback; }
+function add_action( $name, $callback, $priority = 10, $args = 1 ): void { $GLOBALS['tc_actions'][$name][] = $callback; }
 function WC(): FakeTCWC { return $GLOBALS['tc_wc']; }
 function absint( $v ): int { return abs( (int) $v ); }
 function wc_get_page_id( $slug ): int { return 42; }
@@ -34,6 +38,9 @@ function verify( bool $ok, string $test ): void {
     if ( ! $ok ) { fwrite( STDERR, "FAILED: $test\n" ); exit( 1 ); }
     echo "PASS: $test\n";
 }
+TC_Woo_Checkout_Presentation::init();
+verify( empty( $GLOBALS['tc_filters']['gettext'] ) && empty( $GLOBALS['tc_filters']['gettext_with_context'] ), 'Boot never registers global gettext filters' );
+verify( TC_Woo_Checkout_Presentation::english_checkout_gettext( 'Polski tekst', 'Checkout', 'woocommerce' ) === 'Polski tekst', 'Translation filter is inert before late init' );
 $base = array(
     'billing' => array(
         'billing_email' => array( 'required' => true ),
@@ -62,6 +69,8 @@ $GLOBALS['tc_checkout_page'] = false;
 $_GET['wc-ajax'] = 'checkout';
 $ajax = TC_Woo_Checkout_Presentation::minimal_fields( $base );
 verify( $ajax === $visible, 'Checkout AJAX validates exactly the same fields as HTML' );
+TC_Woo_Checkout_Presentation::enable_checkout_translations();
+verify( count( $GLOBALS['tc_filters']['gettext'] ?? array() ) === 1, 'Gettext filters register once only on checkout' );
 verify( TC_Woo_Checkout_Presentation::english_checkout_gettext( 'Zamówienie', 'Checkout', 'woocommerce' ) === 'Checkout', 'WooCommerce notices are English in checkout AJAX' );
 verify( TC_Woo_Checkout_Presentation::english_checkout_gettext_context( 'Polskie', 'Email address', 'label', 'woocommerce' ) === 'Email address', 'Woo context translations stay English' );
 verify( TC_Woo_Checkout_Presentation::english_checkout_gettext( 'Polskie', 'Example', 'unrelated-plugin' ) === 'Polskie', 'Unrelated plugin strings unaffected' );
@@ -77,7 +86,7 @@ $GLOBALS['tc_checkout_page'] = true;
 verify( TC_Woo_Checkout_Presentation::order_button_text( 'Place order' ) === 'Pay securely', 'English pay button' );
 
 $GLOBALS['tc_checkout_page'] = false;
-verify( TC_Woo_Checkout_Presentation::english_checkout_gettext( 'Polskie', 'English', 'woocommerce' ) === 'Polskie', 'Non-checkout pages retain their locale' );
+verify( count( $GLOBALS['tc_filters']['gettext'] ?? array() ) === 1, 'Repeated gettext does not install extra filters' );
 verify( TC_Woo_Checkout_Presentation::minimal_fields( $base ) === $base, 'Unrelated WooCommerce pages unaffected' );
 
 $css = (string) file_get_contents( __DIR__ . '/../wp-content/themes/timonconfigs/assets/css/checkout-premium.css' );
