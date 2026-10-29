@@ -109,7 +109,7 @@ final class TC_Member_Area {
 	private static function account_url(): string { return home_url( '/account/' ); }
 	private static function display_price( string $plan ): string {
 		if ( 'free' === $plan ) { return '€0'; }
-		if ( is_callable( array( 'TC_Billing', 'display_price' ) ) ) { return TC_Billing::display_price( $plan ); }
+		if ( is_callable( array( 'TC_Woo_Bridge', 'display_price' ) ) ) { return TC_Woo_Bridge::display_price( $plan ); }
 		return array( 'monthly' => '€29.99', 'lifetime' => '€80' )[ $plan ] ?? '';
 	}
 
@@ -194,8 +194,8 @@ final class TC_Member_Area {
 				<?php if ( ! $downloads ) { self::quick_actions(); } ?>
 				<?php if ( $downloads ) : ?><p class="tc-member-note">Downloads are available on each <a href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">configuration page</a>. Your download history remains private.</p><?php endif; ?>
 				<?php
-				$billing_account = is_callable( array( 'TC_Billing', 'render_account' ) ) ? TC_Billing::render_account( get_current_user_id() ) : '';
-				$direct_billing = ( is_callable( array( 'TC_Billing', 'direct_enabled' ) ) && TC_Billing::direct_enabled() ) || '' !== trim( $billing_account );
+				$billing_account = is_callable( array( 'TC_Woo_Bridge', 'account' ) ) ? TC_Woo_Bridge::account( get_current_user_id() ) : '';
+				$direct_billing = class_exists( 'TC_Woo_Bridge' ) && TC_Woo_Bridge::checkout_ready();
 				self::memberships( $state, $direct_billing );
 				echo $billing_account; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Billing owns and escapes its private account markup.
 				?>

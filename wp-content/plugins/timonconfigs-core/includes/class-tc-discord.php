@@ -34,7 +34,7 @@ final class TC_Discord {
     }
     /** Public billing approval covers member login even while new sales are paused. */
     private static function public_accounts(): bool {
-        return class_exists( 'TC_Billing' ) && method_exists( 'TC_Billing', 'public_accounts_enabled' ) && TC_Billing::public_accounts_enabled();
+        return class_exists( 'TC_Woo_Bridge' ) && TC_Woo_Bridge::public_accounts_enabled();
     }
     private static function identity_allowed( mixed $id ): bool {
         $s = self::settings();
@@ -397,7 +397,7 @@ final class TC_Discord {
         $status = self::status( $user_id, $force );
         if ( 'unavailable' === $status['state'] ) { return self::error(); }
         $role_allowed = in_array( $status['state'], $allowed[ $tier ], true );
-        $billing_allowed = class_exists( 'TC_Billing' ) ? TC_Billing::access_constraint( $tier, $user_id ?: get_current_user_id() ) : null;
+        $billing_allowed = class_exists( 'TC_Woo_Bridge' ) ? TC_Woo_Bridge::access_constraint( $tier, $user_id ?: get_current_user_id() ) : null;
         return $role_allowed && false !== $billing_allowed;
     }
 }

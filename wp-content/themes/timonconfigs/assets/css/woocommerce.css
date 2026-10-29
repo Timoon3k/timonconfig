@@ -1,0 +1,45 @@
+/* WooCommerce storefront and purchase management integrated with the TimonConfigs theme. */
+.tc-woo-page,.woocommerce-page .tc-entry{padding-block:clamp(2rem,5vw,5rem)}
+.tc-woo-page .woocommerce,.tc-entry__content .woocommerce{color:inherit}
+.woocommerce form.checkout,.woocommerce form.woocommerce-checkout,.woocommerce form.login,.woocommerce form.woocommerce-form,.woocommerce .woocommerce-MyAccount-content,.woocommerce .woocommerce-MyAccount-navigation,.woocommerce form.cart,.woocommerce table.shop_table{
+ background:var(--tc-surface,#111824);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:clamp(1rem,2vw,1.5rem);max-width:100%;
+}
+.woocommerce form .form-row input.input-text,.woocommerce form .form-row textarea,.woocommerce form .form-row select,.woocommerce .select2-container .select2-selection--single{
+ background:#121b29;color:#f5f8ff;border:1px solid #526075;border-radius:8px;padding:.7rem;min-height:44px;width:100%;box-sizing:border-box;
+}
+.woocommerce button.button,.woocommerce a.button,.woocommerce #payment #place_order,.woocommerce .button.alt,.woocommerce input.button{
+ display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:.7rem 1.25rem;border-radius:8px;background:#8369ef;color:#fff;border:0;font-weight:700;cursor:pointer;
+}
+.woocommerce button.button:hover,.woocommerce a.button:hover,.woocommerce #payment #place_order:hover{background:#9a85f6;color:#fff}
+.woocommerce table.shop_table{border-collapse:separate;border-spacing:0;width:100%;overflow:auto}
+.woocommerce table.shop_table td,.woocommerce table.shop_table th{padding:.85rem;border-bottom:1px solid rgba(255,255,255,.12)}
+.woocommerce .woocommerce-info,.woocommerce .woocommerce-message,.woocommerce .woocommerce-error{background:#18263b;color:#f4f7fd;border-top-color:#9175fa;border-radius:8px;padding:1rem 1.5rem}
+.woocommerce .woocommerce-MyAccount-navigation ul{list-style:none;margin:0;padding:0}
+.woocommerce .woocommerce-MyAccount-navigation li a{display:block;padding:.6rem .7rem;color:inherit}
+.woocommerce .woocommerce-checkout-review-order-table,.woocommerce .wc_payment_methods{overflow-wrap:anywhere}
+.woocommerce #payment{background:#18263b;border-radius:12px;color:#f5f8ff}
+.woocommerce #payment div.payment_box{background:#253752;color:#f5f8ff}
+@media(max-width:768px){.woocommerce .col2-set .col-1,.woocommerce .col2-set .col-2,.woocommerce .woocommerce-MyAccount-navigation,.woocommerce .woocommerce-MyAccount-content{width:100%;float:none}.woocommerce table.shop_table{font-size:.9rem}}
+/* The block-based checkout uses Store API; keep it legible in dark themes. */
+.wc-block-checkout,.wc-block-cart,.wp-block-woocommerce-checkout,.wp-block-woocommerce-cart{color:#f4f7fd}
+.wc-block-components-text-input input,.wc-block-components-text-input select,.wc-block-components-combobox-control input{background:#121b29!important;color:#f5f8ff!important;border-color:#526075!important}
+.wc-block-components-totals-wrapper,.wc-block-components-order-summary{border-color:rgba(255,255,255,.18)!important}
+.wc-block-components-button{border-radius:8px!important}
+
+/* ArraySubs customer portal retains native TimonConfigs typography and contrast. */
+.tc-site .arraysubs-account,
+.tc-site [class*="arraysubs-portal"],
+.tc-site .woocommerce-account .woocommerce-MyAccount-content {
+  color: var(--tc-text, #f4f5fb);
+}
+.tc-site .woocommerce-account .woocommerce-MyAccount-navigation a {
+  text-decoration: none;
+}
+.tc-site .woocommerce-account .woocommerce-MyAccount-content a,
+.tc-site .tc-woo-page a {
+  text-underline-offset: 3px;
+}
+.tc-site .woocommerce-checkout .woocommerce-error,
+.tc-site .woocommerce-checkout .woocommerce-info {
+  border-radius: 10px;
+}

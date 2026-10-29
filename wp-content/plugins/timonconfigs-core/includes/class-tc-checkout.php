@@ -49,7 +49,7 @@ final class TC_Checkout {
 			self::render_unavailable();
 		}
 
-		if ( class_exists( 'TC_Billing' ) ) { TC_Billing::render_checkout( $plan ); }
+		if ( class_exists( 'TC_Woo_Bridge' ) ) { TC_Woo_Bridge::checkout( $plan ); }
 		self::render_unavailable();
 	}
 

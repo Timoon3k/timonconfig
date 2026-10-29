@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.11.3' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.14.0' );
 
 require_once get_template_directory() . '/inc/plans.php';
 require_once get_template_directory() . '/inc/customizer.php';
@@ -33,6 +33,7 @@ add_action(
 		add_theme_support( 'custom-logo', array( 'height' => 64, 'width' => 260, 'flex-height' => true, 'flex-width' => true ) );
 		add_theme_support( 'html5', array( 'search-form', 'gallery', 'caption', 'style', 'script' ) );
 		add_theme_support( 'editor-styles' );
+		add_theme_support( 'woocommerce' );
 		add_editor_style( array( 'assets/css/editor.css', 'assets/css/main.css', 'assets/css/premium.css', 'assets/css/catalog.css', 'assets/css/media.css' ) );
 		register_nav_menus( array( 'primary' => __( 'Primary navigation', 'timonconfigs' ), 'footer' => __( 'Footer navigation', 'timonconfigs' ) ) );
 	}
@@ -43,7 +44,7 @@ add_action(
 	static function (): void {
 		wp_enqueue_style( 'timonconfigs', get_template_directory_uri() . '/assets/css/main.css', array(), TIMONCONFIGS_THEME_VERSION );
 		wp_enqueue_style( 'timonconfigs-premium', get_template_directory_uri() . '/assets/css/premium.css', array( 'timonconfigs' ), TIMONCONFIGS_THEME_VERSION );
-		foreach ( array( 'catalog', 'media', 'member', 'config-content', 'owner-editor', 'billing' ) as $stylesheet ) {
+		foreach ( array( 'catalog', 'media', 'member', 'config-content', 'owner-editor', 'billing', 'woocommerce' ) as $stylesheet ) {
 			if ( file_exists( get_template_directory() . '/assets/css/' . $stylesheet . '.css' ) ) {
 				wp_enqueue_style( 'timonconfigs-' . $stylesheet, get_template_directory_uri() . '/assets/css/' . $stylesheet . '.css', array( 'timonconfigs-premium' ), TIMONCONFIGS_THEME_VERSION );
 			}
@@ -153,13 +154,13 @@ function timonconfigs_plan_url( string $plan ): string {
 /** Public amounts share the billing catalogue; saved theme prices never set a charge. */
 function timonconfigs_display_price( string $plan ): string {
 	if ( 'free' === $plan ) { return '€0'; }
-	if ( is_callable( array( 'TC_Billing', 'display_price' ) ) ) { return TC_Billing::display_price( $plan ); }
+	if ( is_callable( array( 'TC_Woo_Bridge', 'display_price' ) ) ) { return TC_Woo_Bridge::display_price( $plan ); }
 	return array( 'monthly' => '€29.99', 'lifetime' => '€80' )[ $plan ] ?? '';
 }
 
 /** Whether new website payments are enabled in the current environment. */
 function timonconfigs_direct_billing(): bool {
-	return is_callable( array( 'TC_Billing', 'direct_enabled' ) ) && TC_Billing::direct_enabled();
+	return is_callable( array( 'TC_Woo_Bridge', 'checkout_ready' ) ) && TC_Woo_Bridge::checkout_ready();
 }
 
 /** Keep the community CTA visible while pointing to honest contact guidance until configured. */
@@ -258,3 +259,17 @@ function timonconfigs_icon( string $name ): string {
 	return $icons[ $name ] ?? '';
 }
 
+
+/** Dedicated classic WooCommerce VIP checkout instead of the generic Checkout Block. */
+add_filter( 'template_include', static function ( string $template ): string {
+    if ( ! function_exists( 'wc_get_page_id' ) || ! is_page( wc_get_page_id( 'checkout' ) ) ) { return $template; }
+    if ( function_exists( 'is_wc_endpoint_url' ) && ( is_wc_endpoint_url( 'order-pay' ) || is_wc_endpoint_url( 'order-received' ) ) ) { return $template; }
+    $custom = get_template_directory() . '/page-tc-vip-checkout.php';
+    return is_file( $custom ) ? $custom : $template;
+}, 99 );
+
+add_action( 'wp_enqueue_scripts', static function (): void {
+    if ( function_exists( 'wc_get_page_id' ) && is_page( wc_get_page_id( 'checkout' ) ) ) {
+        wp_enqueue_style( 'timonconfigs-checkout', get_template_directory_uri() . '/assets/css/checkout-premium.css', array( 'timonconfigs-woocommerce' ), TIMONCONFIGS_THEME_VERSION );
+    }
+}, 50 );
