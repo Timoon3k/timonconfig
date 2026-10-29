@@ -5,7 +5,7 @@ set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.14.2.zip}")"
-core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-1.1.8.zip}")"
+core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-1.1.9.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
 db_image='mariadb:11.4'
@@ -116,7 +116,7 @@ $expect( getenv( 'TC_EXPECTED_THEME_VERSION' ) === wp_get_theme()->get( 'Version
 $expect( getenv( 'TC_EXPECTED_CORE_VERSION' ) === TIMONCONFIGS_CORE_VERSION, 'installed plugin version matches its ZIP' );
 $expect( class_exists( 'TC_Woo_Bridge' ) && class_exists( 'TC_Woo_Checkout_Presentation' ), 'the WooCommerce bridge and checkout presentation are packaged and loaded' );
 $expect( ! class_exists( 'TC_Billing' ) && ! class_exists( 'TC_Billing_Stripe' ) && ! class_exists( 'TC_Billing_PayPal' ), 'retired direct-payment controllers are not restored by this package' );
-$expect( class_exists( 'TC_Woo_Captcha' ) && ! TC_Woo_Captcha::configured(), 'mandatory captcha loads without inventing production credentials' );
+$expect( ! class_exists( 'TC_Woo_Captcha' ) && false === has_action( 'wc_ajax_tc_recaptcha_verify' ), 'retired captcha does not load or register a checkout verification endpoint' );
 $revocation = new ReflectionMethod( TC_Woo_Bridge::class, 'revocation_cutoff' );
 $expect( 0 === $revocation->invoke( null, get_current_user_id(), 'lifetime' ), 'an empty revocation history can be read without an undefined constant fatal' );
 $woo_config = TC_Woo_Bridge::config();

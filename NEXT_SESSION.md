@@ -1,3 +1,9 @@
+# Bieżący etap — Core 1.1.9, 2026-10-30
+
+Właściciel zlecił usunięcie reCAPTCHA i push main. Moduł TC_Woo_Captcha i jego hooki zostały usunięte; wcześniejsze zalecenia obowiązkowej CAPTCHA są historyczne i nie mają zastosowania od1.1.9. Nie przywracaj ich. Obecna architektura WooCommerce/ArraySubs, Discord i motyw0.14.2 pozostają. Wyniki testów i stan publikacji: początek PROGRESS.md. Push GitHub nie potwierdza instalacji na Hostingerze.
+
+---
+
 # Następna sesja — Core 1.1.8 critical-error hotfix, 2026-10-29
 
 Kontynuuj **Core 1.1.8 / theme 0.14.2**, kod `528c12d` już na GitHub main (zdalny ref potwierdzony), gałąź `fix/core-117-critical-error`. Przeczytaj początek PROGRESS i `docs/HOTFIX_CORE_1.1.8.md`; paczka Core1.1.8 gotowa i sprawdzona, instalacja na Hostingerze pozostaje niepotwierdzona. Nie przywracaj wycofanych klas TC_Billing: od 1.1.3 jedynym backendem płatności jest WooCommerce/ArraySubs. Poprzednie niezakończone prace są bezpieczne w checkpointach `e894246` i `f60f228`.

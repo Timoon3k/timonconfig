@@ -1,3 +1,5 @@
+> Aktualizacja 2026-10-30: od Core **1.1.9**, na polecenie właściciela, reCAPTCHA została usunięta. Poniższe wymagania CAPTCHA dotyczą historycznej wersji.
+
 # TimonConfigs Core 1.1.8 — naprawa błędu krytycznego
 
 ## Przyczyna i zakres

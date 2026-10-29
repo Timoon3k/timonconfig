@@ -2,7 +2,7 @@
 /**
  * Plugin Name: TimonConfigs Core
  * Description: TimonConfigs private configuration library, Discord membership and WooCommerce VIP/Discord bridge and protected membership access.
- * Version: 1.1.8
+ * Version: 1.1.9
  * Author: TimonConfigs
  * Text Domain: timonconfigs-core
  * Requires at least: 6.5
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_CORE_VERSION', '1.1.8' );
+define( 'TIMONCONFIGS_CORE_VERSION', '1.1.9' );
 define( 'TIMONCONFIGS_CORE_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-tc-checkout.php';
@@ -22,7 +22,6 @@ require_once __DIR__ . '/includes/class-tc-downloads.php';
 require_once __DIR__ . '/includes/class-tc-member-area.php';
 require_once __DIR__ . '/includes/class-tc-woocommerce.php';
 require_once __DIR__ . '/includes/class-tc-woo-checkout-presentation.php';
-require_once __DIR__ . '/includes/class-tc-woo-captcha.php';
 require_once __DIR__ . '/includes/class-tc-config-content.php';
 require_once __DIR__ . '/includes/class-tc-owner-editor.php';
 require_once __DIR__ . '/includes/class-tc-settings.php';
@@ -52,7 +51,6 @@ add_action(
 		TC_Settings::init();
 		TC_Woo_Bridge::init();
 		TC_Woo_Checkout_Presentation::init();
-		TC_Woo_Captcha::init();
 		TC_Editorial::init();
 		TC_SEO::init();
 		TC_Videos::init();

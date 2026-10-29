@@ -1,8 +1,8 @@
 # TimonConfigs WordPress website
 
-Current implementation: **Core 1.1.8 / theme 0.14.2** uses WooCommerce and ArraySubs for payments, orders and recurring subscriptions. TimonConfigs connects Discord identities, verifies paid membership and manages its assigned Discord roles. The native `TC_Billing_*` checkout and its webhook endpoints were retired in Core 1.1.3; earlier billing guides describe historical releases and must not be used to configure the current checkout.
+Current implementation: **Core 1.1.9 / theme 0.14.2** uses WooCommerce and ArraySubs for payments, orders and recurring subscriptions. TimonConfigs connects Discord identities, verifies paid membership and manages its assigned Discord roles. The native `TC_Billing_*` checkout and its webhook endpoints were retired in Core 1.1.3; earlier billing guides describe historical releases and must not be used to configure the current checkout.
 
-Core 1.1.8 fixes undefined revocation/grant constants introduced in 1.1.7, protects profile rendering from subscription dependency errors, preserves Monthly cancellation controls after a Lifetime purchase, and ignores moderation audit entries older than the newest grant. English billing fields retain gateway-required validation and country refresh behavior. Mandatory server-verified reCAPTCHA v2 remains enabled by the existing configuration. See the [critical-error hotfix and recovery guide](docs/HOTFIX_CORE_1.1.8.md), [member roles and reCAPTCHA setup](docs/VIP_DISCORD_CHECKOUT_ROLES_CAPTCHA_1.1.7.md), and [English checkout/Stripe wallet configuration](docs/STRIPE_WALLETS_CHECKOUT_EN_1.1.4.md).
+Core 1.1.8 fixes undefined revocation/grant constants introduced in 1.1.7, protects profile rendering from subscription dependency errors, preserves Monthly cancellation controls after a Lifetime purchase, and ignores moderation audit entries older than the newest grant. English billing fields retain gateway-required validation and country refresh behavior. Core 1.1.9 removes TimonConfigs reCAPTCHA from checkout, including its widget, Google requests and classic/Store API payment gates, as requested by the owner. No reCAPTCHA keys are required. See the [critical-error hotfix and recovery guide](docs/HOTFIX_CORE_1.1.8.md), [member roles and reCAPTCHA setup](docs/VIP_DISCORD_CHECKOUT_ROLES_CAPTCHA_1.1.7.md), and [English checkout/Stripe wallet configuration](docs/STRIPE_WALLETS_CHECKOUT_EN_1.1.4.md).
 
 Stripe/PayPal credentials, wallet availability, real recurring cancellation and webhook delivery require verification in the installed gateways and provider accounts. Local tests and a GitHub push do not establish a Hostinger deployment or completed payment acceptance. Existing orders, financial history, seller details and EUR prices (€29.99 Monthly / €80 Lifetime) remain preserved.
 
@@ -41,7 +41,7 @@ docker compose -f docker-compose.local.yml down
 4. Open **Tools → TimonConfigs setup** and run the explicit installer. It creates missing pages, fills genuinely empty content with native blocks, seeds seven game collections and three unpublished Apex draft structures, and refreshes permalinks. Existing authored content, statuses, and assigned menus are preserved.
 5. Set a static front page in **Settings → Reading**.
 6. Create and assign Primary and Footer menus in **Appearance → Menus**.
-7. Install and configure WooCommerce, ArraySubs and the required Stripe/PayPal gateways, then map the Monthly/Lifetime product IDs under **Settings → TimonConfigs Woo + Discord**. Configure private Discord and reCAPTCHA credentials using the [current setup and recovery guide](docs/HOTFIX_CORE_1.1.8.md). **Settings → TimonConfigs** provides read-only website links for Ticket Tool; external checkout destinations are retired.
+7. Install and configure WooCommerce, ArraySubs and the required Stripe/PayPal gateways, then map the Monthly/Lifetime product IDs under **Settings → TimonConfigs Woo + Discord**. Configure private Discord credentials using the [current setup and recovery guide](docs/HOTFIX_CORE_1.1.8.md). **Settings → TimonConfigs** provides read-only website links for Ticket Tool; external checkout destinations are retired.
 8. Edit **Pages → Home** to reorder its ten native TimonConfigs sections or change their heading/hero/benefit content. Shared prices, links, branding, and fallbacks remain in **Appearance → Customize → TimonConfigs site content**.
 9. Manage collections under **Configs → Games / Devices / Platforms**, and add release details in the Config Gutenberg editor. Keep unverified releases as drafts; empty/coming-soon collections are noindex and excluded from the core sitemap.
 10. Add FAQs, videos, and approved reviews in their dedicated Gutenberg menus. Every sample review is visibly labelled Demo Content and excluded from rating schema. Videos support native MP4/VTT and click-to-load YouTube, with inline playback by default and an optional per-entry modal.
@@ -58,7 +58,6 @@ Run:
 bash tests/verify-project.sh
 find wp-content -name '*.php' -print0 | xargs -0 -n1 php -l
 php tests/checkout-presentation-integration.php
-php tests/woo-captcha-integration.php
 php tests/woo-discord-moderation-integration.php
 php tests/woo-role-lifecycle-integration.php
 ```

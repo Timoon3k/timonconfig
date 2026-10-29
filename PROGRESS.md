@@ -1,3 +1,11 @@
+## Usunięcie reCAPTCHA — Core 1.1.9, 2026-10-30
+
+- Na wyraźne polecenie właściciela usunięto moduł reCAPTCHA, jego inicjalizację, widget, Google siteverify i blokady klasycznego checkoutu/Store API. Brak kluczy reCAPTCHA nie blokuje już zakupu. Motyw pozostaje0.14.2.
+- Zachowano niezależne sprawdzanie Discorda, uprawnienia, nonce, walidację WooCommerce i potwierdzanie płatności przez operatora. Nie zmieniano konfiguracji ani danych produkcyjnych. Zewnętrzne wtyczki CAPTCHA nie są zarządzane przez repozytorium.
+- Usunięto nieaktualny test/etap CI CAPTCHA i dostosowano test świeżej instalacji. Zaliczone **134 asercje** (prezentacja24, role35, rzeczywisty Woo75), **98 kontroli świeżej instalacji ZIP**, lint zmienionego PHP/JS/static/YAML/diff. Paczka `artifacts/timonconfigs-core-1.1.9.zip`:20plików zgodnych ze źródłami, bez modułu CAPTCHA. Stan publikacji potwierdza końcowy Git ref; nie wykonano instalacji na Hostingerze.
+
+---
+
 ## Hotfix błędu krytycznego Core 1.1.8 — 2026-10-29
 
 - Kontynuacja najnowszego GitHub `main` (`1b8af17`, Core 1.1.7 / theme 0.14.2). Wcześniejsza lokalna praca checkoutu zachowana w `e894246` na `fix/woocommerce-checkout-en-wallets`; stary native billing w checkpoint `f60f228`. Nie cofano migracji WooCommerce/ArraySubs z 1.1.3.
