@@ -69,7 +69,13 @@ body:has(.tc-vip-checkout) .tc-menu-toggle,body:has(.tc-vip-checkout) .tc-nav{di
 body:has(.tc-vip-checkout) .tc-header__inner{justify-content:center}
 body:has(.tc-vip-checkout) .tc-footer__nav{display:none!important}
 body:has(.tc-vip-checkout) .tc-footer__grid{grid-template-columns:1fr}
-/* Hide generic WooCommerce image placeholders and express wallets on the VIP checkout. */
-.tc-vip-checkout img.woocommerce-placeholder,.tc-vip-checkout img[src*='placeholder'],.tc-vip-checkout .wc-stripe-payment-request-wrapper,.tc-vip-checkout .wc-stripe-payment-request-button-separator,.tc-vip-checkout #wc-stripe-payment-request-wrapper,.tc-vip-checkout .wc-ppcp-express-checkout,.tc-vip-checkout .wc-ppcp-express-checkout-wrapper{display:none!important}
+/* Keep Stripe Express Checkout visible; hide only empty thumbnails and duplicate PayPal express. */
+.tc-vip-checkout img.woocommerce-placeholder,.tc-vip-checkout img[src*='placeholder'],.tc-vip-checkout .wc-ppcp-express-checkout,.tc-vip-checkout .wc-ppcp-express-checkout-wrapper{display:none!important}
+.tc-vip-checkout .wc-stripe-payment-request-wrapper,.tc-vip-checkout #wc-stripe-payment-request-wrapper,.tc-vip-checkout .wc-stripe-express-checkout-element{width:100%;max-width:100%;margin:0 0 16px}
+.tc-vip-checkout__grid>.wc-stripe-payment-request-wrapper,.tc-vip-checkout__grid>#wc-stripe-payment-request-wrapper,.tc-vip-checkout__grid>.wc-stripe-express-checkout-element{grid-column:1/-1}
+.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table tbody td,.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table tbody td *, .tc-vip-checkout #order_review .woocommerce-checkout-review-order-table .subscription-details,.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table .arraysubs-subscription-details *{color:#d8e0ea!important}
+.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table tbody .product-name{color:#fff!important}
+.tc-vip-checkout .woocommerce-billing-fields .woocommerce-input-wrapper{display:block;width:100%}
+.tc-vip-checkout .woocommerce-billing-fields .select2-container{width:100%!important}
 @media(max-width:820px){.tc-vip-checkout{padding:28px 0 55px}.tc-vip-checkout__grid{grid-template-columns:1fr}.tc-vip-checkout__summary{position:static}.tc-vip-checkout__benefits{gap:10px 14px}.tc-vip-checkout__customer,.tc-vip-checkout__summary{padding:21px 17px}.tc-vip-checkout__step h2{font-size:1.25rem}}
 @media(max-width:420px){.tc-vip-checkout h1{font-size:2.75rem}.tc-vip-checkout__back{margin-bottom:24px}.tc-vip-checkout__benefits span{font-size:.66rem}.tc-vip-checkout .woocommerce-checkout-review-order-table th,.tc-vip-checkout .woocommerce-checkout-review-order-table td{font-size:.77rem}}

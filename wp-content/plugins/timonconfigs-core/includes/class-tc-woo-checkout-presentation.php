@@ -8,6 +8,7 @@ defined( 'ABSPATH' ) || exit;
 
 final class TC_Woo_Checkout_Presentation {
     public static function init(): void {
+        add_action( 'init', array( __CLASS__, 'ajax_checkout_locale' ), 0 );
         add_action( 'wp', array( __CLASS__, 'checkout_locale' ), 5 );
         add_action( 'template_redirect', array( __CLASS__, 'require_discord' ), 8 );
         add_filter( 'woocommerce_checkout_fields', array( __CLASS__, 'minimal_fields' ), 50 );
@@ -17,6 +18,7 @@ final class TC_Woo_Checkout_Presentation {
         add_filter( 'woocommerce_cart_item_thumbnail', array( __CLASS__, 'remove_checkout_thumbnail' ), 10, 3 );
         add_filter( 'woocommerce_available_payment_gateways', array( __CLASS__, 'plan_gateways' ), 999 );
         add_filter( 'woocommerce_gateway_title', array( __CLASS__, 'gateway_title' ), 10, 2 );
+        add_filter( 'woocommerce_order_button_text', array( __CLASS__, 'order_button_text' ) );
     }
 
     private static function checkout_page(): bool {
@@ -35,6 +37,23 @@ final class TC_Woo_Checkout_Presentation {
             if ( ! in_array( absint( $item['product_id'] ?? 0 ), $ids, true ) ) { return false; }
         }
         return true;
+    }
+
+    /** WC-AJAX does not have a queried page: apply English before validation starts. */
+    private static function checkout_ajax(): bool {
+        if ( ! isset( $_GET['wc-ajax'] ) ) { return false; }
+        $endpoint = sanitize_key( wp_unslash( (string) $_GET['wc-ajax'] ) );
+        return in_array( $endpoint, array( 'checkout', 'update_order_review' ), true );
+    }
+
+    public static function ajax_checkout_locale(): void {
+        if ( self::checkout_ajax() && function_exists( 'switch_to_locale' ) && 'en_US' !== determine_locale() ) {
+            switch_to_locale( 'en_US' );
+        }
+    }
+
+    public static function order_button_text( $text ) {
+        return self::checkout_page() && self::vip_cart() ? 'Pay securely' : $text;
     }
 
     /** Force English labels without changing the admin dashboard's language. */
@@ -74,25 +93,32 @@ final class TC_Woo_Checkout_Presentation {
     }
 
     public static function minimal_fields( array $fields ): array {
-        if ( ! self::checkout_page() || ! self::vip_cart() ) { return $fields; }
-        // Real customer email + country for taxes, processor risk & location evidence.
-        // Street, city, state, postcode, company, telephone and shipping are not requested.
-        $allowed = array( 'billing_email', 'billing_country' );
+        // Same fields for checkout HTML and wc-ajax=checkout; don't remove required billing fields.
+        if ( ! self::vip_cart() || ( ! self::checkout_page() && ! self::checkout_ajax() ) ) { return $fields; }
+        $allowed = array( 'billing_first_name', 'billing_last_name', 'billing_email', 'billing_country',
+            'billing_address_1', 'billing_city', 'billing_state', 'billing_postcode' );
         foreach ( array_keys( $fields['billing'] ?? array() ) as $key ) {
             if ( ! in_array( $key, $allowed, true ) ) { unset( $fields['billing'][ $key ] ); }
         }
-        if ( isset( $fields['billing']['billing_email'] ) ) {
-            $fields['billing']['billing_email']['label'] = 'Email for your receipt';
-            $fields['billing']['billing_email']['placeholder'] = 'you@example.com';
-            $fields['billing']['billing_email']['required'] = true;
-            $fields['billing']['billing_email']['priority'] = 10;
-            $fields['billing']['billing_email']['class'] = array( 'form-row-wide' );
-        }
-        if ( isset( $fields['billing']['billing_country'] ) ) {
-            $fields['billing']['billing_country']['label'] = 'Country / Region (for tax and payment verification)';
-            $fields['billing']['billing_country']['required'] = true;
-            $fields['billing']['billing_country']['priority'] = 20;
-            $fields['billing']['billing_country']['class'] = array( 'form-row-wide' );
+        $labels = array(
+            'billing_first_name' => array( 'First name', 'First name' ),
+            'billing_last_name' => array( 'Last name', 'Last name' ),
+            'billing_email' => array( 'Email for your receipt', 'you@example.com' ),
+            'billing_country' => array( 'Country / Region', '' ),
+            'billing_address_1' => array( 'Street address', 'Street and house number' ),
+            'billing_city' => array( 'City', 'City' ),
+            'billing_state' => array( 'State / Province', '' ),
+            'billing_postcode' => array( 'ZIP / Postal code', 'ZIP / Postal code' ),
+        );
+        $priority = 10;
+        foreach ( $labels as $key => $label ) {
+            if ( ! isset( $fields['billing'][ $key ] ) ) { continue; }
+            $fields['billing'][ $key ]['label'] = $label[0];
+            $fields['billing'][ $key ]['placeholder'] = $label[1];
+            $fields['billing'][ $key ]['class'] = array( 'form-row-wide' );
+            $fields['billing'][ $key ]['priority'] = $priority;
+            $priority += 10;
+            // Keep required flags and country locale rules owned by WooCommerce.
         }
         $fields['shipping'] = array();
         $fields['account'] = array();

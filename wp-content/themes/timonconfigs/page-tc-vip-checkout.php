@@ -9,7 +9,7 @@ get_header();
             <a class="tc-vip-checkout__back" href="<?php echo esc_url( home_url( '/pricing/' ) ); ?>">&larr; Back to VIP plans</a>
             <div class="tc-vip-checkout__eyebrow"><span></span> TIMONCONFIGS / SECURE CHECKOUT</div>
             <h1>Activate your <em>VIP access.</em></h1>
-            <p>One secure checkout. Instant Discord access after your payment is verified.</p>
+            <p>One secure checkout. Instant Discord access after your payment is verified. Billing details may be required by the provider.</p>
             <div class="tc-vip-checkout__benefits" aria-label="VIP checkout details">
                 <span><strong>&#10003;</strong> Discord-linked account</span>
                 <span><strong>&#10003;</strong> Secure Stripe &amp; PayPal payments</span>

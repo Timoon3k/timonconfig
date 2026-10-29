@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.14.0' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.14.1' );
 
 require_once get_template_directory() . '/inc/plans.php';
 require_once get_template_directory() . '/inc/customizer.php';
