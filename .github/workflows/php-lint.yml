@@ -27,5 +27,9 @@ jobs:
             xargs -0 -r -n1 php -l
       - name: Discord checkout regression (no WordPress required)
         run: php tests/checkout-presentation-integration.php
+      - name: Checkout captcha gate regression
+        run: php tests/woo-captcha-integration.php
+      - name: Discord role removal audit regression
+        run: php tests/woo-discord-moderation-integration.php
       - name: Check whitespace errors
         run: git diff --check origin/main...HEAD
