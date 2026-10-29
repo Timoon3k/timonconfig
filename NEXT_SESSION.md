@@ -1,6 +1,6 @@
 # Następna sesja — Core 1.1.8 critical-error hotfix, 2026-10-29
 
-Kontynuuj **Core 1.1.8 / theme 0.14.2**, gałąź `fix/core-117-critical-error` z najnowszego main `1b8af17`. Przeczytaj początek PROGRESS i `docs/HOTFIX_CORE_1.1.8.md`; końcowy commit/push i pełne wyniki testów ustal z ostatniego raportu sesji. Nie przywracaj wycofanych klas TC_Billing: od 1.1.3 jedynym backendem płatności jest WooCommerce/ArraySubs. Poprzednie niezakończone prace są bezpieczne w checkpointach `e894246` i `f60f228`.
+Kontynuuj **Core 1.1.8 / theme 0.14.2**, kod `528c12d` już na GitHub main (zdalny ref potwierdzony), gałąź `fix/core-117-critical-error`. Przeczytaj początek PROGRESS i `docs/HOTFIX_CORE_1.1.8.md`; paczka Core1.1.8 gotowa i sprawdzona, instalacja na Hostingerze pozostaje niepotwierdzona. Nie przywracaj wycofanych klas TC_Billing: od 1.1.3 jedynym backendem płatności jest WooCommerce/ArraySubs. Poprzednie niezakończone prace są bezpieczne w checkpointach `e894246` i `f60f228`.
 
 Naprawiono niezdefiniowane REVOKED/ROLE_GRANTED_AT (fatal odtworzony lokalnie), obsługę wyjątków ArraySubs, anulowanie Monthly mimo Lifetime, ochronę nowego zakupu przed starszym audytem i zachowanie wymaganych pól checkoutu. Obowiązkowa reCAPTCHA pozostaje. Zaliczone354asercjePHP,118plikówlint,64browser/12widoków,98freshZIP; szczegóły na początkuPROGRESS i w raporcie hotfixu. Astra Medium bez blokera wąskiego diffu; rzeczywisty ArraySubs/Stripe/PayPal acceptance pozostaje niepotwierdzony. Zachowaj wszystkie zamówienia, klientów, rolę Owner i działające integracje.
 
