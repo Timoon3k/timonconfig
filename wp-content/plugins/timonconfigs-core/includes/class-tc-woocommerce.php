@@ -298,6 +298,12 @@ final class TC_Woo_Bridge {
             if ( self::product( 'monthly' ) === $pid ) { self::track( $owner ); }
         } catch ( \Throwable $e ) { return; }
     }
+    /** Only a genuinely NEW purchase may undo a manual VIP removal. */
+    private static function revocation_cutoff( int $uid, string $plan ): int {
+        $data = get_user_meta( $uid, self::REVOKED, true );
+        return is_array( $data ) ? absint( $data[ $plan ] ?? 0 ) : 0;
+    }
+
     /** Read-only ArraySubs 2.0.9 subscription status plus independently paid initial WC order. */
     private static function monthly_status( int $uid ): array {
         $value = array( 'active' => false, 'until' => 0, 'unknown' => false );
@@ -325,6 +331,8 @@ final class TC_Woo_Bridge {
                      (int) get_post_meta( $id, '_completed_payments', true ) < 1 ) { continue; }
                 $initial_id = absint( get_post_meta( $id, '_parent_order_id', true ) );
                 $initial = $initial_id ? wc_get_order( $initial_id ) : null;
+                if ( $initial && $initial->get_date_paid() &&
+                     $initial->get_date_paid()->getTimestamp() <= self::revocation_cutoff( $uid, 'monthly' ) ) { continue; }
                 if ( ! $initial || (int) $initial->get_customer_id() !== $uid ||
                      ! $initial->is_paid() || ! $initial->get_date_paid() ||
                      ! self::has_product( $initial, self::product( 'monthly' ) ) ) {
@@ -368,7 +376,8 @@ final class TC_Woo_Bridge {
             do {
                 $orders = wc_get_orders( array( 'customer_id' => $uid, 'limit' => 50, 'paged' => $page, 'orderby' => 'date', 'order' => 'DESC', 'status' => array( 'processing', 'completed' ), 'return' => 'objects' ) );
                 foreach ( $orders as $order ) {
-                    if ( ! $order->get_date_paid() || ! $order->is_paid() || ! self::has_product( $order, $life ) ) { continue; }
+                    if ( ! $order->get_date_paid() || ! $order->is_paid() || ! self::has_product( $order, $life ) ||
+                         $order->get_date_paid()->getTimestamp() <= self::revocation_cutoff( $uid, 'lifetime' ) ) { continue; }
                     if ( (float) $order->get_total() <= 0.0 || (float) $order->get_total_refunded() + 0.0001 >= (float) $order->get_total() ) { continue; }
                     $access['lifetime'] = true; break;
                 }
@@ -442,11 +451,67 @@ final class TC_Woo_Bridge {
         }
         return $manage;
     }
+    /** Discord audit-verified Staff/Owner manual role removal; never infer the actor from a missing role. */
+    private static function staff_removed_role( string $guild, string $discord_id, string $role ): bool {
+        $audit = self::discord_api( 'GET', '/guilds/' . rawurlencode( $guild ) . '/audit-logs?action_type=25&limit=50' );
+        if ( is_wp_error( $audit ) || ! is_array( $audit['audit_log_entries'] ?? null ) ) { return false; }
+        $settings = self::discord_config();
+        foreach ( $audit['audit_log_entries'] as $entry ) {
+            if ( ! is_array( $entry ) || (string) ( $entry['target_id'] ?? '' ) !== $discord_id ) { continue; }
+            $event_id = (string) ( $entry['id'] ?? '' );
+            if ( ! self::snowflake( $event_id ) ) { continue; }
+            $event_time = intdiv( (int) $event_id, 4194304 ) / 1000 + 1420070400;
+            if ( $event_time < time() - 900 || $event_time > time() + 60 ) { continue; }
+            $removed = false;
+            foreach ( $entry['changes'] ?? array() as $change ) {
+                if ( ( $change['key'] ?? '' ) !== '$remove' ) { continue; }
+                foreach ( $change['new_value'] ?? array() as $removed_role ) {
+                    if ( (string) ( $removed_role['id'] ?? '' ) === $role ) { $removed = true; }
+                }
+            }
+            if ( ! $removed ) { continue; }
+            $actor = (string) ( $entry['user_id'] ?? '' );
+            if ( ! self::snowflake( $actor ) || $actor === $discord_id ) { continue; }
+            $staff = self::discord_api( 'GET', '/guilds/' . rawurlencode( $guild ) . '/members/' . rawurlencode( $actor ) );
+            if ( is_wp_error( $staff ) || ! is_array( $staff['roles'] ?? null ) ||
+                 ! empty( $staff['user']['bot'] ) ) { continue; }
+            $power = array_filter( array( $settings['owner_role'] ?? '', $settings['staff_role'] ?? '' ) );
+            if ( array_intersect( array_map( 'strval', $staff['roles'] ), $power ) ) { return true; }
+        }
+        return false;
+    }
+
+    /** Stop recurring charges where ArraySubs can safely retire the subscription. Preserve orders and payments. */
+    private static function stop_moderated_monthly( int $uid ): void {
+        if ( ! function_exists( 'arraysubs_cancel_subscription_immediately' ) ) {
+            update_user_meta( $uid, '_tc_woo_sync_error', 'moderation_cancel_api_unavailable' ); return;
+        }
+        $subs = arraysubs_get_customer_subscriptions( $uid, array( 'arraysubs-active', 'arraysubs-paused', 'arraysubs-on-hold' ) );
+        foreach ( is_array( $subs ) ? $subs : array() as $sid ) {
+            $sid = absint( $sid );
+            if ( $uid !== absint( get_post_meta( $sid, '_customer_id', true ) ) ||
+                 self::product( 'monthly' ) !== absint( get_post_meta( $sid, '_product_id', true ) ) ) { continue; }
+            if ( ! arraysubs_cancel_subscription_immediately( $sid, 'Staff/Owner revoked VIP on Discord', 'system' ) ) {
+                update_user_meta( $uid, '_tc_woo_sync_error', 'moderation_remote_payment_cancellation_requires_review' );
+            }
+        }
+    }
+
+    private static function record_manual_revocation( int $uid, string $plan ): void {
+        $data = get_user_meta( $uid, self::REVOKED, true );
+        $data = is_array( $data ) ? $data : array();
+        if ( ! empty( $data[ $plan ] ) ) { return; }
+        $data[ $plan ] = time();
+        update_user_meta( $uid, self::REVOKED, $data );
+        if ( 'monthly' === $plan ) { self::stop_moderated_monthly( $uid ); }
+    }
+
     public static function sync_user( int $uid ): void {
         if ( $uid < 1 || ! self::roles_configured() || ! self::woo_loaded() || ! self::subscriptions_loaded() ) { return; }
         $id = self::linked_discord( $uid ); if ( ! $id ) { return; }
         $settings = self::discord_config(); $guild = $settings['guild_id'];
         $roles = array( 'monthly' => $settings['monthly_role'], 'lifetime' => $settings['lifetime_role'] );
+        $free_role = (string) ( $settings['free_role'] ?? '' );
         $path = '/guilds/' . rawurlencode( $guild ) . '/members/' . rawurlencode( $id );
         $member = self::discord_api( 'GET', $path );
         if ( is_wp_error( $member ) || ! is_array( $member['roles'] ?? null ) || (string) ( $member['user']['id'] ?? '' ) !== $id ) {
@@ -458,7 +523,19 @@ final class TC_Woo_Bridge {
         if ( ! empty( $wanted['unknown'] ) ) { update_user_meta( $uid, '_tc_woo_sync_error', 'arraysubs_read_failed' ); return; }
         foreach ( $roles as $plan => $role ) {
             $exists = isset( $present[ $role ] ); $is_owned = ! empty( $owned[ $role ] );
-            if ( ! $exists && $is_owned ) { unset( $owned[ $role ] ); $is_owned = false; }
+            if ( ! $exists && $is_owned ) {
+                // A previous TimonConfigs grant disappeared. Never blindly restore it.
+                // Only a verified Discord audit entry from Staff/Owner triggers cancellation.
+                if ( self::staff_removed_role( $guild, $id, $role ) ) {
+                    self::record_manual_revocation( $uid, $plan );
+                    unset( $owned[ $role ] );
+                    $is_owned = false;
+                    $wanted = self::paid_access( $uid );
+                } else {
+                    update_user_meta( $uid, '_tc_woo_sync_error', 'vip_role_missing_manual_review_required' );
+                    continue;
+                }
+            }
             $need = (bool) $wanted[ $plan ];
             // Lifetime supersedes Monthly access; do not newly grant Monthly,
             // but preserve an owned Monthly badge until its own period ends.
@@ -473,6 +550,10 @@ final class TC_Woo_Bridge {
                 $resp = self::discord_api( 'PUT', $path . '/roles/' . rawurlencode( $role ) );
                 if ( is_wp_error( $resp ) ) { unset( $owned[ $role ] ); update_user_meta( $uid, self::OWNED, $owned ); update_user_meta( $uid, '_tc_woo_sync_error', $resp->get_error_code() ); continue; }
                 $present[ $role ] = true;
+                $granted = get_user_meta( $uid, self::ROLE_GRANTED_AT, true );
+                $granted = is_array( $granted ) ? $granted : array();
+                $granted[ $plan ] = time();
+                update_user_meta( $uid, self::ROLE_GRANTED_AT, $granted );
             } elseif ( ! $need && $exists && $is_owned ) {
                 $fresh = self::paid_access( $uid );
                 if ( ! empty( $fresh['unknown'] ) || $fresh[ $plan ] || ( 'monthly' === $plan && $fresh['lifetime'] && $fresh['monthly'] ) ) { continue; }
@@ -482,6 +563,23 @@ final class TC_Woo_Bridge {
             }
             // Pre-existing, externally granted Discord roles are never adopted
             // or deleted by our service, even if there is no paid Woo access.
+        }
+        // Free Member is a fallback, never simultaneous with an owned VIP role.
+        // Do not remove Free until the VIP grant has actually been confirmed.
+        if ( self::snowflake( $free_role ) && $free_role !== $settings['monthly_role'] &&
+             $free_role !== $settings['lifetime_role'] ) {
+            $has_verified_vip = ( isset( $present[ $settings['monthly_role'] ] ) && ! empty( $wanted['monthly'] ) ) ||
+                                ( isset( $present[ $settings['lifetime_role'] ] ) && ! empty( $wanted['lifetime'] ) );
+            if ( $has_verified_vip && isset( $present[ $free_role ] ) ) {
+                $response = self::discord_api( 'DELETE', $path . '/roles/' . rawurlencode( $free_role ) );
+                if ( is_wp_error( $response ) ) { update_user_meta( $uid, '_tc_woo_sync_error', $response->get_error_code() ); }
+                else { unset( $present[ $free_role ] ); }
+            } elseif ( ! $has_verified_vip && ! $wanted['monthly'] && ! $wanted['lifetime'] &&
+                       ! isset( $present[ $free_role ] ) ) {
+                $response = self::discord_api( 'PUT', $path . '/roles/' . rawurlencode( $free_role ) );
+                if ( is_wp_error( $response ) ) { update_user_meta( $uid, '_tc_woo_sync_error', $response->get_error_code() ); }
+                else { $present[ $free_role ] = true; }
+            }
         }
         update_user_meta( $uid, self::OWNED, $owned );
         update_user_meta( $uid, '_tc_woo_last_sync', gmdate( 'Y-m-d H:i:s' ) );
