@@ -18,6 +18,6 @@ final class TC_Settings {
 		foreach ( array( 'Browse Memberships' => home_url( '/pricing/' ), 'VIP Monthly' => TC_Checkout::get_checkout_url( 'monthly' ), 'VIP Lifetime' => TC_Checkout::get_checkout_url( 'lifetime' ) ) as $label => $url ) {
 			echo '<tr><th scope="row">' . esc_html( $label ) . '</th><td><input class="large-text code" type="url" readonly aria-label="' . esc_attr( $label . ' website link' ) . '" value="' . esc_attr( $url ) . '"></td></tr>';
 		}
-		echo '</tbody></table><p>Use the same Discord account on the website. Payment and VIP access are confirmed by the server after the payment provider verifies the purchase.</p><p><a class="button button-primary" href="' . esc_url( admin_url( 'options-general.php?page=tc-billing' ) ) . '">Configure website payments</a></p><p>Online checkout remains unavailable until its environment and payment settings are ready. Existing purchase records and membership access are retained.</p></div>';
+		echo '</tbody></table><p>Use the same Discord account on the website. Payment and VIP access are confirmed by the server after the payment provider verifies the purchase.</p><p><a class="button button-primary" href="' . esc_url( admin_url( 'options-general.php?page=tc-woo' ) ) . '">Configure website payments</a></p><p>Online checkout remains unavailable until its environment and payment settings are ready. Existing purchase records and membership access are retained.</p></div>';
 	}
 }

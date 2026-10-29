@@ -1,3 +1,15 @@
+## Hotfix błędu krytycznego Core 1.1.8 — 2026-10-29
+
+- Kontynuacja najnowszego GitHub `main` (`1b8af17`, Core 1.1.7 / theme 0.14.2). Wcześniejsza lokalna praca checkoutu zachowana w `e894246` na `fix/woocommerce-checkout-en-wallets`; stary native billing w checkpoint `f60f228`. Nie cofano migracji WooCommerce/ArraySubs z 1.1.3.
+- Odtworzono na rzeczywistym lokalnym WordPressie `Undefined constant TC_Woo_Bridge::REVOKED`; brakowało także `ROLE_GRANTED_AT`. Core 1.1.8 definiuje oba klucze. Osłony wyjątków ArraySubs chronią profil/anulowanie/moderację; błędy pozostają do weryfikacji, bez fałszywego potwierdzania anulowania u operatora.
+- Lifetime nie ukrywa już przycisku anulowania istniejącej Monthly. Stary wpis audytu Discorda nie może odebrać dostępu z nowego zakupu. Zachowano finansową historię, reCAPTCHA i granice autoryzacji; wymagane pola bramek oraz klasy kraju/regionu nie są usuwane.
+- Zaliczone lokalnie: **354 asercje PHP** (Woo75, profil56, role35, checkout28, downloads69, OAuthreturn53, standalone38), lint118 PHP/JS/YAML/static/diff bez ostrzeżeń; **64 asercje browser /12 widoków**, **98 kontroli świeżej instalacji ZIP**. Core21/theme96plików zgodnych ze źródłami, manifest `artifacts/core118-release-manifest.json`. Astra Medium bez blokera wąskiego hotfixu; API ArraySubs i operatorów symulowane, bez realnego acceptance. Workflow integracyjny dostosowano do obecnego Woo zamiast wycofanych modułów TC_Billing; stare testy zachowano dla historii.
+- Instrukcja odtworzenia, instalacji i wymaganej konfiguracji: `docs/HOTFIX_CORE_1.1.8.md`. Motyw pozostaje 0.14.2. Nie wykonano zmian płatności/ról ani instalacji na produkcji; brak aktywnego dostępu Hostinger/Stripe/PayPal i produkcyjnego logu. Stan GitHub push należy odczytać z końcowego raportu sesji, nie zakładać na podstawie lokalnego commita.
+
+---
+
+## Historyczne etapy — aktualna architektura i wersja powyżej mają pierwszeństwo
+
 ## Lifetime, PayPal pending i diagnostyka wyszukiwania — 2026-10-27
 
 - Zdalny main miał nowe commity `cc1d6df..8c15edd`: bezpieczne odzyskiwanie brakującej referencji Stripe przez administratora, poprawione przechwycenie danych w closure i prefiksy Test/Live. Scalono bez konfliktów z kontaktem prawnym `7e1b602` w checkpoint `c56ada3`; nie cofano cudzych zmian. Wspólne wydanie **Core0.9.8 / theme0.11.3** zapobiega kolizji dwóch różnych lokalnych/zdalnych wersji0.9.7.

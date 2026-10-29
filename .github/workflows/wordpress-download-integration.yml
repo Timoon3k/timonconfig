@@ -1,28 +1,30 @@
-name: WordPress config download integration
+name: WordPress and WooCommerce checkout integration
 on:
   pull_request:
     paths:
       - 'wp-content/**/*.php'
       - 'wp-content/plugins/timonconfigs-core/resources/legal/*.html'
-      - 'wp-content/themes/timonconfigs/assets/css/billing.css'
+      - 'wp-content/themes/timonconfigs/assets/css/checkout-premium.css'
+      - 'wp-content/themes/timonconfigs/assets/css/woocommerce.css'
       - 'tests/downloads-integration.php'
       - 'tests/member-catalog-integration.php'
       - 'tests/catalog-integration.php'
       - 'tests/owner-editor-integration.php'
       - 'tests/discord-integration.php'
       - 'tests/discord-checkout-return-integration.php'
-      - 'tests/discord-public-checkout-integration.php'
       - 'tests/private-files-integration.php'
       - 'tests/text-upload-integration.php'
       - 'tests/owner-verification-integration.php'
       - 'tests/shared-vip-integration.php'
       - 'tests/catalog-routes-integration.php'
-      - 'tests/billing-*-integration.php'
-      - 'tests/billing-integration.php'
+      - 'tests/woo-checkout-presentation-integration.php'
+      - 'tests/setup-woo-test-translations.php'
       - 'tests/checkout-integration.php'
       - 'tests/site-checkout-copy-integration.php'
       - 'tests/legal-publication-integration.php'
       - 'tests/member-ui-integration.php'
+      - 'tests/verify-project.sh'
+      - 'tools/setup-local-wordpress.sh'
       - '.github/workflows/wordpress-download-integration.yml'
   workflow_dispatch:
 
@@ -35,17 +37,35 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Stripe and PayPal contracts without WordPress or external requests
-        shell: bash
-        run: |
-          set -euo pipefail
-          php tests/billing-stripe-integration.php
-          php tests/billing-paypal-integration.php
+      # Native TC_Billing_* payment classes were retired in Core 1.1.3.
+      # Their tests remain in Git history/source for the matching old release;
+      # this job exercises WooCommerce, the active checkout, CMS and file access.
       - name: Provision disposable WordPress and private storage
         shell: bash
         run: |
           set -euo pipefail
           bash tools/setup-local-wordpress.sh > /tmp/timonconfigs-local-setup.log 2>&1 || { tail -100 /tmp/timonconfigs-local-setup.log; exit 1; }
+      - name: Install pinned WooCommerce and Polish translation test coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error \
+            https://github.com/woocommerce/woocommerce/releases/download/10.3.5/woocommerce.zip \
+            --output /tmp/woocommerce.10.3.5.zip
+          printf '%s  %s\n' 8f720a1a614ef9ba7e6f71766a9f3ef972f01afa0312dfcd6259613c0db495cf /tmp/woocommerce.10.3.5.zip | sha256sum --check --status
+          chmod 644 /tmp/woocommerce.10.3.5.zip
+          docker compose -f docker-compose.local.yml run --rm -T -v /tmp/woocommerce.10.3.5.zip:/packages/woocommerce.zip:ro cli wp --exec='define("WP_HTTP_BLOCK_EXTERNAL", true);' plugin install /packages/woocommerce.zip --activate
+          docker compose -f docker-compose.local.yml run --rm -T cli wp eval 'WC_Install::create_pages();'
+          core_polish=0
+          woo_polish=0
+          if docker compose -f docker-compose.local.yml run --rm -T cli wp language core install pl_PL > /tmp/tc-core-polish.log 2>&1; then core_polish=1; fi
+          if docker compose -f docker-compose.local.yml run --rm -T cli wp language plugin install woocommerce pl_PL > /tmp/tc-woo-polish.log 2>&1; then woo_polish=1; fi
+          if (( ! core_polish || ! woo_polish )); then
+            echo 'Official language packs unavailable; preparing explicitly synthetic localhost-only Polish gettext fixtures.'
+            docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/setup-woo-test-translations.php
+          fi
+      - name: English checkout fields and WooCommerce AJAX validation
+        run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/woo-checkout-presentation-integration.php
       - name: Catalog visibility and filters
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/catalog-integration.php
       - name: Website-only checkout and preserved historical URL options
@@ -84,26 +104,8 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/shared-vip-integration.php
       - name: Archive route cache upgrade
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/catalog-routes-integration.php
-      - name: Billing ledger, durable events and expiry
-        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-store-integration.php
-      - name: Scoped Discord role sync and signed interactions
-        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-discord-integration.php
-      - name: Native checkout, verified webhooks and account access
-        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-integration.php
-      - name: Legacy and native billing presentation
-        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp --skip-plugins=timonconfigs-core eval-file /tests/billing-presentation-integration.php
-      - name: Encrypted write-only billing credentials
-        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-secrets-integration.php
-      - name: Single-account Live pilot and immediately available payment buttons
-        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-live-pilot-integration.php
-      - name: Public Live purchases for ordinary Discord members
-        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-public-live-integration.php
-      - name: Checkout recovery and administrator order management
-        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/billing-recovery-integration.php
       - name: Published legal documents and legacy URL consolidation
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/legal-publication-integration.php
-      - name: Public Discord sign-in preserves member and Owner permissions
-        run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/discord-public-checkout-integration.php
       - name: Tear down disposable WordPress
         if: always()
         run: docker compose -f docker-compose.local.yml down -v --remove-orphans

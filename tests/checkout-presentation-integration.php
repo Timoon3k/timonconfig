@@ -46,7 +46,7 @@ $base = array(
         'billing_email' => array( 'required' => true ),
         'billing_first_name' => array( 'required' => true ),
         'billing_last_name' => array( 'required' => true ),
-        'billing_country' => array( 'required' => true ),
+        'billing_country' => array( 'required' => true, 'class' => array( 'form-row-first', 'address-field', 'update_totals_on_change' ) ),
         'billing_address_1' => array( 'required' => true ),
         'billing_city' => array( 'required' => true ),
         'billing_state' => array( 'required' => false ),
@@ -64,8 +64,14 @@ verify( true === $visible['billing']['billing_first_name']['required'] && true =
 verify( ! isset( $visible['billing']['billing_phone'] ) && ! isset( $visible['billing']['billing_company'] ), 'Removes unnecessary optional contact details only' );
 verify( ! $visible['shipping'] && ! $visible['account'], 'No checkout shipping or independent Woo account creation' );
 verify( ! isset( $visible['order']['order_comments'] ), 'No unused order notes' );
+verify( in_array( 'address-field', $visible['billing']['billing_country']['class'], true ) && in_array( 'update_totals_on_change', $visible['billing']['billing_country']['class'], true ), 'Country refresh and address classes survive checkout styling' );
+$custom = $base;
+$custom['billing']['billing_tax_id'] = array( 'required' => true );
+verify( isset( TC_Woo_Checkout_Presentation::minimal_fields( $custom )['billing']['billing_tax_id'] ), 'Gateway-required custom billing field remains visible' );
 
 $GLOBALS['tc_checkout_page'] = false;
+$_GET['wc-ajax'] = array( 'checkout' );
+verify( TC_Woo_Checkout_Presentation::minimal_fields( $base ) === $base, 'Malformed AJAX endpoint is ignored without array-to-string warnings' );
 $_GET['wc-ajax'] = 'checkout';
 $ajax = TC_Woo_Checkout_Presentation::minimal_fields( $base );
 verify( $ajax === $visible, 'Checkout AJAX validates exactly the same fields as HTML' );

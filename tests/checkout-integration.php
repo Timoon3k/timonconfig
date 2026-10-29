@@ -33,7 +33,7 @@ try {
 	wp_set_current_user( (int) $admins[0] ); ob_start(); TC_Settings::render_page(); $settings = (string) ob_get_clean();
 	foreach ( array( '/pricing/', '/checkout/monthly/', '/checkout/lifetime/' ) as $route ) { $assert( str_contains( $settings, esc_attr( home_url( $route ) ) ), 'Ticket Tool copy panel provides the actual local ' . $route . ' address.' ); }
 	$assert( 3 === substr_count( $settings, ' readonly ' ) && ! str_contains( $settings, '<form' ), 'Checkout link settings are read-only and cannot overwrite payment configuration.' );
-	$assert( str_contains( $settings, esc_url( admin_url( 'options-general.php?page=tc-billing' ) ) ) && ! str_contains( strtolower( $settings ), 'upgrade.chat' ), 'The panel links to the actual billing settings and never advertises a retired checkout.' );
+	$assert( str_contains( $settings, esc_url( admin_url( 'options-general.php?page=tc-woo' ) ) ) && ! str_contains( strtolower( $settings ), 'upgrade.chat' ), 'The panel links to the actual billing settings and never advertises a retired checkout.' );
 	WP_CLI::success( sprintf( 'Checkout validation: %d assertions passed without transactions or database writes.', $checks ) );
 } finally {
 	remove_filter( 'pre_option_timonconfigs_checkout_urls', $stale_options );

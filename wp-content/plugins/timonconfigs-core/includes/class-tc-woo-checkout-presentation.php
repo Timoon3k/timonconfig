@@ -49,8 +49,8 @@ final class TC_Woo_Checkout_Presentation {
 
     /** WC-AJAX does not have a queried page: apply English before validation starts. */
     private static function checkout_ajax(): bool {
-        if ( ! isset( $_GET['wc-ajax'] ) ) { return false; }
-        $endpoint = sanitize_key( wp_unslash( (string) $_GET['wc-ajax'] ) );
+        if ( ! isset( $_GET['wc-ajax'] ) || ! is_string( $_GET['wc-ajax'] ) ) { return false; }
+        $endpoint = sanitize_key( wp_unslash( $_GET['wc-ajax'] ) );
         return in_array( $endpoint, array( 'checkout', 'update_order_review' ), true );
     }
 
@@ -131,7 +131,8 @@ final class TC_Woo_Checkout_Presentation {
         $target = '';
         if ( self::checkout_page() && self::vip_cart() && function_exists( 'WC' ) ) {
             $config = TC_Woo_Bridge::config();
-            $first = reset( WC()->cart->get_cart() );
+            $items = WC()->cart->get_cart();
+            $first = reset( $items );
             $id = absint( $first['product_id'] ?? 0 );
             if ( $id && $id === absint( $config['monthly_product'] ?? 0 ) ) { $target = home_url( '/checkout/monthly/' ); }
             if ( $id && $id === absint( $config['lifetime_product'] ?? 0 ) ) { $target = home_url( '/checkout/lifetime/' ); }
@@ -156,7 +157,7 @@ final class TC_Woo_Checkout_Presentation {
         $allowed = array( 'billing_first_name', 'billing_last_name', 'billing_email', 'billing_country',
             'billing_address_1', 'billing_city', 'billing_state', 'billing_postcode' );
         foreach ( array_keys( $fields['billing'] ?? array() ) as $key ) {
-            if ( ! in_array( $key, $allowed, true ) ) { unset( $fields['billing'][ $key ] ); }
+            if ( ! in_array( $key, $allowed, true ) && empty( $fields['billing'][ $key ]['required'] ) ) { unset( $fields['billing'][ $key ] ); }
         }
         $labels = array(
             'billing_first_name' => array( 'First name', 'First name' ),
@@ -173,7 +174,10 @@ final class TC_Woo_Checkout_Presentation {
             if ( ! isset( $fields['billing'][ $key ] ) ) { continue; }
             $fields['billing'][ $key ]['label'] = $label[0];
             $fields['billing'][ $key ]['placeholder'] = $label[1];
-            $fields['billing'][ $key ]['class'] = array( 'form-row-wide' );
+            // Retain WooCommerce's country/state refresh and address validation classes.
+            $classes = (array) ( $fields['billing'][ $key ]['class'] ?? array() );
+            $classes = array_diff( $classes, array( 'form-row-first', 'form-row-last' ) );
+            $fields['billing'][ $key ]['class'] = array_values( array_unique( array_merge( $classes, array( 'form-row-wide' ) ) ) );
             $fields['billing'][ $key ]['priority'] = $priority;
             $priority += 10;
             // Keep required flags and country locale rules owned by WooCommerce.

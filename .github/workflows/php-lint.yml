@@ -31,5 +31,7 @@ jobs:
         run: php tests/woo-captcha-integration.php
       - name: Discord role removal audit regression
         run: php tests/woo-discord-moderation-integration.php
+      - name: Paid membership and Discord role lifecycle regression
+        run: php tests/woo-role-lifecycle-integration.php
       - name: Check whitespace errors
         run: git diff --check origin/main...HEAD

@@ -4,8 +4,8 @@
 set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.11.3.zip}")"
-core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-0.9.8.zip}")"
+theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.14.2.zip}")"
+core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-1.1.8.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
 db_image='mariadb:11.4'
@@ -114,21 +114,38 @@ $expect( is_plugin_active( 'timonconfigs-core/timonconfigs-core.php' ), 'the pac
 $expect( 'timonconfigs' === get_stylesheet(), 'the packaged theme is activated' );
 $expect( getenv( 'TC_EXPECTED_THEME_VERSION' ) === wp_get_theme()->get( 'Version' ), 'installed theme version matches its ZIP' );
 $expect( getenv( 'TC_EXPECTED_CORE_VERSION' ) === TIMONCONFIGS_CORE_VERSION, 'installed plugin version matches its ZIP' );
-foreach ( array( 'Secrets', 'Store', 'Stripe', 'PayPal', 'Discord', 'UI' ) as $billing_class ) {
-	$expect( class_exists( 'TC_Billing_' . $billing_class ), 'packaged billing class is available: ' . $billing_class );
+$expect( class_exists( 'TC_Woo_Bridge' ) && class_exists( 'TC_Woo_Checkout_Presentation' ), 'the WooCommerce bridge and checkout presentation are packaged and loaded' );
+$expect( ! class_exists( 'TC_Billing' ) && ! class_exists( 'TC_Billing_Stripe' ) && ! class_exists( 'TC_Billing_PayPal' ), 'retired direct-payment controllers are not restored by this package' );
+$expect( class_exists( 'TC_Woo_Captcha' ) && ! TC_Woo_Captcha::configured(), 'mandatory captcha loads without inventing production credentials' );
+$revocation = new ReflectionMethod( TC_Woo_Bridge::class, 'revocation_cutoff' );
+$expect( 0 === $revocation->invoke( null, get_current_user_id(), 'lifetime' ), 'an empty revocation history can be read without an undefined constant fatal' );
+$woo_config = TC_Woo_Bridge::config();
+$expect( empty( $woo_config['enabled'] ) && 0 === $woo_config['monthly_product'] && 0 === $woo_config['lifetime_product'], 'fresh installation cannot enable payment delivery or invent product IDs' );
+$expect( ! function_exists( 'WC' ) && ! TC_Woo_Bridge::checkout_ready(), 'standalone theme and plugin activate safely without the external WooCommerce dependency' );
+$expect( ! defined( 'TIMONCONFIGS_WOO_DISCORD_BOT_TOKEN' ), 'packages do not invent Discord server credentials' );
+$expect( '€29.99' === TC_Woo_Bridge::display_price( 'monthly' ) && '€80' === TC_Woo_Bridge::display_price( 'lifetime' ), 'the bridge preserves the approved EUR offer without creating charges' );
+$unavailable = null;
+$die_handler = static function ( mixed $message, mixed $title, mixed $args ) use ( &$unavailable ): never {
+	$unavailable = is_array( $args ) ? ( $args['response'] ?? null ) : null;
+	throw new RuntimeException( 'tc_release_checkout_unavailable' );
+};
+$die_filter = static fn(): Closure => $die_handler;
+add_filter( 'wp_die_handler', $die_filter, PHP_INT_MAX );
+try {
+	TC_Woo_Bridge::checkout( 'monthly' );
+} catch ( RuntimeException $exception ) {
+	if ( 'tc_release_checkout_unavailable' !== $exception->getMessage() ) { throw $exception; }
+} finally {
+	remove_filter( 'wp_die_handler', $die_filter, PHP_INT_MAX );
 }
-$expect( class_exists( 'TC_Billing' ), 'packaged billing controller is available' );
-$billing_config = TC_Billing::config();
-$expect( 'disabled' === $billing_config['routing'] && 'test' === $billing_config['mode'] && ! $billing_config['role_sync_enabled'] && ! $billing_config['paypal_enabled'], 'fresh billing disables new checkout, role writes and PayPal' );
-$expect( ! TC_Billing::direct_enabled() && ! TC_Billing::mode_allowed( 'live' ), 'installing ZIPs cannot activate direct sales or Live mode' );
-$expect( ! TC_Billing::provider_ready( 'stripe', 'test' ) && ! TC_Billing::provider_ready( 'paypal', 'test' ), 'fresh packages contain no payment credentials' );
-$expect( '€29.99' === TC_Billing::display_price( 'monthly' ) && '€80' === TC_Billing::display_price( 'lifetime' ), 'disabled checkout still uses the central EUR catalogue' );
-$disabled_checkout = TC_Billing_UI::checkout( 'monthly' );
-$expect( ! str_contains( $disabled_checkout, '<form' ) && ! str_contains( strtolower( $disabled_checkout ), 'upgrade.chat' ), 'fresh checkout contains no payment form or retired provider instruction' );
+$expect( 503 === $unavailable, 'unconfigured checkout fails with an intentional HTTP 503 rather than a PHP error or payment request' );
+$expect( false !== has_filter( 'woocommerce_checkout_fields', array( 'TC_Woo_Checkout_Presentation', 'minimal_fields' ) ), 'the installed checkout field integration is registered' );
+$expect( is_readable( get_template_directory() . '/woocommerce/checkout/form-billing.php' ) && is_readable( get_template_directory() . '/woocommerce/checkout/form-checkout.php' ), 'the WooCommerce checkout templates are included in the actual theme ZIP' );
 global $wpdb;
-foreach ( array( 'orders', 'entitlements', 'events', 'sync_jobs', 'owned_roles', 'leases' ) as $billing_table ) {
-	$installed_table = $wpdb->get_row( $wpdb->prepare( 'SHOW TABLE STATUS WHERE Name = %s', $wpdb->prefix . 'tc_billing_' . $billing_table ), ARRAY_A );
-	$expect( is_array( $installed_table ) && 'innodb' === strtolower( $installed_table['Engine'] ), 'packaged billing creates a transactional InnoDB table: ' . $billing_table );
+$expect( null === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $wpdb->prefix . 'tc_billing_orders' ) ) ), 'a new installation does not recreate the retired direct-payment ledger' );
+$rest_routes = rest_get_server()->get_routes();
+foreach ( array( '/timonconfigs/v1/billing/stripe/live', '/timonconfigs/v1/billing/stripe/test', '/timonconfigs/v1/billing/paypal/live', '/timonconfigs/v1/billing/paypal/test' ) as $retired_route ) {
+	$expect( ! isset( $rest_routes[ $retired_route ] ), 'retired payment webhook is not active: ' . $retired_route );
 }
 $expect( true === WP_HTTP_BLOCK_EXTERNAL, 'WordPress external HTTP requests are disabled' );
 $expect( class_exists( 'TC_Owner_Editor' ) && class_exists( 'TC_Config_Content' ), 'Owner and protected editorial modules are packaged and loaded' );

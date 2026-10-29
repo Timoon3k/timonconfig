@@ -1,3 +1,17 @@
+# Następna sesja — Core 1.1.8 critical-error hotfix, 2026-10-29
+
+Kontynuuj **Core 1.1.8 / theme 0.14.2**, gałąź `fix/core-117-critical-error` z najnowszego main `1b8af17`. Przeczytaj początek PROGRESS i `docs/HOTFIX_CORE_1.1.8.md`; końcowy commit/push i pełne wyniki testów ustal z ostatniego raportu sesji. Nie przywracaj wycofanych klas TC_Billing: od 1.1.3 jedynym backendem płatności jest WooCommerce/ArraySubs. Poprzednie niezakończone prace są bezpieczne w checkpointach `e894246` i `f60f228`.
+
+Naprawiono niezdefiniowane REVOKED/ROLE_GRANTED_AT (fatal odtworzony lokalnie), obsługę wyjątków ArraySubs, anulowanie Monthly mimo Lifetime, ochronę nowego zakupu przed starszym audytem i zachowanie wymaganych pól checkoutu. Obowiązkowa reCAPTCHA pozostaje. Zaliczone354asercjePHP,118plikówlint,64browser/12widoków,98freshZIP; szczegóły na początkuPROGRESS i w raporcie hotfixu. Astra Medium bez blokera wąskiego diffu; rzeczywisty ArraySubs/Stripe/PayPal acceptance pozostaje niepotwierdzony. Zachowaj wszystkie zamówienia, klientów, rolę Owner i działające integracje.
+
+Najbliższy priorytet: bezpieczna aktualizacja rzeczywistego Core i odczyt prywatnego PHP logu; potem kontrolowane sprawdzenie profilu, kolejki, webhooków, zakup → VIP/Free, anulowanie → koniec okresu → Free, audyt Staff/Owner i ponowny zakup. Nie deklaruj skutecznego zatrzymania odnowień wyłącznie z lokalnego cutoffu. Błąd helpera anulowania wymaga przeglądu; ta poprawka nie wprowadza automatycznego ponawiania takiego anulowania.
+
+Nie ma aktywnego połączenia Hostinger/Stripe/PayPal; nie potwierdzono wdrożenia produkcyjnego ani rzeczywistego odnowienia/anulowania. Dla WooCommerce Stripe użyj webhooka pokazanego przez zainstalowaną bramkę (oficjalny `/?wc-api=wc_stripe`), bez przywracania natywnych endpointów. reCAPTCHA v2 site/secret tylko w prywatnej konfiguracji. PayPal Sandbox testuj na odizolowanej konfiguracji, nie przełączaj aktywnych klientów Live.
+
+---
+
+## Historyczne przekazania — bieżący etap powyżej ma pierwszeństwo
+
 # Następna sesja — Lifetime i PayPal pending, 2026-10-27
 
 Kontynuuj **Core0.9.8/theme0.11.3**, najnowszy wpis PROGRESS i `docs/LIVE_WEBHOOKS_AND_SEARCH_2026-10-27.md`. Zdalny main8c15edd (Stripe orphan recovery) scalono z legalcontact7e1b602, checkpointc56ada3. Nie nadpisuj żadnej z tych prac; różne0.9.7zostały zastąpione wspólną0.9.8.

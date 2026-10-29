@@ -28,6 +28,17 @@ verify(isset($GLOBALS['tc_actions']['woocommerce_store_api_checkout_order_proces
 TC_Woo_Captcha::require_classic();
 verify(count($GLOBALS['tc_notices'])===1 && $GLOBALS['tc_notices'][0][1]==='error','Unverified checkout blocked before charge');
 try{TC_Woo_Captcha::require_store(new TOrder);verify(false,'Unverified wallet blocked');}catch(\RuntimeException $e){verify(true,'Unverified wallet fails closed');}
+class FakeStoreApiRouteException extends \RuntimeException {
+    public string $error_code;
+    public function __construct($code,$message,$status){$this->error_code=$code;parent::__construct($message,$status);}
+}
+class_alias(FakeStoreApiRouteException::class, 'Automattic\WooCommerce\StoreApi\Exceptions\RouteException');
+try {
+    TC_Woo_Captcha::require_store(new TOrder);
+    verify(false, 'Native Store API exception required');
+} catch (FakeStoreApiRouteException $e) {
+    verify($e->getCode()===403 && $e->error_code==='tc_woo_captcha_required', 'Unsolved wallet returns native Store API 403, not an unexpected 500');
+}
 WC()->session->set('tc_woo_recaptcha_verified',['user'=>101,'at'=>time()]);
 TC_Woo_Captcha::require_classic();
 verify(count($GLOBALS['tc_notices'])===1,'Verified same user can pay');

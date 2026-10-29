@@ -12,6 +12,8 @@ final class TC_Woo_Bridge {
     private const OPTION = 'timonconfigs_woo';
     private const TRACKED = '_tc_woo_tracked';
     private const OWNED = '_tc_woo_owned_roles';
+    private const REVOKED = '_tc_woo_revoked';
+    private const ROLE_GRANTED_AT = '_tc_woo_role_granted_at';
     private const TOKEN = 'TIMONCONFIGS_WOO_DISCORD_BOT_TOKEN';
 
     public static function init(): void {
@@ -278,19 +280,27 @@ final class TC_Woo_Bridge {
              ! function_exists( 'arraysubs_schedule_cancellation' ) ) {
             wp_safe_redirect( home_url( '/account/?tc_cancel=unavailable' ), 303 ); exit;
         }
-        $id = absint( $_POST['tc_subscription_id'] ?? 0 );
-        $owned = $id > 0 && $uid === absint( get_post_meta( $id, '_customer_id', true ) ) &&
-                 self::product( 'monthly' ) === absint( get_post_meta( $id, '_product_id', true ) );
-        $sub = $owned ? arraysubs_get_subscription( $id ) : null;
-        if ( ! $sub || ! in_array( $sub->post_status, array( 'arraysubs-active', 'arraysubs-paused', 'arraysubs-on-hold' ), true ) ) {
-            wp_safe_redirect( home_url( '/account/?tc_cancel=invalid' ), 303 ); exit;
+        $result = 'invalid';
+        try {
+            $id = absint( $_POST['tc_subscription_id'] ?? 0 );
+            $owned = $id > 0 && $uid === absint( get_post_meta( $id, '_customer_id', true ) ) &&
+                     self::product( 'monthly' ) === absint( get_post_meta( $id, '_product_id', true ) );
+            $sub = $owned ? arraysubs_get_subscription( $id ) : null;
+            if ( $sub && in_array( $sub->post_status, array( 'arraysubs-active', 'arraysubs-paused', 'arraysubs-on-hold' ), true ) ) {
+                if ( function_exists( 'arraysubs_is_waiting_cancellation' ) && arraysubs_is_waiting_cancellation( $id ) ) {
+                    $result = 'scheduled';
+                } else {
+                    $ok = arraysubs_schedule_cancellation( $id, 'Customer cancellation from TimonConfigs member dashboard', 'customer' );
+                    $result = $ok && ! is_wp_error( $ok ) ? 'scheduled' : 'failed';
+                    if ( 'scheduled' === $result ) { self::track( $uid ); }
+                }
+            }
+        } catch ( \Throwable $e ) {
+            // A provider/dependency error must never claim that future charges stopped.
+            update_user_meta( $uid, '_tc_woo_cancel_error', 'subscription_cancellation_requires_review' );
+            $result = 'failed';
         }
-        if ( function_exists( 'arraysubs_is_waiting_cancellation' ) && arraysubs_is_waiting_cancellation( $id ) ) {
-            wp_safe_redirect( home_url( '/account/?tc_cancel=scheduled' ), 303 ); exit;
-        }
-        $ok = arraysubs_schedule_cancellation( $id, 'Customer cancellation from TimonConfigs member dashboard', 'customer' );
-        if ( $ok ) { self::track( $uid ); }
-        wp_safe_redirect( home_url( '/account/?tc_cancel=' . ( $ok ? 'scheduled' : 'failed' ) ), 303 ); exit;
+        wp_safe_redirect( home_url( '/account/?tc_cancel=' . $result ), 303 ); exit;
     }
 
     private static function track( int $uid ): void {
@@ -503,7 +513,7 @@ final class TC_Woo_Bridge {
         return $manage;
     }
     /** Discord audit-verified Staff/Owner manual role removal; never infer the actor from a missing role. */
-    private static function staff_removed_role( string $guild, string $discord_id, string $role ): bool {
+    private static function staff_removed_role( string $guild, string $discord_id, string $role, int $after = 0 ): bool {
         $audit = self::discord_api( 'GET', '/guilds/' . rawurlencode( $guild ) . '/audit-logs?action_type=25&limit=50' );
         if ( is_wp_error( $audit ) || ! is_array( $audit['audit_log_entries'] ?? null ) ) { return false; }
         $settings = self::discord_config();
@@ -513,6 +523,8 @@ final class TC_Woo_Bridge {
             if ( ! self::snowflake( $event_id ) ) { continue; }
             $event_time = intdiv( (int) $event_id, 4194304 ) / 1000 + 1420070400;
             if ( $event_time < time() - 900 || $event_time > time() + 60 ) { continue; }
+            // A removal preceding the newest grant must never revoke a new purchase.
+            if ( $event_time <= $after ) { continue; }
             $removed = false;
             foreach ( $entry['changes'] ?? array() as $change ) {
                 if ( ( $change['key'] ?? '' ) !== '$remove' ) { continue; }
@@ -537,14 +549,23 @@ final class TC_Woo_Bridge {
         if ( ! function_exists( 'arraysubs_cancel_subscription_immediately' ) ) {
             update_user_meta( $uid, '_tc_woo_sync_error', 'moderation_cancel_api_unavailable' ); return;
         }
-        $subs = arraysubs_get_customer_subscriptions( $uid, array( 'arraysubs-active', 'arraysubs-paused', 'arraysubs-on-hold' ) );
+        try {
+            $subs = arraysubs_get_customer_subscriptions( $uid, array( 'arraysubs-active', 'arraysubs-paused', 'arraysubs-on-hold' ) );
+            if ( ! is_array( $subs ) ) { throw new \RuntimeException( 'Subscription list unavailable.' ); }
+        } catch ( \Throwable $e ) {
+            update_user_meta( $uid, '_tc_woo_sync_error', 'moderation_remote_payment_cancellation_requires_review' ); return;
+        }
         foreach ( is_array( $subs ) ? $subs : array() as $sid ) {
             $sid = absint( $sid );
             if ( $uid !== absint( get_post_meta( $sid, '_customer_id', true ) ) ||
                  self::product( 'monthly' ) !== absint( get_post_meta( $sid, '_product_id', true ) ) ) { continue; }
-            if ( ! arraysubs_cancel_subscription_immediately( $sid, 'Staff/Owner revoked VIP on Discord', 'system' ) ) {
-                update_user_meta( $uid, '_tc_woo_sync_error', 'moderation_remote_payment_cancellation_requires_review' );
+            try {
+                $cancelled = arraysubs_cancel_subscription_immediately( $sid, 'Staff/Owner revoked VIP on Discord', 'system' );
+                if ( $cancelled && ! is_wp_error( $cancelled ) ) { continue; }
+            } catch ( \Throwable $e ) {
+                // Preserve the entitlement cutoff, but leave billing for operator review.
             }
+            update_user_meta( $uid, '_tc_woo_sync_error', 'moderation_remote_payment_cancellation_requires_review' );
         }
     }
 
@@ -580,7 +601,9 @@ final class TC_Woo_Bridge {
             if ( ! $exists && $is_owned ) {
                 // A previous TimonConfigs grant disappeared. Never blindly restore it.
                 // Only a verified Discord audit entry from Staff/Owner triggers cancellation.
-                if ( self::staff_removed_role( $guild, $id, $role ) ) {
+                $grants = get_user_meta( $uid, self::ROLE_GRANTED_AT, true );
+                $last_grant = is_array( $grants ) ? absint( $grants[ $plan ] ?? 0 ) : 0;
+                if ( self::staff_removed_role( $guild, $id, $role, $last_grant ) ) {
                     self::record_manual_revocation( $uid, $plan );
                     unset( $owned[ $role ] );
                     $is_owned = false;
@@ -660,12 +683,18 @@ final class TC_Woo_Bridge {
     /** Private, Discord-authenticated billing status without the WooCommerce account dashboard. */
     public static function account( int $uid ): string {
         if ( ! self::woo_loaded() || ! self::subscriptions_loaded() ) { return '<section class="tc-member-management"><p>Membership information is temporarily unavailable.</p></section>'; }
-        $access = self::paid_access( $uid );
+        try {
+            $access = self::paid_access( $uid );
+        } catch ( \Throwable $e ) {
+            $access = array( 'monthly' => false, 'lifetime' => false, 'monthly_until' => 0, 'unknown' => true );
+        }
         $title = ! empty( $access['unknown'] ) ? 'Membership verification pending' :
             ( $access['lifetime'] ? 'VIP Lifetime' : ( $access['monthly'] ? 'VIP Monthly' : 'Free Member' ) );
-        $status = $access['monthly'] && ! $access['lifetime']
-            ? 'VIP Monthly is paid through ' . wp_date( 'j M Y', $access['monthly_until'] )
-            : ( $access['lifetime'] ? 'Your Lifetime access is active.' : 'No current paid membership.' );
+        $status = ! empty( $access['unknown'] )
+            ? 'Subscription information is temporarily unavailable. Your subscription may still renew. Please contact support.'
+            : ( $access['monthly'] && ! $access['lifetime']
+                ? 'VIP Monthly is paid through ' . wp_date( 'j M Y', $access['monthly_until'] )
+                : ( $access['lifetime'] ? 'Your Lifetime access is active.' : 'No current paid membership.' ) );
         $message = '';
         if ( isset( $_GET['tc_cancel'] ) ) {
             $notices = array(
@@ -680,22 +709,28 @@ final class TC_Woo_Bridge {
         }
         $html = '<section class="tc-member-management"><h2>My membership</h2><p><strong>' . esc_html( $title ) . '</strong></p><p>' . esc_html( $status ) . '</p>';
         if ( $message ) { $html .= '<p role="status">' . esc_html( $message ) . '</p>'; }
-        if ( ! $access['lifetime'] ) {
+        // Lifetime does not cancel an existing Monthly agreement. Keep its controls available.
+        try {
+            $controls = '';
             $subs = arraysubs_get_customer_subscriptions( $uid, array( 'arraysubs-active', 'arraysubs-paused', 'arraysubs-on-hold' ) );
+            if ( ! is_array( $subs ) ) { throw new \RuntimeException( 'Subscription list unavailable.' ); }
             foreach ( is_array( $subs ) ? $subs : array() as $sid ) {
                 $sid = absint( $sid );
                 $sub = arraysubs_get_subscription( $sid );
                 if ( ! $sub || $uid !== absint( get_post_meta( $sid, '_customer_id', true ) ) ||
                     self::product( 'monthly' ) !== absint( get_post_meta( $sid, '_product_id', true ) ) ) { continue; }
                 if ( function_exists( 'arraysubs_is_waiting_cancellation' ) && arraysubs_is_waiting_cancellation( $sid ) ) {
-                    $html .= '<p>Automatic renewal is cancelled. Access ends after the already-paid period.</p>'; continue;
+                    $controls .= '<p>Automatic renewal is cancelled. Access ends after the already-paid period.</p>'; continue;
                 }
-                $html .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
-                $html .= '<input type="hidden" name="action" value="tc_woo_cancel_monthly">';
-                $html .= '<input type="hidden" name="tc_subscription_id" value="' . esc_attr( (string) $sid ) . '">';
-                $html .= wp_nonce_field( 'tc_woo_cancel_monthly', '_wpnonce', true, false );
-                $html .= '<button type="submit" class="tc-button tc-button--ghost" onclick="return confirm(&quot;Cancel future monthly renewals? Your paid access continues until its expiry date.&quot;)">Cancel monthly subscription</button></form>';
+                $controls .= '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">';
+                $controls .= '<input type="hidden" name="action" value="tc_woo_cancel_monthly">';
+                $controls .= '<input type="hidden" name="tc_subscription_id" value="' . esc_attr( (string) $sid ) . '">';
+                $controls .= wp_nonce_field( 'tc_woo_cancel_monthly', '_wpnonce', true, false );
+                $controls .= '<button type="submit" class="tc-button tc-button--ghost" onclick="return confirm(&quot;Cancel future monthly renewals? Your paid access continues until its expiry date.&quot;)">Cancel monthly subscription</button></form>';
             }
+            $html .= $controls;
+        } catch ( \Throwable $e ) {
+            $html .= '<p role="status">Subscription controls are temporarily unavailable. Your subscription may still renew. Please contact support.</p>';
         }
         $html .= '<p>Manage your VIP access here. Payments and renewal history remain securely stored by the payment provider and WooCommerce. If your role is missing, use Refresh Roles above or contact support.</p></section>';
         return $html;
