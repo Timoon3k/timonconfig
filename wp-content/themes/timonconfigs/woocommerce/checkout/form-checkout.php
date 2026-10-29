@@ -10,7 +10,7 @@ if ( ! $checkout->is_registration_enabled() && $checkout->is_registration_requir
 <form name="checkout" method="post" class="checkout woocommerce-checkout tc-vip-checkout__grid" action="<?php echo esc_url( wc_get_checkout_url() ); ?>" enctype="multipart/form-data" aria-label="Secure VIP checkout">
     <?php do_action( 'woocommerce_checkout_before_customer_details' ); ?>
     <section id="customer_details" class="tc-vip-checkout__customer" aria-label="Account and billing details">
-        <div class="tc-vip-checkout__step"><span>01</span><div><h2>Account &amp; contact</h2><p>Signed in with Discord. Enter billing details for secure payment processing.</p></div></div>
+        <div class="tc-vip-checkout__step"><span>01</span><div><h2>Discord account &amp; billing</h2><p>Signed in with Discord. Enter billing details for secure payment processing.</p></div></div>
         <div class="tc-vip-checkout__connected"><span class="tc-vip-checkout__connected-dot" aria-hidden="true"></span><div><strong>Discord account connected</strong><small>VIP roles are delivered to your linked Discord profile after successful payment.</small></div></div>
         <?php if ( $checkout->get_checkout_fields() ) : ?>
             <?php do_action( 'woocommerce_checkout_billing' ); ?>

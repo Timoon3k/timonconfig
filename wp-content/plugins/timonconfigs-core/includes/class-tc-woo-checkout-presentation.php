@@ -1,6 +1,6 @@
 <?php
 /**
- * Minimal, English-only, Discord-first frontend for digital VIP checkouts.
+ * English-only, Discord-first frontend for digital VIP checkouts.
  * WooCommerce remains the authoritative payment, tax and order processor.
  * Never fabricate billing address values or intercept gateway data.
  */
@@ -19,6 +19,13 @@ final class TC_Woo_Checkout_Presentation {
         add_filter( 'woocommerce_available_payment_gateways', array( __CLASS__, 'plan_gateways' ), 999 );
         add_filter( 'woocommerce_gateway_title', array( __CLASS__, 'gateway_title' ), 10, 2 );
         add_filter( 'woocommerce_order_button_text', array( __CLASS__, 'order_button_text' ) );
+        // WooCommerce remains the order/subscription backend, but Discord is the only
+        // customer-facing login. Never disable the authenticated WP user session.
+        add_filter( 'woocommerce_account_menu_items', array( __CLASS__, 'account_menu' ), 100 );
+        add_filter( 'pre_option_woocommerce_enable_myaccount_registration', array( __CLASS__, 'no_woo_registration' ) );
+        add_filter( 'woocommerce_get_privacy_policy_text', array( __CLASS__, 'checkout_privacy_notice' ), 50, 2 );
+        add_filter( 'gettext', array( __CLASS__, 'english_checkout_gettext' ), 100, 3 );
+        add_filter( 'gettext_with_context', array( __CLASS__, 'english_checkout_gettext_context' ), 100, 4 );
     }
 
     private static function checkout_page(): bool {
@@ -50,6 +57,43 @@ final class TC_Woo_Checkout_Presentation {
         if ( self::checkout_ajax() && function_exists( 'switch_to_locale' ) && 'en_US' !== determine_locale() ) {
             switch_to_locale( 'en_US' );
         }
+    }
+
+    /** Hide Woo's independent logout action, not WordPress/Discord authentication. */
+    public static function account_menu( array $items ): array {
+        unset( $items['customer-logout'] );
+        return $items;
+    }
+
+    public static function no_woo_registration( $value ) {
+        return 'no';
+    }
+
+    /** Limit text overrides to our VIP checkout and its two AJAX endpoints. */
+    private static function vip_checkout_context(): bool {
+        return self::vip_cart() && ( self::checkout_page() || self::checkout_ajax() );
+    }
+
+    /** Prevent Polish WooCommerce strings from leaking into otherwise English checkout. */
+    public static function english_checkout_gettext( $translation, $text, $domain ) {
+        if ( ! self::vip_checkout_context() ) { return $translation; }
+        $domains = array( 'woocommerce', 'woocommerce-gateway-stripe', 'woocommerce-paypal-payments', 'arraysubs', 'default' );
+        return in_array( $domain, $domains, true ) ? $text : $translation;
+    }
+
+    public static function english_checkout_gettext_context( $translation, $text, $context, $domain ) {
+        return self::english_checkout_gettext( $translation, $text, $domain );
+    }
+
+    /** English checkout privacy notice; the merchant's actual policy remains linked. */
+    public static function checkout_privacy_notice( $text, $type = '' ) {
+        if ( ! self::vip_checkout_context() || ( $type && 'checkout' !== $type ) ) { return $text; }
+        $privacy_url = function_exists( 'get_privacy_policy_url' ) ? get_privacy_policy_url() : '';
+        $message = 'Your personal data is used to process your order, verify payment and deliver your Discord-linked VIP access.';
+        if ( $privacy_url ) {
+            $message .= ' Read our <a href="' . esc_url( $privacy_url ) . '">Privacy Policy</a>.';
+        }
+        return $message;
     }
 
     public static function order_button_text( $text ) {

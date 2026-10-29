@@ -528,6 +528,19 @@ final class TC_Woo_Bridge {
         echo '<p><strong>ArraySubs version:</strong> ' . esc_html( defined( 'ARRAYSUBS_VERSION' ) ? ARRAYSUBS_VERSION : 'not defined' ) . ' | <strong>Boot:</strong> ' . esc_html( did_action( 'arraysubs_after_boot' ) ? 'complete' : 'not complete' ) . '</p>';
         echo '<p><strong>ArraySubs API:</strong> ' . esc_html( self::subscriptions_loaded() ? 'Developer API available' : 'Developer API not loaded' ) . '</p>';
         echo '<p><strong>Checkout:</strong> ' . esc_html( self::checkout_ready() ? 'enabled' : 'not available yet' ) . '</p>';
+        // Display read-only merchant guidance; never expose Stripe API or webhook secrets.
+        $stripe_admin = admin_url( 'admin.php?page=wc-settings&tab=checkout&section=stripe' );
+        $webhook_url = home_url( '/?wc-api=wc_stripe' );
+        $tax_based_on = (string) get_option( 'woocommerce_tax_based_on', 'shipping' );
+        $tax_enabled = 'yes' === get_option( 'woocommerce_calc_taxes', 'no' );
+        echo '<div class="notice notice-info" style="padding:10px 14px;max-width:820px"><h3>Stripe wallets & webhook diagnostics</h3>';
+        echo '<p><strong>Official Stripe webhook endpoint:</strong> <code>' . esc_html( $webhook_url ) . '</code></p>';
+        echo '<p>Webhook status cannot be confirmed from TimonConfigs. Verify <strong>Live</strong> and <strong>Test</strong> as <strong>Configured</strong> in <a href="' . esc_url( $stripe_admin ) . '">WooCommerce &rarr; Stripe &rarr; Settings &rarr; Account details &rarr; Configure connection</a>. Use the plugin\'s Reconfigure webhooks action if necessary; do not create a second TimonConfigs webhook.</p>';
+        echo '<p>Apple Pay and Google Pay are shown only on compatible devices with configured wallets. Enable their combined Express checkout method and Checkout placement in the official Stripe plugin.</p>';
+        if ( $tax_enabled && 'billing' === $tax_based_on ) {
+            echo '<p><strong>Possible wallet blocker:</strong> WooCommerce taxes are calculated from the customer billing address and VIP products are virtual. The official Stripe extension may suppress Apple Pay and Google Pay to avoid inaccurate taxes. Do not override this protection without testing taxes.</p>';
+        }
+        echo '</div>';
         echo '<form action="options.php" method="post">'; settings_fields( 'tc_woo' );
         foreach ( array( 'monthly_product' => 'WooCommerce VIP Monthly (Simple product + Subscription [AS]) product ID', 'lifetime_product' => 'WooCommerce VIP Lifetime (Simple Product) product ID' ) as $key => $label ) {
             echo '<p><label>' . esc_html( $label ) . ' <input type="number" name="' . esc_attr( self::OPTION . '[' . $key . ']' ) . '" min="0" value="' . esc_attr( (string) $c[ $key ] ) . '"></label></p>';

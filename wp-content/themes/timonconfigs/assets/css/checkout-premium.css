@@ -79,3 +79,50 @@ body:has(.tc-vip-checkout) .tc-footer__grid{grid-template-columns:1fr}
 .tc-vip-checkout .woocommerce-billing-fields .select2-container{width:100%!important}
 @media(max-width:820px){.tc-vip-checkout{padding:28px 0 55px}.tc-vip-checkout__grid{grid-template-columns:1fr}.tc-vip-checkout__summary{position:static}.tc-vip-checkout__benefits{gap:10px 14px}.tc-vip-checkout__customer,.tc-vip-checkout__summary{padding:21px 17px}.tc-vip-checkout__step h2{font-size:1.25rem}}
 @media(max-width:420px){.tc-vip-checkout h1{font-size:2.75rem}.tc-vip-checkout__back{margin-bottom:24px}.tc-vip-checkout__benefits span{font-size:.66rem}.tc-vip-checkout .woocommerce-checkout-review-order-table th,.tc-vip-checkout .woocommerce-checkout-review-order-table td{font-size:.77rem}}
+
+/* Stripe Elements: remove the browser's double white fieldset / iframe frame.
+   Keep all secure hosted card fields, focus behavior and provider UI intact. */
+.tc-vip-checkout #payment div.payment_box fieldset,
+.tc-vip-checkout #payment .wc-stripe-upe-form fieldset,
+.tc-vip-checkout #payment #wc-stripe-upe-form fieldset {
+  border:0!important; padding:0!important; margin:0!important; min-width:0;
+  background:transparent; box-shadow:none;
+}
+.tc-vip-checkout #payment div.payment_box iframe,
+.tc-vip-checkout #payment .StripeElement iframe,
+.tc-vip-checkout #payment .wc-stripe-upe-element iframe {
+  display:block; max-width:100%; border:0!important; outline:none!important;
+}
+.tc-vip-checkout #payment .wc-stripe-upe-element,
+.tc-vip-checkout #payment #wc-stripe-upe-form,
+.tc-vip-checkout #payment .wc-stripe-elements-field {
+  min-width:0; max-width:100%; box-sizing:border-box;
+}
+.tc-vip-checkout #payment .payment_box.payment_method_stripe,
+.tc-vip-checkout #payment .payment_box.payment_method_stripe_cc {
+  padding:14px!important; background:#151f2c!important; border:0!important;
+}
+/* Prevent a bright inset stripe frame / overflow from colliding with the card. */
+.tc-vip-checkout #payment div.payment_box,
+.tc-vip-checkout #payment .wc-stripe-upe-element {
+  overflow:visible; max-width:100%;
+}
+.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table .arraysubs-subscription-details,
+.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table .arraysubs-subscription-details *,
+.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table .subscription-details,
+.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table .subscription-details *,
+.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table tfoot *,
+.tc-vip-checkout #order_review .woocommerce-checkout-review-order-table tbody td * {
+  color:#e1e8f2!important; opacity:1!important;
+}
+.tc-vip-checkout .woocommerce-checkout-review-order-table tfoot td,
+.tc-vip-checkout .woocommerce-checkout-review-order-table tfoot th {
+  background:transparent!important;
+}
+@media(max-width:480px) {
+  .tc-vip-checkout #payment .payment_box.payment_method_stripe,
+  .tc-vip-checkout #payment .payment_box.payment_method_stripe_cc { padding:10px!important; }
+  .tc-vip-checkout #payment ul.payment_methods { padding:12px!important; }
+  .tc-vip-checkout #payment .place-order { padding:14px!important; }
+  .tc-vip-checkout #payment .wc-stripe-upe-element { width:100%; }
+}

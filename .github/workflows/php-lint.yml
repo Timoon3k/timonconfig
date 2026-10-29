@@ -25,5 +25,7 @@ jobs:
           set -euo pipefail
           find wp-content/themes/timonconfigs wp-content/plugins/timonconfigs-core tests -type f -name '*.php' -print0 |
             xargs -0 -r -n1 php -l
+      - name: Discord checkout regression (no WordPress required)
+        run: php tests/checkout-presentation-integration.php
       - name: Check whitespace errors
         run: git diff --check origin/main...HEAD
