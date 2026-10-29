@@ -1,0 +1,36 @@
+name: Temporary package Core 1.1.7 and Theme 0.14.2
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/export-core-117-theme-0142.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main at exact release SHA
+        uses: actions/checkout@v4
+        with:
+          ref: 1b8af17d4af23a9a4a9286a7d15936d1fe844bc7
+          persist-credentials: false
+      - name: Create installable WordPress archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq 'Version: 1.1.7' wp-content/plugins/timonconfigs-core/timonconfigs-core.php
+          grep -Fq 'Version: 0.14.2' wp-content/themes/timonconfigs/style.css
+          test -s wp-content/plugins/timonconfigs-core/includes/class-tc-woo-captcha.php
+          mkdir -p output
+          (cd wp-content/plugins && zip -q -r ../../output/timonconfigs-core-1.1.7.zip timonconfigs-core)
+          (cd wp-content/themes && zip -q -r ../../output/timonconfigs-theme-0.14.2.zip timonconfigs)
+          unzip -t output/timonconfigs-core-1.1.7.zip >/dev/null
+          unzip -t output/timonconfigs-theme-0.14.2.zip >/dev/null
+          sha256sum output/*.zip
+      - name: Upload WordPress installable archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: timonconfigs-core-117-theme-0142
+          path: output/*.zip
+          if-no-files-found: error
+          retention-days: 3
