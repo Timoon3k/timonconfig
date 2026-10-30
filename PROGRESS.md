@@ -3,8 +3,8 @@
 - Baza main `7ea5e2b`, motyw0.14.3 bez zmian. Właściciel potwierdził natychmiastowe anulowanie w Stripe; nie mylić z wyłączeniem przyszłych odnowień i zachowaniem opłaconego okresu.
 - Dodano blokadę jednoczesnych synchronizacji członka, sprawdzanie właściciela blokady przy zapisach, ponowną kontrolę nadawanego dostępu, kolejność Free przed odebraniem wygasłego VIP i unieważnienie cache po cofnięciu przez Owner/Staff. Zdarzenia statusu/dat oraz świeży odczyt Discorda kolejkują sprawdzenie; zapasowe pięć minut pozostaje.
 - Profil poprzednio opłaconego członka między rolami pokazuje Membership update pending zamiast ponownej weryfikacji. Autoryzacja i download allowlists pozostają bez zmian; nie tworzono fikcyjnego Free/VIP. reCAPTCHA nadal usunięta.
-- Pierwsze testy:55 asercji cyklu ról i74 rzeczywistego profilu zaliczone. Dalsza kontrola blokad/kolejki, regresji i ZIP w toku; końcowy wynik uzupełnia raport wydania. Astra Medium przeglądała współbieżność i zachowanie przy błędach; rzeczywisty ArraySubs/Stripe acceptance pozostaje niepotwierdzony.
-- Instrukcja: `docs/MEMBERSHIP_SYNC_1.1.10.md`. Nie zmieniono produkcyjnych płatności, ról, klientów ani konfiguracji; Hostinger nie był aktualizowany. Stan push należy potwierdzić z końcowym Git ref.
+- Zaliczone **353 asercje PHP**: role71, audyt4, rzeczywista blokada SQL8, profil74, OAuth127, pobrania69. **27 widoków profilu** w przeglądarce (9stanów×3szerokości), bez błędów JS i overflow; lint117PHP/static/JS/YAML/diff bez ostrzeżeń. **98 kontroli świeżej instalacji ZIP** na oddzielnym offline WordPressie6.8.3/PHP8.2. ZIPCore20plików zgodny ze źródłami, manifest `artifacts/sync1110-release-manifest.json`. Astra Medium przeglądała współbieżność i zachowanie przy błędach; rzeczywisty ArraySubs/Stripe acceptance pozostaje niepotwierdzony.
+- Instrukcja: `docs/MEMBERSHIP_SYNC_1.1.10.md`. Nie zmieniono produkcyjnych płatności, ról, klientów ani konfiguracji; Hostinger nie był aktualizowany. Kod etapu `66fe347`; publikację main potwierdza końcowy Git ref. Paczka `artifacts/timonconfigs-core-1.1.10.zip`.
 
 ---
 

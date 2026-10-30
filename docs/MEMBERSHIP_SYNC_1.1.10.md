@@ -34,6 +34,6 @@ Kliknięcie Cancel w Stripe nie dowodzi jeszcze aktualizacji ArraySubs. TimonCon
 
 ## Walidacja i ograniczenia
 
-Pierwszy lokalny przebieg: **55 asercji cyklu ról** z symulowanym transportem/operatorami oraz **74 asercje profilu** na rzeczywistym WordPressie. Końcowe wyniki blokad, kolejki, paczek i regresji zapisuje raport sesji w PROGRESS.md.
+Zaliczone **353 asercje PHP**: role71, audyt4, blokada na rzeczywistej bazie WordPressa8, profil74, OAuth127, pobrania69. Lint117PHP, static/JS/YAML/diff bez ostrzeżeń. **27 widoków profilu** w przeglądarce (9stanów×3szerokości), bez błędów JS i overflow. **98 kontroli świeżej instalacji ZIP** na oddzielnym offline WordPressie6.8.3/PHP8.2 zaliczonych. ZIPCore20plików zgodny ze źródłami: `artifacts/timonconfigs-core-1.1.10.zip`; manifest `artifacts/sync1110-release-manifest.json`. Kod etapu `66fe347`. Operatorzy i Discord są symulowani; testy nie stanowią akceptacji rzeczywistych webhooków i płatności.
 
 Nie wykonano rzeczywistego zakupu, anulowania, zmiany ról ani konfiguracji na produkcji. Nie potwierdzono zdalnej instalacji. Dokumentacja/paczka ArraySubs 2.0.9 była niedostępna z tego środowiska (proxy CONNECT403); rzeczywiste mapowanie statusów/dat i obsługa webhooków zainstalowanej bramki wymagają weryfikacji na instalacji. Nie rozszerzano uprawnień o niepotwierdzone statusy subskrypcji. Push GitHub nie stanowi dowodu wdrożenia na Hostingerze.
