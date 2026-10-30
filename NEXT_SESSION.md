@@ -1,3 +1,13 @@
+# Bieżący etap — SEO, Core1.1.11 / theme0.14.4, 2026-10-30
+
+Przeczytaj `docs/SEO_AUDIT_2026-10-30.md`, przegląd JSON w `docs/seo/` i początek PROGRESS. Właściciel podał, że Home ma wynik „URL jest w Google”; nie twierdź, że cała witryna nie jest zaindeksowana. Publiczne odczyty/Google blokował proxyCONNECT403, więc pozycje i produkcyjne meta/robots/CWV nie zostały niezależnie potwierdzone.
+
+Przygotowano Rank Math SEO-only oraz pełny reviewed eksport, adapter metadanych zachowujący autora i treści Home→XIMMatrixApexLegends, Contact/#community→CronusZenDiscord. Fragment nie jest osobną stroną. Nie znoszono noindex pustych kolekcji/prywatnych kont, nie tworzono nowego systemu SEO ani fikcyjnych ocen. Testy lokalnego natywnego importu Rank Math1.0.280 i SEO root kończy; stan commit/push/paczek odczytaj z końcowego raportu.
+
+Następny krok po zatwierdzonej aktualizacji: kontrolowany import SEO-only po bieżącej kopii, bo importer zastępuje całe trzy sekcje. Zweryfikuj renderowane Home/Contact meta/canonical/robots i sitemap, a następnie w GSC porównaj zapytania, URL-e, kraje, urządzenia i wyświetlenia/pozycję. Brak potwierdzonego importu produkcyjnego/instalacji Hostinger i gwarancji TOP1. Zachowaj istniejące płatności, role, autorskie meta i indywidualne canonical/noindex.
+
+---
+
 # Bieżący etap — Core 1.1.10 / theme 0.14.3, 2026-10-30
 
 Kontynuuj poprawkę anulowania i spójności ról, kod `66fe347` (baza main `7ea5e2b`); przeczytaj początek PROGRESS i `docs/MEMBERSHIP_SYNC_1.1.10.md`. Właściciel potwierdził **natychmiastowe anulowanie w Stripe**. Zwykłe zatrzymanie przyszłych odnowień nadal zachowuje opłacony okres.

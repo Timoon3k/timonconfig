@@ -24,6 +24,8 @@ final class TC_SEO {
 		add_filter( 'wp_sitemaps_taxonomies_query_args', array( __CLASS__, 'sitemap_terms_query' ), 10, 2 );
 		add_filter( 'wpseo_sitemap_entry', array( __CLASS__, 'sitemap_entry' ), 10, 3 );
 		add_filter( 'rank_math/sitemap/entry', array( __CLASS__, 'sitemap_entry' ), 10, 3 );
+		add_filter( 'rank_math/frontend/title', array( __CLASS__, 'rank_math_title' ), 20 );
+		add_filter( 'rank_math/frontend/description', array( __CLASS__, 'rank_math_description' ), 20 );
 		add_filter( 'wpseo_robots_array', array( __CLASS__, 'provider_robots' ), 99 );
 		add_filter( 'rank_math/frontend/robots', array( __CLASS__, 'provider_robots' ), 99 );
 		add_filter( 'aioseo_robots_meta', array( __CLASS__, 'aioseo_robots' ), 99 );
@@ -56,6 +58,53 @@ final class TC_SEO {
 		if ( 'tc_noindex' === $key ) { return rest_sanitize_boolean( $value ); }
 		if ( 'tc_seo_image' === $key ) { return esc_url_raw( (string) $value, array( 'https', 'http' ) ); }
 		return 'tc_seo_description' === $key ? sanitize_textarea_field( (string) $value ) : sanitize_text_field( (string) $value );
+	}
+
+	/** Supply missing metadata through Rank Math itself, never a second set of tags. */
+	public static function rank_math_title( string $title ): string { return self::rank_math_metadata( 'title', $title ); }
+	public static function rank_math_description( string $description ): string { return self::rank_math_metadata( 'description', $description ); }
+
+	private static function rank_math_metadata( string $field, string $incoming ): string {
+		if ( is_admin() ) { return $incoming; }
+		$object = get_queried_object();
+		$source = ''; $default = '';
+		if ( $object instanceof WP_Post && in_array( $object->post_type, array( 'page', 'tc_config' ), true ) ) {
+			$authored = get_post_meta( $object->ID, 'rank_math_' . $field, true );
+			if ( ! is_scalar( $authored ) || '' !== trim( (string) $authored ) ) { return $incoming; }
+			$source = get_post_meta( $object->ID, 'tc_seo_' . $field, true );
+			if ( is_scalar( $source ) && '' === trim( (string) $source ) && 'page' === $object->post_type ) {
+				if ( 'page' === get_option( 'show_on_front' ) && is_front_page() && $object->ID === (int) get_option( 'page_on_front' ) ) {
+					$settings = get_option( 'rank-math-options-titles', array() );
+					$source = is_array( $settings ) ? ( $settings[ 'homepage_' . $field ] ?? '' ) : '';
+					$default = 'home';
+				} elseif ( 'contact' === $object->post_name ) { $default = 'contact'; }
+			}
+		} elseif ( $object instanceof WP_Term && in_array( $object->taxonomy, array( 'tc_game', 'tc_device' ), true ) ) {
+			$authored = get_term_meta( $object->term_id, 'rank_math_' . $field, true );
+			if ( ! is_scalar( $authored ) || '' !== trim( (string) $authored ) ) { return $incoming; }
+			$source = get_term_meta( $object->term_id, 'tc_seo_' . $field, true );
+		} else { return $incoming; }
+		if ( ! is_scalar( $source ) ) { return $incoming; }
+		$source = trim( (string) $source );
+		if ( '' === $source && $default && function_exists( 'timonconfigs_seo_page_defaults' ) ) {
+			$defaults = timonconfigs_seo_page_defaults();
+			$source = (string) ( $defaults[ $default ][ $field ] ?? '' );
+		}
+		if ( '' === $source ) { return $incoming; }
+		$paginated_source = (bool) preg_match( '/%(?:page|pagenumber)%/i', $source );
+		if ( preg_match( '/%[a-zA-Z_][a-zA-Z0-9_:-]*%/', $source ) ) {
+			// Let the installed provider expand its own variables. Never print unresolved tokens.
+			if ( ! is_callable( array( '\\RankMath\\Helper', 'replace_vars' ) ) ) { return $incoming; }
+			try { $source = (string) \RankMath\Helper::replace_vars( $source ); }
+			catch ( \Throwable $e ) { return $incoming; }
+			if ( preg_match( '/%[a-zA-Z_][a-zA-Z0-9_:-]*%/', $source ) ) { return $incoming; }
+		}
+		$source = wp_strip_all_tags( $source );
+		$page = max( 1, (int) get_query_var( 'paged' ), (int) get_query_var( 'page' ) );
+		if ( 'title' === $field && $page > 1 && ! $paginated_source && ! preg_match( '/\bPage\s+' . $page . '\b/i', $source ) ) {
+			$source .= ' — Page ' . $page;
+		}
+		return $source;
 	}
 
 	public static function add_meta_boxes(): void {

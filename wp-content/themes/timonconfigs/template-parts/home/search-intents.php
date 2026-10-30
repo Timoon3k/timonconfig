@@ -7,6 +7,7 @@ defined( 'ABSPATH' ) || exit;
 		<h2>XIM Matrix Apex Legends Configs</h2>
 		<p>Compare Apex Legends releases for controller and mouse &amp; keyboard setups. Each published config lists its supported device, input, platform and release notes; confirm those details before installing.</p>
 		<a class="tc-text-link" href="<?php echo esc_url( home_url( '/apex-legends-configs/#xim-matrix' ) ); ?>">Explore XIM Matrix Apex Configs <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a>
+		<p>Need setup help? Visit our <a href="<?php echo esc_url( home_url( '/contact/#community' ) ); ?>">Cronus Zen Discord community and XIM Matrix support</a> page.</p>
 	</article>
 	<article class="tc-intent-card">
 		<h2>Call of Duty Configs for XIM Matrix &amp; Cronus Zen</h2>

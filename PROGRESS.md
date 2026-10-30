@@ -1,3 +1,12 @@
+## Audyt SEO i przegląd Rank Math — Core1.1.11 / theme0.14.4, 2026-10-30
+
+- Właściciel podał wynik inspekcji Home „URL jest w Google”: zgłoszenie dotyczy więc również widoczności na wybrane frazy, nie potwierdzonej globalnej blokady indeksowania. Brak niezależnego dostępu GSC/pozycji/CWV.12publicznychodczytów zatrzymał proxyCONNECT403; nie była to odpowiedź403 witryny.
+- Przejrzano eksport Rank Math; globalny index i mapy są włączone. Przygotowano pełną kopię i zalecany wariant SEO-only (`docs/seo/`),14udokumentowanychzmian, bez zmiany modułów/ról/przekierowań. Import zastępuje całe przekazane sekcje; nie nadpisuje indywidualnych metadanych stron ani WordPress blog_public.
+- Adapter Rank Math zachowuje jawne meta autora, następnie tc_seo, skonfigurowane globals statycznejHome i defaults motywu. Home celuje w XIM Matrix Apex Legends, Contact/#community w Cronus Zen Discord; dodano rzeczywiste treści wsparcia i linkowanie bez nowych pustych URL-i. Konta, pliki i puste kolekcje pozostają chronione/noindex.
+- Audyt i instrukcja: `docs/SEO_AUDIT_2026-10-30.md`; szczegóły JSON w `docs/seo/RANK_MATH_EXPORT_REVIEW_2026-10-30.md`. Lokalny test natywnego importera Rank Math1.0.280 i integracji SEO jest w toku; końcowe wyniki uzupełnia root. Nie wykonano importu ani zmian na produkcji, nie potwierdzono pozycji ani TOP1.
+
+---
+
 ## Spójność anulowania i ról — Core 1.1.10, 2026-10-30
 
 - Baza main `7ea5e2b`, motyw0.14.3 bez zmian. Właściciel potwierdził natychmiastowe anulowanie w Stripe; nie mylić z wyłączeniem przyszłych odnowień i zachowaniem opłaconego okresu.
