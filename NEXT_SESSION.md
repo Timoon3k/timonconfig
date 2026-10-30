@@ -1,3 +1,15 @@
+# Bieżący etap — Core 1.1.12 / theme 0.15.0, 2026-10-30
+
+Przeczytaj `docs/COLLECTION_URLS_1.1.12.md` i początek PROGRESS. Kontynuuj gałąź `feature/device-game-collections-20261030`, checkpoint `0a2be44`; końcowy commit sprawdź w Git. Nie przywracaj starych kotwic jako głównych docelowych adresów fraz.
+
+Gotowe 14 rzeczywistych stron gra + urządzenie i `/free-configs/`, frazy/aliasy wyszukiwarki, rzeczywiste przecięcia kart, paginacja, canonical/robots/XML, renderowana migracja znanych lokalnych linków. Edytowalne treści i autorskie meta zachowane; prywatne pobrania i płatności bez zmian. Nowe strony powstają po wejściu administratora do kokpitu; konflikt z autorską stroną o tym samym slugu jest pomijany, nie nadpisywany.
+
+Zaliczone 254 PHP + 12 import Rank Math, 534 browser / 32 widoki / 6 przekierowań / 7 XML, 24 dodatkowe widoki, lint123/static/JS/YAML/diff, 98 fresh ZIP. Finalne paczki Core1.1.12/theme0.15.0 gotowe w artifacts, manifest `collections-release-manifest-20261030.json`. Testowe 18 konfiguracji usunięte, ustawienia Rank Math przywrócone i zależność nieaktywna. Nie deklaruj wdrożenia tego wydania na Hostingerze ani aktualizacji main.
+
+Najbliższy krok: po autoryzowanej instalacji obu paczek otworzyć kokpit, sprawdzić nowe strony i karty, zapisać ustawienia sitemap i wyczyścić cache. Bez ponownego importu poprzedniego JSON-a. W GSC sprawdzić mapę, a po zwolnieniu limitu ręcznych próśb priorytetowo cztery nowe adresy Apex/Call of Duty × XIM/Cronus, jeśli kwalifikują się do indeksowania. Opublikowana, ale pusta lub wykluczona kombinacja celowo pozostaje noindex. Home można opisać szerzej, precyzyjne frazy rozwijać na nowych kolekcjach; nie nadpisuj autorskiego tytułu automatycznie. Nie obiecuj daty indeksowania lub TOP1.
+
+---
+
 # Bieżący etap — SEO, Core 1.1.11 / theme 0.14.4, 2026-10-30
 
 Przeczytaj `docs/SEO_AUDIT_2026-10-30.md`, przegląd eksportu w `docs/seo/` i początek PROGRESS. Właściciel podał wynik Home „Adres URL jest w Google”. Nie twierdź, że witryna nie jest zaindeksowana: nie zmierzono pozycji na konkretne zapytania, CTR ani CWV. Odczyt produkcji i Google zatrzymał proxy CONNECT 403, nie serwer strony.

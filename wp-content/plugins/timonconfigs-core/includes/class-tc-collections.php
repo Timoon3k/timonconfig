@@ -200,8 +200,15 @@ final class TC_Collections {
 		if ( ! $target ) { return; }
 		$request = wp_unslash( $_SERVER['REQUEST_URI'] ?? '' );
 		$target_parts = wp_parse_url( $target );
-		$path = ( $target_parts['path'] ?? '/' ) . ( isset( $target_parts['query'] ) ? '?' . $target_parts['query'] : '' );
-		if ( $request && $path !== $request ) { wp_safe_redirect( $target, 302, 'TimonConfigs collection search' ); exit; }
+		$request_parts = wp_parse_url( $request );
+		$target_query = array(); $request_query = array();
+		wp_parse_str( $target_parts['query'] ?? '', $target_query );
+		wp_parse_str( is_array( $request_parts ) ? ( $request_parts['query'] ?? '' ) : '', $request_query );
+		ksort( $target_query ); ksort( $request_query );
+		// Redirect headers encode spaces differently from add_query_arg. Compare values,
+		// not the raw query string, or a release name with spaces redirects to itself.
+		$matches = is_array( $request_parts ) && ( $target_parts['path'] ?? '/' ) === ( $request_parts['path'] ?? '/' ) && $target_query === $request_query;
+		if ( $request && ! $matches ) { wp_safe_redirect( $target, 302, 'TimonConfigs collection search' ); exit; }
 	}
 
 	public static function template( string $template ): string {

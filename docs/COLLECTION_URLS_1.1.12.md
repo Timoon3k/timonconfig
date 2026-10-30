@@ -38,4 +38,4 @@ Ponieważ osobna strona przejmuje frazę „XIM Matrix Apex Legends”, warto op
 
 ## Walidacja i stan publikacji
 
-Wyniki końcowych testów, commit i paczki zapisano na początku `PROGRESS.md` oraz `NEXT_SESSION.md`. Zmiany są przygotowane do ręcznej aktualizacji; push gałęzi GitHub nie potwierdza instalacji WordPressa na Hostingerze. Nie wykonano zmian produkcyjnej bazy, płatności lub ról Discord.
+Zaliczone: 254 asercje PHP, 12 natywnego importu Rank Math, 534 przeglądarkowe (32 widoki, 6 przekierowań, 7 XML), 24 dodatkowe widoki Home/kolekcji, lint 123 PHP i 98 kontroli świeżej instalacji ZIP-ów. Dane testowe i opcje Rank Math zostały przywrócone. Szczegóły, commit i paczki zapisano na początku `PROGRESS.md` oraz `NEXT_SESSION.md`. Zmiany są przygotowane do ręcznej aktualizacji; push gałęzi GitHub nie potwierdza instalacji WordPressa na Hostingerze. Nie wykonano zmian produkcyjnej bazy, płatności lub ról Discord.

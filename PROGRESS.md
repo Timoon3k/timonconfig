@@ -1,3 +1,16 @@
+## Kolekcje gra + urządzenie i wyszukiwanie — Core 1.1.12 / theme 0.15.0, 2026-10-30
+
+- Nowe rzeczywiste strony: 14 połączeń dwóch urządzeń i siedmiu gier oraz `/free-configs/`. Pierwsze skróty prowadzą do `/xim-matrix-apex-legends/`, `/xim-matrix-call-of-duty/`, `/cronus-zen-apex-legends/` i `/cronus-zen-call-of-duty/`. Ogólne kolekcje gier/urządzeń zachowano.
+- Karty wynikają z przecięcia taksonomii, a nie nazw wpisów. Wyszukiwanie rozpoznaje pełne frazy i aliasy, zachowuje nazwę wydania/sezonu, wybrane filtry i kontekst platformy. Poprawiono pętlę dla spacji w nazwie wydania: porównywane są odkodowane parametry, nie surowy zapis URL.
+- Nowe strony tworzą się po wejściu administratora do kokpitu lub jawnym setupie. Tytuł/opis są edytowalne; istniejące strony, autorskie meta, drafty i usunięcia nie są nadpisywane. Linki starych kotwic Hero/Gutenberg/menu są aktualizowane podczas renderowania bez przepisywania bazy. Stare kotwice i ogólne kolekcje nadal działają.
+- Własne canonical i paginacja `collection_page`, 404 poza zakresem, noindex pustych/wykluczonych/chronionych kombinacji i filtrowanych wariantów. Kwalifikujące się strony wchodzą do XML Rank Math i natywnego WordPressa. Rank Math celowo pomija canonical na noindex; nie dodano drugiego dostawcy metadanych. Zalogowane strony kolekcji mają prywatny cache ze względu na sesyjne linki pobrań.
+- Testy PASS: **68 kolekcji, 27 wyszukiwania, 29 Home, 45 istniejącego katalogu, 85 SEO** (254 asercje PHP) oraz **12 natywnego importera Rank Math**. **534 asercje przeglądarkowe**, 32 widoki w 1440/390/320, 6 przekierowań i 7 dokumentów XML z rzeczywistym Rank Math 1.0.280. Dodatkowo 24 widoki Home/kolekcji bez błędów JS lub overflow, lint 123 PHP i static/JS/YAML/diff.
+- **98 kontroli świeżej instalacji finalnych ZIP-ów** w oddzielnym WordPressie offline. Paczki: `artifacts/timonconfigs-core-1.1.12.zip` (21 plików) i `artifacts/timonconfigs-theme-0.15.0.zip` (97 plików), zgodność bajtowa i CRC potwierdzone; manifest `artifacts/collections-release-manifest-20261030.json`. Po HTTP testach usunięto 18 oznaczonych konfiguracji testowych i przywrócono poprzednie lokalne ustawienia Rank Math; testowa zależność wyłączona.
+- Instrukcja aktualizacji i limit GSC: `docs/COLLECTION_URLS_1.1.12.md`. Nie trzeba ponownie importować starego JSON-a. Wyczerpanie ręcznych próśb GSC nie zatrzymuje zwykłego crawlowania/map XML; brak gwarancji terminu lub pozycji. Właściciel zgłosił instalację poprzedniego SEO i wynik 85/100 po cache reset; bieżącego wydania nie instalowano na produkcji.
+- Checkpoint `0a2be44`; praca na gałęzi `feature/device-game-collections-20261030`. Końcowy commit odczytaj z Git. Main, produkcyjna baza, płatności i role Discord nie były zmieniane.
+
+---
+
 ## Audyt SEO i Rank Math — Core 1.1.11 / theme 0.14.4, 2026-10-30
 
 - Według podanej przez właściciela inspekcji Search Console Home ma wynik „Adres URL jest w Google”. Brak widoczności na wskazane frazy wymaga oceny zapytań i pozycji, nie dowodzi globalnej blokady indeksowania. Nie mamy niezależnego dostępu GSC/CWV; 12 publicznych odczytów zatrzymał proxy CONNECT 403, zanim dotarły do witryny.

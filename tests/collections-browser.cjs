@@ -49,8 +49,12 @@ const pathOnly = value => new URL(value).pathname;
         const expected = fixture.pages[route];
         check(await page.locator('head meta[name="description"]').count() === 1, `${route}/${width}: one description`);
         check(await page.locator('head meta[name="description"]').getAttribute('content') === expected.description, `${route}/${width}: specific collection description`);
-        check(await page.locator('head link[rel="canonical"]').count() === 1, `${route}/${width}: one canonical`);
-        check(await page.locator('head link[rel="canonical"]').getAttribute('href') === canonical, `${route}/${width}: correct self-canonical`);
+        const canonicalTags = page.locator('head link[rel="canonical"]');
+        const canonicalCount = await canonicalTags.count();
+        // Rank Math deliberately removes its canonical head action for noindex pages.
+        // Public indexable pages still require exactly one; never add a second provider.
+        check(noindex ? canonicalCount <= 1 : canonicalCount === 1, `${route}/${width}: canonical ownership matches indexing policy`);
+        if (canonicalCount) check(await canonicalTags.getAttribute('href') === canonical, `${route}/${width}: correct self-canonical`);
         check(await page.locator('head meta[name="robots"]').count() === 1, `${route}/${width}: one robots directive`);
         const robots = await page.locator('head meta[name="robots"]').getAttribute('content');
         check(/\bnoindex\b/.test(robots) === noindex, `${route}/${width}: correct index eligibility`);
@@ -168,7 +172,7 @@ const pathOnly = value => new URL(value).pathname;
       report.sitemaps.push({ path: pathOnly(child), status: response.status(), urls: values.length });
     }
     for (const route of baseRoutes) check(indexedPaths.has(route), `The XML sitemap contains the eligible page ${route}`);
-    for (const route of ['/xim-matrix-rust/', '/xim-matrix-fortnite/', '/account/', '/my-downloads/', '/checkout/', '/cart/']) check(!indexedPaths.has(route), `The XML sitemap excludes noindex or private URL ${route}`);
+    for (const route of ['/xim-matrix-rust/', '/xim-matrix-fortnite/', '/account/', '/my-downloads/', '/my-account/', '/checkout/', '/cart/', '/zamowienie/', '/koszyk/']) check(!indexedPaths.has(route), `The XML sitemap excludes noindex or private URL ${route}`);
     await context.close();
     check(report.errors.length === 0, 'No JavaScript runtime errors.');
     report.passed = true;

@@ -1,6 +1,6 @@
 # TimonConfigs WordPress website
 
-Current implementation: **Core 1.1.11 / theme 0.14.4** uses WooCommerce and ArraySubs for payments, orders and recurring subscriptions. TimonConfigs connects Discord identities, verifies paid membership and manages its assigned Discord roles. The native `TC_Billing_*` checkout and its webhook endpoints were retired in Core 1.1.3; earlier billing guides describe historical releases and must not be used to configure the current checkout.
+Current implementation: **Core 1.1.12 / theme 0.15.0** uses WooCommerce and ArraySubs for payments, orders and recurring subscriptions. TimonConfigs connects Discord identities, verifies paid membership and manages its assigned Discord roles. The native `TC_Billing_*` checkout and its webhook endpoints were retired in Core 1.1.3; earlier billing guides describe historical releases and must not be used to configure the current checkout.
 
 Core 1.1.8 fixes undefined revocation/grant constants introduced in 1.1.7, protects profile rendering from subscription dependency errors, preserves Monthly cancellation controls after a Lifetime purchase, and ignores moderation audit entries older than the newest grant. English billing fields retain gateway-required validation and country refresh behavior. Core 1.1.9 removes TimonConfigs reCAPTCHA from checkout, including its widget, Google requests and classic/Store API payment gates, as requested by the owner. No reCAPTCHA keys are required. See the [critical-error hotfix and recovery guide](docs/HOTFIX_CORE_1.1.8.md), [member roles and reCAPTCHA setup](docs/VIP_DISCORD_CHECKOUT_ROLES_CAPTCHA_1.1.7.md), and [English checkout/Stripe wallet configuration](docs/STRIPE_WALLETS_CHECKOUT_EN_1.1.4.md).
 
@@ -9,6 +9,8 @@ Core 1.1.10 serializes role updates per member, prevents older workers from over
 Core 1.1.11/theme0.14.4 adds a Rank Math metadata adapter that preserves authored values, focuses Home on XIM Matrix Apex Legends, and improves the existing Contact community section for Cronus Zen Discord. It also excludes private member pages and mapped WooCommerce utility pages from provider and core XML sitemaps. Reviewed Rank Math imports and the [SEO audit](docs/SEO_AUDIT_2026-10-30.md) distinguish reported homepage indexing from query rankings; production settings and Google positions remain unverified. Importing an SEO settings JSON does not itself submit or rank the site.
 
 Stripe/PayPal credentials, wallet availability, real recurring cancellation and webhook delivery require verification in the installed gateways and provider accounts. Local tests and a GitHub push do not establish a Hostinger deployment or completed payment acceptance. Existing orders, financial history, seller details and EUR prices (€29.99 Monthly / €80 Lifetime) remain preserved.
+
+Core 1.1.12/theme 0.15.0 adds real game/device collection pages such as `/xim-matrix-apex-legends/` and `/cronus-zen-call-of-duty/`, a clean `/free-configs/` page, and semantic game/device searches. Existing authored pages and protected files are preserved; empty combinations stay noindex. Open the dashboard once after installing both packages. See [collection URLs and update steps](docs/COLLECTION_URLS_1.1.12.md).
 
 Custom WordPress theme and business plugin for `timonconfigs.com`.
 
