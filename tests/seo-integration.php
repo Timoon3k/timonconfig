@@ -41,8 +41,67 @@ try {
 	update_post_meta( $page_id, 'tc_seo_description', 'A unique, honest integration fixture description.' );
 	update_post_meta( $page_id, 'tc_noindex', true );
 	$assert( TC_SEO::object_noindex( get_post( $page_id ) ), 'Explicit noindex is recognized.' );
+	$entry = array( 'loc' => 'https://example.invalid/fixture/' );
+	$assert( false === TC_SEO::sitemap_entry( $entry, 'post', (object) array( 'ID' => $page_id ) ), 'Rank Math partial post rows honor stored noindex metadata.' );
+	$assert( false === TC_SEO::sitemap_entry( false, 'post', (object) array( 'ID' => $page_id ) ), 'An entry already excluded by another provider filter stays excluded.' );
 	$args = TC_SEO::sitemap_posts_query( array( 'post_type' => 'page', 'post_status' => 'publish', 'fields' => 'ids', 'posts_per_page' => -1 ), 'page' );
 	$assert( ! in_array( $page_id, get_posts( $args ), true ), 'Noindex page is excluded from core sitemap query.' );
+
+	$public_page_id = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => 'SEO Public Fixture', 'post_name' => 'tc-seo-public-fixture' ), true );
+	if ( is_wp_error( $public_page_id ) ) { throw new RuntimeException( $public_page_id->get_error_message() ); }
+	$created_posts[] = $public_page_id;
+	$assert( $entry === TC_SEO::sitemap_entry( $entry, 'post', (object) array( 'ID' => $public_page_id, 'post_status' => 'draft' ) ), 'A partial provider row is resolved from the authoritative published post instead of trusting row properties.' );
+	$assert( $entry === TC_Member_Area::sitemap_entry( $entry, 'post', (object) array( 'ID' => $public_page_id, 'post_type' => 'page', 'post_name' => 'account' ) ), 'A spoofed partial member slug cannot exclude an unrelated public post.' );
+
+	// Legacy member URLs remain private even before an administrator resaves the page.
+	$member_page = get_page_by_path( 'account', OBJECT, 'page' );
+	if ( ! $member_page instanceof WP_Post ) {
+		$member_id = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_name' => 'account', 'post_title' => 'Member Profile' ), true );
+		if ( is_wp_error( $member_id ) ) { throw new RuntimeException( $member_id->get_error_message() ); }
+		$created_posts[] = $member_id;
+		$member_page = get_post( $member_id );
+	}
+	$legacy_meta_filter = static function ( mixed $value, int $id, string $key ) use ( $member_page ): mixed {
+		return $id === $member_page->ID && in_array( $key, array( 'tc_noindex', '_tc_member_page' ), true ) ? array( '' ) : $value;
+	};
+	add_filter( 'get_post_metadata', $legacy_meta_filter, 99, 3 );
+	try {
+		$assert( '' === get_post_meta( $member_page->ID, 'tc_noindex', true ), 'Legacy member fixture has no explicit noindex flag through reversible reads.' );
+		$assert( false === TC_Member_Area::sitemap_entry( $entry, 'post', (object) array( 'ID' => $member_page->ID ) ), 'Rank Math partial rows exclude known legacy member slugs without relying on stored flags.' );
+	} finally {
+		remove_filter( 'get_post_metadata', $legacy_meta_filter, 99 );
+	}
+
+	if ( function_exists( 'wc_get_page_id' ) ) {
+		$woo_page_ids = array_fill_keys( array( 'cart', 'checkout', 'myaccount', 'shop' ), -1 );
+		$woo_page_filters = array();
+		foreach ( array_keys( $woo_page_ids ) as $kind ) {
+			$woo_page_filters[ $kind ] = static function () use ( &$woo_page_ids, $kind ): int { return $woo_page_ids[ $kind ]; };
+			add_filter( 'pre_option_woocommerce_' . $kind . '_page_id', $woo_page_filters[ $kind ] );
+		}
+		try {
+			foreach ( array( 'cart', 'checkout', 'myaccount' ) as $kind ) {
+				$woo_page_ids[ $kind ] = $public_page_id;
+				$assert( TC_SEO::object_noindex( get_post( $public_page_id ) ), 'Mapped WooCommerce ' . $kind . ' page is noindex without an authored metadata flag.' );
+				$assert( false === TC_SEO::sitemap_entry( $entry, 'post', (object) array( 'ID' => $public_page_id ) ), 'Mapped WooCommerce ' . $kind . ' page is excluded from partial provider sitemap rows.' );
+				$woo_query_args = TC_SEO::sitemap_posts_query( array( 'post_type' => 'page', 'post_status' => 'publish', 'fields' => 'ids', 'posts_per_page' => -1, 'post__not_in' => array( $page_id ) ), 'page' );
+				$assert( in_array( $page_id, $woo_query_args['post__not_in'], true ) && in_array( $public_page_id, $woo_query_args['post__not_in'], true ), 'Core sitemap exclusion for WooCommerce ' . $kind . ' preserves caller exclusions.' );
+				$assert( ! in_array( $public_page_id, get_posts( $woo_query_args ), true ), 'The actual core sitemap page query excludes WooCommerce ' . $kind . ' without depending on stored noindex metadata.' );
+				$navigate( array( 'page_id' => $public_page_id ) );
+				$assert( 'noindex' === TC_SEO::provider_robots( array( 'index' => 'index' ) )['index'], 'Mapped WooCommerce ' . $kind . ' page emits matching provider noindex robots.' );
+				$woo_page_ids[ $kind ] = -1;
+			}
+			$woo_page_ids['shop'] = $public_page_id;
+			$assert( ! TC_SEO::object_noindex( get_post( $public_page_id ) ), 'The mapped public WooCommerce shop is not treated as a private utility page.' );
+			$assert( $entry === TC_SEO::sitemap_entry( $entry, 'post', (object) array( 'ID' => $public_page_id ) ), 'The mapped public shop remains eligible for provider sitemaps.' );
+			$shop_args = TC_SEO::sitemap_posts_query( array( 'post_type' => 'page', 'post_status' => 'publish', 'fields' => 'ids', 'posts_per_page' => -1 ), 'page' );
+			$assert( in_array( $public_page_id, get_posts( $shop_args ), true ), 'The actual core sitemap query keeps the mapped public shop eligible.' );
+			$config_args = array( 'post_type' => 'tc_config', 'post__not_in' => array( $page_id ) );
+			$assert( array( $page_id ) === TC_SEO::sitemap_posts_query( $config_args, 'tc_config' )['post__not_in'], 'WooCommerce utility mapping does not alter non-page sitemap exclusions.' );
+		} finally {
+			foreach ( $woo_page_filters as $kind => $filter ) { remove_filter( 'pre_option_woocommerce_' . $kind . '_page_id', $filter ); }
+		}
+	}
 
 	$term_result = wp_insert_term( 'SEO integration empty collection', 'tc_game', array( 'slug' => 'tc-seo-empty-fixture', 'description' => 'A clear description does not make an empty collection a released product catalogue.' ) );
 	if ( is_wp_error( $term_result ) ) { throw new RuntimeException( $term_result->get_error_message() ); }
@@ -52,6 +111,7 @@ try {
 	$term_args = TC_SEO::sitemap_terms_query( array(), 'tc_game' );
 	$assert( in_array( $term_id, $term_args['exclude'], true ), 'Empty collection is excluded from the XML sitemap.' );
 	$assert( false === TC_SEO::sitemap_entry( array( 'loc' => 'example' ), 'term', get_term( $term_id, 'tc_game' ) ), 'External provider sitemap entry filter excludes empty collections.' );
+	$assert( false === TC_SEO::sitemap_entry( $entry, 'term', (object) array( 'term_id' => $term_id, 'taxonomy' => 'tc_game', 'count' => 100 ) ), 'Partial provider term rows use the real empty collection instead of trusting a supplied count.' );
 
 	wp_set_current_user( 0 );
 	$_POST = array( 'tc_seo_nonce' => wp_create_nonce( 'tc_save_seo' ), 'tc_seo_title' => 'Unauthorized overwrite' );
@@ -163,6 +223,13 @@ try {
 	$config_id = wp_insert_post( array( 'post_type' => 'tc_config', 'post_status' => 'publish', 'post_title' => 'SEO Config Fixture', 'post_name' => 'tc-seo-config-fixture' ), true );
 	if ( is_wp_error( $config_id ) ) { throw new RuntimeException( $config_id->get_error_message() ); }
 	$created_posts[] = $config_id;
+	update_post_meta( $config_id, 'tc_release_status', 'available' );
+	wp_set_object_terms( $config_id, array( $term_id ), 'tc_game' );
+	wp_update_term( $term_id, 'tc_game', array( 'description' => 'This integration collection describes a released configuration, its supported device, setup steps and compatibility details so visitors receive useful information before downloading.' ) );
+	$assert( $entry === TC_SEO::sitemap_entry( $entry, 'term', (object) array( 'term_id' => $term_id, 'taxonomy' => 'tc_game' ) ), 'A real described collection with an available published configuration remains eligible for provider sitemaps.' );
+	update_term_meta( $term_id, 'tc_noindex', true );
+	$assert( false === TC_SEO::sitemap_entry( $entry, 'term', (object) array( 'term_id' => $term_id ) ), 'Partial term rows without taxonomy still honor explicit stored noindex metadata.' );
+	delete_term_meta( $term_id, 'tc_noindex' );
 	update_post_meta( $config_id, 'tc_seo_title', 'Configuration Search Title' );
 	update_post_meta( $config_id, 'tc_seo_description', 'Configuration search description.' );
 	$navigate( array( 'post_type' => 'tc_config', 'p' => $config_id ) );

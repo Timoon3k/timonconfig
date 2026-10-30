@@ -1,10 +1,12 @@
-# Bieżący etap — SEO, Core1.1.11 / theme0.14.4, 2026-10-30
+# Bieżący etap — SEO, Core 1.1.11 / theme 0.14.4, 2026-10-30
 
-Przeczytaj `docs/SEO_AUDIT_2026-10-30.md`, przegląd JSON w `docs/seo/` i początek PROGRESS. Właściciel podał, że Home ma wynik „URL jest w Google”; nie twierdź, że cała witryna nie jest zaindeksowana. Publiczne odczyty/Google blokował proxyCONNECT403, więc pozycje i produkcyjne meta/robots/CWV nie zostały niezależnie potwierdzone.
+Przeczytaj `docs/SEO_AUDIT_2026-10-30.md`, przegląd eksportu w `docs/seo/` i początek PROGRESS. Właściciel podał wynik Home „Adres URL jest w Google”. Nie twierdź, że witryna nie jest zaindeksowana: nie zmierzono pozycji na konkretne zapytania, CTR ani CWV. Odczyt produkcji i Google zatrzymał proxy CONNECT 403, nie serwer strony.
 
-Przygotowano Rank Math SEO-only oraz pełny reviewed eksport, adapter metadanych zachowujący autora i treści Home→XIMMatrixApexLegends, Contact/#community→CronusZenDiscord. Fragment nie jest osobną stroną. Nie znoszono noindex pustych kolekcji/prywatnych kont, nie tworzono nowego systemu SEO ani fikcyjnych ocen. Testy lokalnego natywnego importu Rank Math1.0.280 i SEO root kończy; stan commit/push/paczek odczytaj z końcowego raportu.
+Gotowe: dwa eksporty Rank Math, adapter metadanych zachowujący autora, Home → XIM Matrix Apex Legends, Contact/#community → Cronus Zen Discord, treści/linkowanie i poprawka map XML dla częściowych `stdClass` oraz stron członka i użytkowych Woo. Fragment Contact nie jest nową podstroną. Nie zniesiono noindex prywatnych kont, filtrowanych lub pustych kolekcji.
 
-Następny krok po zatwierdzonej aktualizacji: kontrolowany import SEO-only po bieżącej kopii, bo importer zastępuje całe trzy sekcje. Zweryfikuj renderowane Home/Contact meta/canonical/robots i sitemap, a następnie w GSC porównaj zapytania, URL-e, kraje, urządzenia i wyświetlenia/pozycję. Brak potwierdzonego importu produkcyjnego/instalacji Hostinger i gwarancji TOP1. Zachowaj istniejące płatności, role, autorskie meta i indywidualne canonical/noindex.
+Zaliczone: 85 PHP SEO, 12 natywnego importu, 158 browser / 9 widoków / 7 XML, 118 lint PHP, static/JSON/YAML/JS/diff i 98 fresh ZIP. Ustawienia lokalnego fixture Rank Math przywrócone, testowa wtyczka nieaktywna. Paczki Core 1.1.11 i theme 0.14.4 gotowe w artifacts; manifest `seo-20261030-release-manifest.json`. Checkpoint `6dc5e47`; końcowy commit/ref odczytaj z Git. Brak potwierdzonego wdrożenia na Hostingerze i importu produkcyjnego.
+
+Po autoryzowanej aktualizacji motywu/Core: zachowaj świeży eksport i kopię bazy, porównaj ustawienia, zaimportuj SEO-only (zastępuje całe trzy sekcje). Indywidualne metadane Rank Math nadal mają pierwszeństwo. Zapisz Sitemap Settings, wyczyść cache witryny i sprawdź rzeczywiste meta/canonical/robots Home/Contact oraz mapy XML. Następnie w GSC porównaj zapytania, docelowe URL-e, kraje i urządzenia w okresach 14–28 dni. Rozwijaj własny publiczny poradnik XIM Matrix/Apex i opisy dostępnych wydań; nie obiecuj TOP 1. Zachowaj działające płatności, role, prywatne pliki i autorskie metadane.
 
 ---
 

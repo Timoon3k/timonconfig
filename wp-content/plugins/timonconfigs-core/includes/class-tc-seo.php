@@ -160,6 +160,12 @@ final class TC_SEO {
 
 	public static function object_noindex( WP_Post|WP_Term $object ): bool {
 		if ( $object instanceof WP_Post ) {
+			if ( 'page' === $object->post_type && function_exists( 'wc_get_page_id' ) ) {
+				foreach ( array( 'cart', 'checkout', 'myaccount' ) as $page ) {
+					$id = (int) wc_get_page_id( $page );
+					if ( $id > 0 && $id === $object->ID ) { return true; }
+				}
+			}
 			return 'publish' !== $object->post_status || (bool) get_post_meta( $object->ID, 'tc_noindex', true ) || ( 'tc_config' === $object->post_type && in_array( get_post_meta( $object->ID, 'tc_release_status', true ), array( 'coming-soon', 'archived' ), true ) );
 		}
 		if ( (bool) get_term_meta( $object->term_id, 'tc_noindex', true ) ) { return true; }
@@ -216,6 +222,14 @@ final class TC_SEO {
 
 	public static function sitemap_posts_query( array $args, string $post_type ): array {
 		if ( ! in_array( $post_type, array( 'page', 'tc_config' ), true ) ) { return $args; }
+		if ( 'page' === $post_type && function_exists( 'wc_get_page_id' ) ) {
+			$excluded = array();
+			foreach ( array( 'cart', 'checkout', 'myaccount' ) as $page ) {
+				$id = (int) wc_get_page_id( $page );
+				if ( $id > 0 ) { $excluded[] = $id; }
+			}
+			$args['post__not_in'] = array_values( array_unique( array_merge( (array) ( $args['post__not_in'] ?? array() ), $excluded ) ) );
+		}
 		$clauses = array( 'relation' => 'AND', array( 'relation' => 'OR', array( 'key' => 'tc_noindex', 'compare' => 'NOT EXISTS' ), array( 'key' => 'tc_noindex', 'value' => '1', 'compare' => '!=' ) ) );
 		if ( 'tc_config' === $post_type ) {
 			$clauses[] = array( 'relation' => 'OR', array( 'key' => 'tc_release_status', 'compare' => 'NOT EXISTS' ), array( 'key' => 'tc_release_status', 'value' => array( 'coming-soon', 'archived' ), 'compare' => 'NOT IN' ) );
@@ -234,6 +248,17 @@ final class TC_SEO {
 	}
 
 	public static function sitemap_entry( mixed $entry, mixed $type, mixed $object ): mixed {
+		if ( ! $entry ) { return $entry; }
+		// Rank Math's SQL provider passes partial stdClass rows, not WP_Post instances.
+		// Resolve authoritative WordPress objects before applying metadata/content rules.
+		if ( 'post' === $type && ! $object instanceof WP_Post && is_object( $object ) && isset( $object->ID ) && is_scalar( $object->ID ) ) {
+			$post = get_post( absint( $object->ID ) );
+			if ( $post instanceof WP_Post ) { $object = $post; }
+		} elseif ( 'term' === $type && ! $object instanceof WP_Term && is_object( $object ) && isset( $object->term_id ) && is_scalar( $object->term_id ) ) {
+			$taxonomy = is_string( $object->taxonomy ?? null ) ? sanitize_key( $object->taxonomy ) : '';
+			$term = get_term( absint( $object->term_id ), $taxonomy );
+			if ( $term instanceof WP_Term ) { $object = $term; }
+		}
 		return self::temporary_host() || ( ( $object instanceof WP_Post || $object instanceof WP_Term ) && self::object_noindex( $object ) ) ? false : $entry;
 	}
 }

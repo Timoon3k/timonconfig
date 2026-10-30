@@ -98,7 +98,14 @@ final class TC_Member_Area {
 		return $args;
 	}
 
-	public static function sitemap_entry( mixed $entry, mixed $type, mixed $object ): mixed { return self::is_member_post( $object ) ? false : $entry; }
+	public static function sitemap_entry( mixed $entry, mixed $type, mixed $object ): mixed {
+		if ( ! $entry ) { return $entry; }
+		if ( 'post' === $type && ! $object instanceof WP_Post && is_object( $object ) && isset( $object->ID ) && is_scalar( $object->ID ) ) {
+			$post = get_post( absint( $object->ID ) );
+			if ( $post instanceof WP_Post ) { $object = $post; }
+		}
+		return self::is_member_post( $object ) ? false : $entry;
+	}
 
 	private static function status(): array {
 		if ( class_exists( 'TC_Discord' ) && is_callable( array( 'TC_Discord', 'status' ) ) ) { return TC_Discord::status( get_current_user_id() ); }

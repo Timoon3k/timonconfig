@@ -19,6 +19,7 @@ on:
       - 'tests/catalog-routes-integration.php'
       - 'tests/woo-checkout-presentation-integration.php'
       - 'tests/woo-sync-lock-integration.php'
+      - 'tests/seo-integration.php'
       - 'tests/setup-woo-test-translations.php'
       - 'tests/checkout-integration.php'
       - 'tests/site-checkout-copy-integration.php'
@@ -67,6 +68,8 @@ jobs:
           fi
       - name: English checkout fields and WooCommerce AJAX validation
         run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/woo-checkout-presentation-integration.php
+      - name: Provider-aware SEO metadata and indexing safeguards
+        run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/seo-integration.php
       - name: Atomic per-member synchronization lease
         run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/woo-sync-lock-integration.php
       - name: Catalog visibility and filters

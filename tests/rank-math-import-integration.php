@@ -4,7 +4,6 @@ defined( 'ABSPATH' ) || exit;
 if ( ! defined( 'WP_CLI' ) || ! WP_CLI || ! in_array( wp_parse_url( home_url(), PHP_URL_HOST ), array( 'localhost', '127.0.0.1' ), true ) ) {
     throw new RuntimeException( 'Disposable localhost WordPress required.' );
 }
-if ( ! defined( 'RANK_MATH_VERSION' ) ) { throw new RuntimeException( 'Activate the local test Rank Math plugin first.' ); }
 $mode = getenv( 'TC_RANK_MATH_FIXTURE' ) ?: 'test';
 if ( ! in_array( $mode, array( 'test', 'setup', 'restore' ), true ) ) { throw new RuntimeException( 'Unknown fixture mode.' ); }
 $backup_key = '_tc_rank_math_seo_fixture_backup';
@@ -21,13 +20,14 @@ if ( 'restore' === $mode ) {
     WP_CLI::success( 'Restored original local Rank Math settings.' );
     return;
 }
+if ( ! defined( 'RANK_MATH_VERSION' ) ) { throw new RuntimeException( 'Activate the local test Rank Math plugin first.' ); }
 if ( false !== get_option( $backup_key, false ) ) { throw new RuntimeException( 'Restore the existing fixture before another test.' ); }
 $path = getenv( 'TC_RANK_MATH_IMPORT_JSON' ) ?: '/seo/timonconfigs-rank-math-seo-only-2026-10-30.json';
 $data = json_decode( file_get_contents( $path ), true, 512, JSON_THROW_ON_ERROR );
 $keys = array_keys( $data ); sort( $keys );
 if ( $keys !== array( 'general', 'sitemap', 'titles' ) ) { throw new RuntimeException( 'Only complete SEO sections may enter this fixture.' ); }
 $backup = array();
-foreach ( array( 'rank-math-options-general', 'rank-math-options-titles', 'rank-math-options-sitemap', 'rank_math_backups' ) as $key ) {
+foreach ( array( 'rank-math-options-general', 'rank-math-options-titles', 'rank-math-options-sitemap', 'rank_math_backups', 'rank_math_registration_skip' ) as $key ) {
     $backup[ $key ] = get_option( $key, null );
 }
 global $wpdb;
@@ -58,6 +58,10 @@ try {
     $assert( 0 === $network_calls, 'Importer did not contact an external provider.' );
     if ( 'setup' === $mode ) {
         $assert( add_option( $backup_key, $backup, '', false ), 'Local HTTP fixture has a recoverable private backup.' );
+        // The free plugin's standard 'Skip account connection' onboarding choice.
+        // No account, API credential, premium feature or provider validation is fabricated.
+        update_option( 'rank_math_registration_skip', 1, false );
+        $assert( (bool) get_option( 'rank_math_registration_skip' ), 'Local fixture completes the supported optional-account onboarding step.' );
         $keep = true;
     }
     WP_CLI::line( wp_json_encode( array( 'rank_math_version' => RANK_MATH_VERSION, 'assertions' => $checks, 'mode' => $mode, 'home' => home_url( '/' ), 'http_fixture_active' => $keep ) ) );
