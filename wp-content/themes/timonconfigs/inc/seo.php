@@ -93,14 +93,22 @@ function timonconfigs_social_image(): string {
 		$image = get_the_post_thumbnail_url( get_queried_object_id(), 'large' );
 		if ( $image ) { return $image; }
 	}
+	if ( class_exists( 'TC_Collections' ) && method_exists( 'TC_Catalog', 'collection_image' ) ) {
+		$collection = TC_Collections::current();
+		if ( isset( $collection['game_term'] ) && $collection['game_term'] instanceof WP_Term ) {
+			$image = TC_Catalog::collection_image( $collection['game_term'] );
+			if ( $image ) { return $image; }
+		}
+	}
 	return (string) get_theme_mod( 'timonconfigs_hero_image', get_template_directory_uri() . '/assets/images/hero-reference-wide.webp' );
 }
 
 add_filter( 'pre_get_document_title', static function ( string $title ): string {
 	if ( timonconfigs_external_seo_active() ) { return $title; }
 	$title = timonconfigs_seo_title();
-	$paged = max( 1, (int) get_query_var( 'paged' ) );
-	return $paged > 1 ? sprintf( '%s — Page %d', $title, $paged ) : $title;
+	$collection_page = class_exists( 'TC_Collections' ) && TC_Collections::current() ? TC_Collections::page_number() : 1;
+	$paged = max( 1, (int) get_query_var( 'paged' ), (int) get_query_var( 'page' ), $collection_page );
+	return $paged > 1 && ! preg_match( '/\bPage\s+' . $paged . '\b/i', $title ) ? sprintf( '%s — Page %d', $title, $paged ) : $title;
 }, 20 );
 
 add_action( 'wp', static function (): void {

@@ -45,8 +45,8 @@ $selected_sort = is_callable( array( 'TC_Catalog', 'selected_sort' ) ) ? TC_Cata
 			<div class="tc-lead"><?php echo wp_kses_post( wpautop( $intro ) ); ?></div>
 			<?php if ( $term instanceof WP_Term ) : ?><span class="tc-collection-status<?php echo $available ? ' is-available' : ''; ?>"><?php echo esc_html( $available ? 'Published releases available' : 'Coming soon · release details pending' ); ?></span><?php endif; ?>
 			<div class="tc-collection-links">
-				<?php if ( ! $is_device || 'cronus-zen' !== $term->slug ) : ?><a href="<?php echo esc_url( add_query_arg( $is_game ? array( 'game' => $term->slug ) : array(), home_url( '/cronus-zen-configs/' ) ) ); ?>">Cronus Zen configs</a><?php endif; ?>
-				<?php if ( ! $is_device || 'xim-matrix' !== $term->slug ) : ?><a href="<?php echo esc_url( add_query_arg( $is_game ? array( 'game' => $term->slug ) : array(), home_url( '/xim-matrix-configs/' ) ) ); ?>">XIM Matrix configs</a><?php endif; ?>
+				<?php if ( ! $is_device || 'cronus-zen' !== $term->slug ) : ?><a href="<?php echo esc_url( $is_game ? timonconfigs_collection_url( $term->slug, 'cronus-zen' ) : home_url( '/cronus-zen-configs/' ) ); ?>">Cronus Zen configs</a><?php endif; ?>
+				<?php if ( ! $is_device || 'xim-matrix' !== $term->slug ) : ?><a href="<?php echo esc_url( $is_game ? timonconfigs_collection_url( $term->slug, 'xim-matrix' ) : home_url( '/xim-matrix-configs/' ) ); ?>">XIM Matrix configs</a><?php endif; ?>
 				<a href="<?php echo esc_url( $archive_url ); ?>">All configurations</a>
 			</div>
 		</div>

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: TimonConfigs Core
  * Description: TimonConfigs private configuration library, Discord membership and WooCommerce VIP/Discord bridge and protected membership access.
- * Version: 1.1.11
+ * Version: 1.1.12
  * Author: TimonConfigs
  * Text Domain: timonconfigs-core
  * Requires at least: 6.5
@@ -11,11 +11,12 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_CORE_VERSION', '1.1.11' );
+define( 'TIMONCONFIGS_CORE_VERSION', '1.1.12' );
 define( 'TIMONCONFIGS_CORE_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-tc-checkout.php';
 require_once __DIR__ . '/includes/class-tc-catalog.php';
+require_once __DIR__ . '/includes/class-tc-collections.php';
 require_once __DIR__ . '/includes/class-tc-private-files.php';
 require_once __DIR__ . '/includes/class-tc-discord.php';
 require_once __DIR__ . '/includes/class-tc-downloads.php';
@@ -42,6 +43,7 @@ add_action(
 	static function (): void {
 		TC_Checkout::init();
 		TC_Catalog::init();
+		TC_Collections::init();
 		TC_Private_Files::init();
 		TC_Discord::init();
 		TC_Downloads::init();

@@ -25,7 +25,7 @@ add_action(
 			'hero_tagline' => array( 'label' => __( 'Hero tagline', 'timonconfigs' ), 'default' => 'Play Smarter. Hit Different.' ),
 			'hero_copy'    => array( 'label' => __( 'Hero description', 'timonconfigs' ), 'default' => 'Explore Apex Legends configurations for XIM Matrix and Cronus Zen, including controller and mouse & keyboard setups. Check release-specific compatibility, setup guidance, and Free or VIP access.' ),
 			'apex_cta' => array( 'label' => __( 'Hero Apex button label', 'timonconfigs' ), 'default' => 'Explore XIM Matrix Apex Configs' ),
-			'apex_cta_url' => array( 'label' => __( 'Hero Apex destination', 'timonconfigs' ), 'default' => home_url( '/apex-legends-configs/#xim-matrix' ), 'url' => true ),
+			'apex_cta_url' => array( 'label' => __( 'Hero Apex destination', 'timonconfigs' ), 'default' => timonconfigs_collection_url( 'apex-legends', 'xim-matrix' ), 'url' => true ),
 			'hero_cta'     => array( 'label' => __( 'Hero primary button label', 'timonconfigs' ), 'default' => 'Get Started' ),
 			'hero_cta_url' => array( 'label' => __( 'Primary CTA destination', 'timonconfigs' ), 'default' => home_url( '/pricing/' ), 'url' => true ),
 			'trust_access' => array( 'label' => __( 'Hero benefit 1', 'timonconfigs' ), 'default' => 'Instant Access' ),

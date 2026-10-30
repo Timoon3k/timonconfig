@@ -3,6 +3,7 @@
 defined( 'ABSPATH' ) || exit;
 $settings = isset( $args['settings'] ) && is_array( $args['settings'] ) ? $args['settings'] : array();
 $discord_url = timonconfigs_community_url();
+$hero_target = timonconfigs_collection_target( (string) ( $settings['primaryUrl'] ?? get_theme_mod( 'timonconfigs_apex_cta_url', timonconfigs_collection_url( 'apex-legends', 'xim-matrix' ) ) ) );
 $hero_image = $settings['image'] ?? get_theme_mod( 'timonconfigs_hero_image', get_template_directory_uri() . '/assets/images/hero-reference-wide.webp' );
 ?>
 <section class="tc-hero" aria-labelledby="hero-title">
@@ -12,7 +13,7 @@ $hero_image = $settings['image'] ?? get_theme_mod( 'timonconfigs_hero_image', ge
             <h1 id="hero-title"><?php echo esc_html( $settings['title'] ?? get_theme_mod( 'timonconfigs_hero_title', 'XIM Matrix & Cronus Zen Configs for Apex Legends' ) ); ?></h1>
             <p class="tc-hero__tagline"><?php echo esc_html( $settings['tagline'] ?? get_theme_mod( 'timonconfigs_hero_tagline', 'Play Smarter. Hit Different.' ) ); ?></p>
             <p class="tc-hero__description"><?php echo esc_html( $settings['description'] ?? get_theme_mod( 'timonconfigs_hero_copy', 'Explore Apex Legends configurations for XIM Matrix and Cronus Zen, including controller and mouse & keyboard setups. Check release-specific compatibility, setup guidance, and Free or VIP access.' ) ); ?></p>
-            <div class="tc-actions"><a class="tc-button" href="<?php echo esc_url( $settings['primaryUrl'] ?? get_theme_mod( 'timonconfigs_apex_cta_url', home_url( '/apex-legends-configs/#xim-matrix' ) ) ); ?>"><?php echo esc_html( $settings['primaryLabel'] ?? get_theme_mod( 'timonconfigs_apex_cta', 'Explore XIM Matrix Apex Configs' ) ); ?> <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a><?php if ( $discord_url ) : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( $discord_url ); ?>"><?php echo timonconfigs_icon( 'discord' ); // phpcs:ignore ?>Join Discord</a><?php else : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">Explore Configs</a><?php endif; ?></div>
+            <div class="tc-actions"><a class="tc-button" href="<?php echo esc_url( $hero_target ); ?>"><?php echo esc_html( $settings['primaryLabel'] ?? get_theme_mod( 'timonconfigs_apex_cta', 'Explore XIM Matrix Apex Configs' ) ); ?> <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a><?php if ( $discord_url ) : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( $discord_url ); ?>"><?php echo timonconfigs_icon( 'discord' ); // phpcs:ignore ?>Join Discord</a><?php else : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">Explore Configs</a><?php endif; ?></div>
             <ul class="tc-trust"><li><?php echo timonconfigs_icon( 'bolt' ); // phpcs:ignore ?><?php echo esc_html( get_theme_mod( 'timonconfigs_trust_access', 'Instant Access' ) ); ?></li><li><?php echo timonconfigs_icon( 'refresh' ); // phpcs:ignore ?><?php echo esc_html( get_theme_mod( 'timonconfigs_trust_updates', 'Regular Updates' ) ); ?></li><li><?php echo timonconfigs_icon( 'shield' ); // phpcs:ignore ?><?php echo esc_html( get_theme_mod( 'timonconfigs_trust_support', 'Active Support' ) ); ?></li></ul>
         </div></div>
     </section>

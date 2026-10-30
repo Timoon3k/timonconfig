@@ -255,6 +255,7 @@ final class TC_Site {
 		TC_Catalog::register_landing_rewrites();
 		TC_Catalog::seed_core_terms();
 		TC_Catalog::seed_flagship_drafts();
+		TC_Collections::install();
 		$ids = array();
 		foreach ( self::pages() as $slug => $title ) {
 			$page = get_page_by_path( $slug, OBJECT, 'page' );

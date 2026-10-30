@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.14.4' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.15.0' );
 
 require_once get_template_directory() . '/inc/plans.php';
 require_once get_template_directory() . '/inc/customizer.php';
@@ -67,6 +67,54 @@ add_filter(
 	}
 );
 
+/** Device and game links share the catalogue's real public collection pages. */
+function timonconfigs_collection_url( string $game, string $device ): string {
+	if ( is_callable( array( 'TC_Collections', 'url' ) ) ) {
+		$url = TC_Collections::url( $game, $device );
+		if ( '' !== $url ) { return $url; }
+	}
+	return home_url( '/' . sanitize_title( $game ) . '-configs/#' . sanitize_title( $device ) );
+}
+
+/** Upgrade known local links at render time; authored unrelated destinations stay intact. */
+function timonconfigs_collection_target( string $url ): string {
+	$parts = wp_parse_url( $url );
+	$site = wp_parse_url( home_url( '/' ) );
+	if ( ! is_array( $parts ) || ! is_array( $site ) || ! empty( $parts['user'] ) || ! empty( $parts['pass'] ) ) { return $url; }
+	if ( isset( $parts['host'] ) && ( strtolower( $parts['host'] ) !== strtolower( $site['host'] ?? '' ) || (int) ( $parts['port'] ?? 0 ) !== (int) ( $site['port'] ?? 0 ) ) ) { return $url; }
+	if ( isset( $parts['scheme'] ) && ! in_array( strtolower( $parts['scheme'] ), array( 'http', 'https' ), true ) ) { return $url; }
+	$device = $parts['fragment'] ?? '';
+	if ( ! in_array( $device, array( 'xim-matrix', 'cronus-zen' ), true ) ) { return $url; }
+	$base_path = trailingslashit( $site['path'] ?? '/' );
+	$path = $parts['path'] ?? '';
+	if ( ! str_starts_with( $path, $base_path ) ) { return $url; }
+	$path = substr( $path, strlen( $base_path ) );
+	if ( ! preg_match( '/^([a-z0-9-]+)-configs\/?$/D', $path, $matches ) ) { return $url; }
+	$games = is_callable( array( 'TC_Catalog', 'game_definitions' ) ) ? TC_Catalog::game_definitions() : array();
+	if ( ! isset( $games[ $matches[1] ] ) ) { return $url; }
+	$target = timonconfigs_collection_url( $matches[1], $device );
+	if ( ! empty( $parts['query'] ) ) {
+		$query = array(); wp_parse_str( $parts['query'], $query );
+		$target = add_query_arg( $query, $target );
+	}
+	return $target;
+}
+
+add_filter( 'nav_menu_link_attributes', static function ( array $attributes ): array {
+	if ( isset( $attributes['href'] ) && is_string( $attributes['href'] ) ) { $attributes['href'] = timonconfigs_collection_target( $attributes['href'] ); }
+	return $attributes;
+} );
+
+add_filter( 'render_block', static function ( string $content ): string {
+	if ( ! str_contains( $content, '-configs/' ) || ! str_contains( $content, '#' ) || ! class_exists( 'WP_HTML_Tag_Processor' ) ) { return $content; }
+	$tags = new WP_HTML_Tag_Processor( $content );
+	while ( $tags->next_tag( array( 'tag_name' => 'A' ) ) ) {
+		$href = $tags->get_attribute( 'href' );
+		if ( is_string( $href ) ) { $tags->set_attribute( 'href', timonconfigs_collection_target( $href ) ); }
+	}
+	return $tags->get_updated_html();
+} );
+
 /**
  * Build the canonical URL for the current public view.
  */
@@ -79,6 +127,9 @@ function timonconfigs_canonical_url(): string {
 	}
 	if ( is_singular() ) {
 		$url = (string) get_permalink( get_queried_object_id() );
+		if ( is_callable( array( 'TC_Collections', 'current' ) ) && TC_Collections::current() ) {
+			return TC_Collections::canonical_url();
+		}
 		$page = max( 1, (int) get_query_var( 'page' ) );
 		return $page > 1 ? trailingslashit( $url ) . $page . '/' : $url;
 	}
@@ -110,8 +161,16 @@ function timonconfigs_meta_description(): string {
  */
 function timonconfigs_breadcrumb_items(): array {
 	$items = array( array( 'name' => 'Home', 'url' => home_url( '/' ) ) );
+	$collection = is_callable( array( 'TC_Collections', 'current' ) ) ? TC_Collections::current() : null;
 
-	if ( is_post_type_archive( 'tc_config' ) ) {
+	if ( $collection ) {
+		$items[] = array( 'name' => 'Configs', 'url' => (string) get_post_type_archive_link( 'tc_config' ) );
+		if ( ( $collection['game_term'] ?? null ) instanceof WP_Term ) {
+			$link = get_term_link( $collection['game_term'] );
+			if ( ! is_wp_error( $link ) ) { $items[] = array( 'name' => $collection['game_term']->name, 'url' => $link ); }
+		}
+		$items[] = array( 'name' => get_the_title( get_queried_object_id() ), 'url' => (string) get_permalink( get_queried_object_id() ) );
+	} elseif ( is_post_type_archive( 'tc_config' ) ) {
 		$items[] = array( 'name' => 'Configs', 'url' => (string) get_post_type_archive_link( 'tc_config' ) );
 	} elseif ( is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) {
 		$items[] = array( 'name' => 'Configs', 'url' => (string) get_post_type_archive_link( 'tc_config' ) );

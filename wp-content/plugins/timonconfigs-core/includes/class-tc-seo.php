@@ -100,7 +100,8 @@ final class TC_SEO {
 			if ( preg_match( '/%[a-zA-Z_][a-zA-Z0-9_:-]*%/', $source ) ) { return $incoming; }
 		}
 		$source = wp_strip_all_tags( $source );
-		$page = max( 1, (int) get_query_var( 'paged' ), (int) get_query_var( 'page' ) );
+		$collection_page = $object instanceof WP_Post && class_exists( 'TC_Collections' ) && TC_Collections::is_collection( $object ) ? TC_Collections::page_number() : 1;
+		$page = max( 1, (int) get_query_var( 'paged' ), (int) get_query_var( 'page' ), $collection_page );
 		if ( 'title' === $field && $page > 1 && ! $paginated_source && ! preg_match( '/\bPage\s+' . $page . '\b/i', $source ) ) {
 			$source .= ' — Page ' . $page;
 		}
@@ -160,6 +161,10 @@ final class TC_SEO {
 
 	public static function object_noindex( WP_Post|WP_Term $object ): bool {
 		if ( $object instanceof WP_Post ) {
+			if ( 'page' === $object->post_type && class_exists( 'TC_Collections' ) ) {
+				$collection = TC_Collections::definition( $object );
+				if ( $collection && ! TC_Collections::is_indexable( $collection ) ) { return true; }
+			}
 			if ( 'page' === $object->post_type && function_exists( 'wc_get_page_id' ) ) {
 				foreach ( array( 'cart', 'checkout', 'myaccount' ) as $page ) {
 					$id = (int) wc_get_page_id( $page );
@@ -196,12 +201,13 @@ final class TC_SEO {
 
 	public static function should_noindex(): bool {
 		if ( self::temporary_host() || is_404() || is_search() || is_preview() ) { return true; }
-		if ( is_post_type_archive( 'tc_config' ) || is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) {
+		$object = get_queried_object();
+		$is_collection = $object instanceof WP_Post && class_exists( 'TC_Collections' ) && TC_Collections::is_collection( $object );
+		if ( $is_collection || is_post_type_archive( 'tc_config' ) || is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) {
 			foreach ( array( 'config_search', 'game', 'device', 'tier', 'input', 'platform', 'sort' ) as $key ) {
 				if ( isset( $_GET[ $key ] ) && ( ! is_scalar( $_GET[ $key ] ) || '' !== (string) $_GET[ $key ] ) ) { return true; }
 			}
 		}
-		$object = get_queried_object();
 		return ( $object instanceof WP_Post || $object instanceof WP_Term ) && self::object_noindex( $object );
 	}
 
@@ -222,11 +228,19 @@ final class TC_SEO {
 
 	public static function sitemap_posts_query( array $args, string $post_type ): array {
 		if ( ! in_array( $post_type, array( 'page', 'tc_config' ), true ) ) { return $args; }
-		if ( 'page' === $post_type && function_exists( 'wc_get_page_id' ) ) {
+		if ( 'page' === $post_type ) {
 			$excluded = array();
-			foreach ( array( 'cart', 'checkout', 'myaccount' ) as $page ) {
-				$id = (int) wc_get_page_id( $page );
-				if ( $id > 0 ) { $excluded[] = $id; }
+			if ( function_exists( 'wc_get_page_id' ) ) {
+				foreach ( array( 'cart', 'checkout', 'myaccount' ) as $page ) {
+					$id = (int) wc_get_page_id( $page );
+					if ( $id > 0 ) { $excluded[] = $id; }
+				}
+			}
+			if ( class_exists( 'TC_Collections' ) ) {
+				foreach ( TC_Collections::page_ids() as $id ) {
+					$collection = TC_Collections::definition( (int) $id );
+					if ( $collection && ! TC_Collections::is_indexable( $collection ) ) { $excluded[] = (int) $id; }
+				}
 			}
 			$args['post__not_in'] = array_values( array_unique( array_merge( (array) ( $args['post__not_in'] ?? array() ), $excluded ) ) );
 		}

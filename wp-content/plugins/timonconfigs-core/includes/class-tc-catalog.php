@@ -279,6 +279,58 @@ final class TC_Catalog {
 		return isset( $_GET[ $key ] ) && is_string( $_GET[ $key ] ) ? sanitize_text_field( wp_unslash( $_GET[ $key ] ) ) : '';
 	}
 
+	/**
+	 * Resolve device/game phrases against catalogue entities, retaining release-specific words.
+	 * Unknown searches remain ordinary full-text searches; no user text becomes SQL or a taxonomy name.
+	 *
+	 * @return array{game:string,device:string,tier:string,text:string}
+	 */
+	public static function search_intent( string $text ): array {
+		$result = array( 'game' => '', 'device' => '', 'tier' => '', 'text' => trim( $text ) );
+		$normalize = static function ( string $value ): string {
+			$value = remove_accents( $value );
+			$value = function_exists( 'mb_strtolower' ) ? mb_strtolower( $value, 'UTF-8' ) : strtolower( $value );
+			return trim( (string) preg_replace( '/[^\p{L}\p{N}]+/u', ' ', $value ) );
+		};
+		$remaining = $normalize( $text );
+		if ( '' === $remaining ) { return $result; }
+		$aliases = array(
+			'device' => array( 'xim-matrix' => array( 'xim matrix', 'ximmatrix' ), 'cronus-zen' => array( 'cronus zen', 'cronuszen' ) ),
+			'game' => array(),
+			'tier' => array( 'free' => array( 'free' ) ),
+		);
+		foreach ( self::game_definitions() as $slug => $definition ) {
+			$aliases['game'][ $slug ] = array( $normalize( $slug ), $normalize( $definition['name'] ) );
+		}
+		$terms = get_terms( array( 'taxonomy' => 'tc_game', 'hide_empty' => false ) );
+		if ( ! is_wp_error( $terms ) ) {
+			foreach ( $terms as $term ) {
+				$aliases['game'][ $term->slug ] = array_unique( array_merge( $aliases['game'][ $term->slug ] ?? array(), array( $normalize( $term->slug ), $normalize( $term->name ) ) ) );
+			}
+		}
+		foreach ( array( 'apex-legends' => array( 'apex' ), 'call-of-duty' => array( 'cod' ), 'rainbow-six-siege' => array( 'rainbow six', 'r6', 'r6s' ), 'ea-sports-fc' => array( 'ea fc' ), 'nba-2k' => array( 'nba2k' ) ) as $slug => $extra ) {
+			$aliases['game'][ $slug ] = array_merge( $aliases['game'][ $slug ], $extra );
+		}
+		foreach ( $aliases as $field => $entities ) {
+			$matched = array();
+			foreach ( $entities as $slug => $names ) {
+				$names = array_values( array_filter( array_unique( $names ) ) );
+				usort( $names, static fn( string $a, string $b ): int => strlen( $b ) <=> strlen( $a ) );
+				$pattern = '/(?<![\p{L}\p{N}])(?:' . implode( '|', array_map( static fn( string $name ): string => preg_quote( $name, '/' ), $names ) ) . ')(?![\p{L}\p{N}])/u';
+				if ( preg_match( $pattern, $remaining ) ) { $matched[ $slug ] = $pattern; }
+			}
+			// An ambiguous category remains searchable text instead of silently choosing a game/device.
+			if ( 1 !== count( $matched ) ) { continue; }
+			$result[ $field ] = (string) array_key_first( $matched );
+			$remaining = (string) preg_replace( reset( $matched ), ' ', $remaining );
+		}
+		if ( $result['game'] || $result['device'] || $result['tier'] ) {
+			$remaining = (string) preg_replace( '/\b(?:configs?|configurations?|scripts?)\b/u', ' ', $remaining );
+			$result['text'] = trim( (string) preg_replace( '/\s+/u', ' ', $remaining ) );
+		}
+		return $result;
+	}
+
 	/** Stable sort keys; raw request values never reach an SQL clause. */
 	public static function sort_options(): array {
 		return array( 'updated' => 'Recently updated', 'newest' => 'Upload Date', 'title' => 'A–Z', 'downloads' => 'Downloads' );
@@ -472,7 +524,9 @@ final class TC_Catalog {
 
 	/** A left join retains new releases with no recorded deliveries; option names are unique. */
 	public static function download_order_clauses( array $clauses, WP_Query $query ): array {
-		if ( ! $query->get( '_tc_download_order' ) || is_admin() || ! $query->is_main_query() || ( ! $query->is_post_type_archive( self::POST_TYPE ) && ! $query->is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) ) ) { return $clauses; }
+		$catalog = $query->is_main_query() && ( $query->is_post_type_archive( self::POST_TYPE ) || $query->is_tax( array( 'tc_game', 'tc_device', 'tc_platform' ) ) );
+		$collection = true === $query->get( '_tc_collection_query' ) && self::POST_TYPE === $query->get( 'post_type' );
+		if ( ! $query->get( '_tc_download_order' ) || is_admin() || ( ! $catalog && ! $collection ) ) { return $clauses; }
 		global $wpdb;
 		$clauses['join'] .= " LEFT JOIN {$wpdb->options} AS tc_delivery_counts ON tc_delivery_counts.option_name = CONCAT('_tc_delivery_count_', {$wpdb->posts}.ID)";
 		$clauses['orderby'] = "CAST(COALESCE(tc_delivery_counts.option_value, '0') AS UNSIGNED) DESC, {$wpdb->posts}.post_date DESC, {$wpdb->posts}.ID DESC";
@@ -490,10 +544,12 @@ final class TC_Catalog {
 		$query->set( 'orderby', array( $column => $direction, 'ID' => $direction ) );
 		$query->set( 'order', $direction );
 		$search = self::request_value( 'config_search' );
-		if ( '' !== $search ) { $query->set( 's', $search ); }
+		$intent = self::search_intent( $search );
+		if ( '' !== $search ) { $query->set( 's', $intent['text'] ); }
 		$tax_query = (array) $query->get( 'tax_query' );
 		foreach ( array( 'tc_game' => 'game', 'tc_device' => 'device', 'tc_platform' => 'platform' ) as $taxonomy => $parameter ) {
 			$slug = sanitize_title( self::request_value( $parameter ) );
+			if ( '' === $slug && isset( $intent[ $parameter ] ) ) { $slug = $intent[ $parameter ]; }
 			if ( '' !== $slug ) { $tax_query[] = array( 'taxonomy' => $taxonomy, 'field' => 'slug', 'terms' => $slug ); }
 		}
 		if ( $tax_query ) { $tax_query['relation'] = 'AND'; $query->set( 'tax_query', $tax_query ); }
@@ -501,6 +557,7 @@ final class TC_Catalog {
 		$existing_meta = $query->get( 'meta_query' );
 		if ( is_array( $existing_meta ) && $existing_meta ) { $meta_query[] = $existing_meta; }
 		$tier = self::sanitize_tier( self::request_value( 'tier' ) );
+		if ( '' === self::request_value( 'tier' ) ) { $tier = $intent['tier']; }
 		$input = self::sanitize_input( self::request_value( 'input' ) );
 		if ( '' !== $tier ) { $meta_query[] = array( 'key' => 'tc_tier', 'value' => $tier ); }
 		if ( '' !== $input ) { $meta_query[] = array( 'key' => 'tc_input_method', 'value' => $input ); }

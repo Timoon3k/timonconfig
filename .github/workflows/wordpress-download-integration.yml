@@ -20,6 +20,9 @@ on:
       - 'tests/woo-checkout-presentation-integration.php'
       - 'tests/woo-sync-lock-integration.php'
       - 'tests/seo-integration.php'
+      - 'tests/collections-integration.php'
+      - 'tests/catalog-search-intent-integration.php'
+      - 'tests/home-search-focus-integration.php'
       - 'tests/setup-woo-test-translations.php'
       - 'tests/checkout-integration.php'
       - 'tests/site-checkout-copy-integration.php'
@@ -70,6 +73,12 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/woo-checkout-presentation-integration.php
       - name: Provider-aware SEO metadata and indexing safeguards
         run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/seo-integration.php
+      - name: Game and device collection pages
+        run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/collections-integration.php
+      - name: Semantic game and device searches
+        run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/catalog-search-intent-integration.php
+      - name: Home destinations and preserved authored links
+        run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/home-search-focus-integration.php
       - name: Atomic per-member synchronization lease
         run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/woo-sync-lock-integration.php
       - name: Catalog visibility and filters
