@@ -1,3 +1,13 @@
+## Spójność anulowania i ról — Core 1.1.10, 2026-10-30
+
+- Baza main `7ea5e2b`, motyw0.14.3 bez zmian. Właściciel potwierdził natychmiastowe anulowanie w Stripe; nie mylić z wyłączeniem przyszłych odnowień i zachowaniem opłaconego okresu.
+- Dodano blokadę jednoczesnych synchronizacji członka, sprawdzanie właściciela blokady przy zapisach, ponowną kontrolę nadawanego dostępu, kolejność Free przed odebraniem wygasłego VIP i unieważnienie cache po cofnięciu przez Owner/Staff. Zdarzenia statusu/dat oraz świeży odczyt Discorda kolejkują sprawdzenie; zapasowe pięć minut pozostaje.
+- Profil poprzednio opłaconego członka między rolami pokazuje Membership update pending zamiast ponownej weryfikacji. Autoryzacja i download allowlists pozostają bez zmian; nie tworzono fikcyjnego Free/VIP. reCAPTCHA nadal usunięta.
+- Pierwsze testy:55 asercji cyklu ról i74 rzeczywistego profilu zaliczone. Dalsza kontrola blokad/kolejki, regresji i ZIP w toku; końcowy wynik uzupełnia raport wydania. Astra Medium przeglądała współbieżność i zachowanie przy błędach; rzeczywisty ArraySubs/Stripe acceptance pozostaje niepotwierdzony.
+- Instrukcja: `docs/MEMBERSHIP_SYNC_1.1.10.md`. Nie zmieniono produkcyjnych płatności, ról, klientów ani konfiguracji; Hostinger nie był aktualizowany. Stan push należy potwierdzić z końcowym Git ref.
+
+---
+
 ## Informacja o czasie aktywacji przy checkout — theme 0.14.3, 2026-10-30
 
 - Dodano przy podsumowaniu płatności: “Payment verification and automatic Discord role assignment may take 1–10 minutes.” Usunięto obietnicę Instant z nagłówka checkoutu. Core pozostaje1.1.9; logika płatności i synchronizacji nie zmienia się.

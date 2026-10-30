@@ -28,14 +28,55 @@ $GLOBALS['subscription_failure'] = false;
 $GLOBALS['cancel_failure'] = false;
 $GLOBALS['schedule_failure'] = false;
 $GLOBALS['assertions'] = 0;
+$GLOBALS['options'] = array();
+$GLOBALS['pending_cancellation'] = false;
+$GLOBALS['cancellation_date'] = '';
+$GLOBALS['free_put_failure'] = false;
+$GLOBALS['subscription_failure_after_cancel'] = false;
+$GLOBALS['reenter_on_vip_put'] = false;
+$GLOBALS['nested_requests'] = null;
+$GLOBALS['replace_lease_on_vip_put'] = false;
+$GLOBALS['cancel_during_vip_put'] = false;
+$GLOBALS['replace_lease_on_compensating_delete'] = false;
+$GLOBALS['queue'] = array();
+$GLOBALS['as_queue'] = array();
+
+/** Only the atomic option-lease SQL used by the bridge; never opens a database. */
+final class TestWpdb {
+    public string $options = 'wp_options';
+    public function prepare( $sql, ...$args ): string { return json_encode( array( $sql, $args ), JSON_THROW_ON_ERROR ); }
+    public function get_var( $prepared ) {
+        list( $sql, $args ) = json_decode( $prepared, true, 512, JSON_THROW_ON_ERROR );
+        if ( ! str_starts_with( $sql, 'SELECT option_value FROM wp_options WHERE option_name = %s' ) ) { throw new RuntimeException( 'Unexpected fixture read SQL.' ); }
+        return $GLOBALS['options'][ $args[0] ] ?? null;
+    }
+    public function query( $prepared ): int {
+        list( $sql, $args ) = json_decode( $prepared, true, 512, JSON_THROW_ON_ERROR );
+        if ( ! str_starts_with( $sql, 'DELETE FROM wp_options WHERE option_name = %s AND option_value = %s' ) ) { throw new RuntimeException( 'Unexpected fixture write SQL.' ); }
+        if ( ( $GLOBALS['options'][ $args[0] ] ?? null ) !== $args[1] ) { return 0; }
+        unset( $GLOBALS['options'][ $args[0] ] );
+        return 1;
+    }
+}
+$GLOBALS['wpdb'] = new TestWpdb();
 
 function absint( $value ): int { return abs( (int) $value ); }
 function get_option( $key, $default = null ) {
     if ( 'timonconfigs_woo' === $key ) { return array( 'enabled' => 1, 'monthly_product' => 427, 'lifetime_product' => 430 ); }
     if ( 'timonconfigs_discord' === $key ) { return array( 'guild_id' => TEST_GUILD, 'monthly_role' => TEST_MONTHLY, 'lifetime_role' => TEST_LIFETIME, 'free_role' => TEST_FREE, 'staff_role' => TEST_STAFF_ROLE ); }
     if ( '_tc_discord_binding_' . TEST_MEMBER === $key ) { return TEST_USER; }
-    return $default;
+    return $GLOBALS['options'][ $key ] ?? $default;
 }
+function add_option( $key, $value, $deprecated = '', $autoload = false ): bool {
+    if ( array_key_exists( $key, $GLOBALS['options'] ) ) { return false; }
+    $GLOBALS['options'][ $key ] = $value; return true;
+}
+function wp_cache_delete( $key, $group = '' ): bool { return true; }
+function maybe_unserialize( $value ) { return $value; }
+function wp_next_scheduled( $hook, $args = array() ) { return $GLOBALS['queue'][ $hook . serialize( $args ) ] ?? false; }
+function wp_schedule_single_event( $at, $hook, $args = array() ): bool { $GLOBALS['queue'][ $hook . serialize( $args ) ] = $at; return true; }
+function as_has_scheduled_action( $hook, $args, $group ): bool { return isset( $GLOBALS['as_queue'][ $hook . serialize( $args ) . $group ] ); }
+function as_enqueue_async_action( $hook, $args, $group ): int { $GLOBALS['as_queue'][ $hook . serialize( $args ) . $group ] = true; return count( $GLOBALS['as_queue'] ); }
 function get_user_meta( $user, $key, $single = true ) {
     if ( '_tc_discord_id' === $key && TEST_USER === $user ) { return TEST_MEMBER; }
     return $GLOBALS['meta'][ $user ][ $key ] ?? '';
@@ -69,11 +110,13 @@ function arraysubs_get_customer_subscriptions( $uid, $statuses ): array {
     if ( $GLOBALS['subscription_failure'] ) { throw new RuntimeException( 'Simulated dependency read failure' ); }
     return array_keys( array_filter( $GLOBALS['subscriptions'], static fn( $sub ): bool => in_array( $sub->post_status, $statuses, true ) ) );
 }
-function arraysubs_is_waiting_cancellation( $id ): bool { return false; }
+function arraysubs_is_waiting_cancellation( $id ): bool { return $GLOBALS['pending_cancellation']; }
+function arraysubs_get_scheduled_cancel_date( $id ): string { return $GLOBALS['cancellation_date']; }
 function arraysubs_cancel_subscription_immediately( $id, $reason, $actor ): bool {
     $GLOBALS['cancellations'][] = $id;
     if ( $GLOBALS['cancel_failure'] ) { throw new RuntimeException( 'Simulated native cancellation exception' ); }
     $GLOBALS['subscriptions'][ $id ]->post_status = 'arraysubs-cancelled';
+    if ( $GLOBALS['subscription_failure_after_cancel'] ) { $GLOBALS['subscription_failure'] = true; }
     return true;
 }
 function arraysubs_schedule_cancellation( $id, $reason, $actor ): bool {
@@ -106,7 +149,28 @@ function wp_remote_request( $url, $args ): array {
         return array( 'code' => 200, 'body' => json_encode( array( 'user' => array( 'id' => TEST_STAFF, 'bot' => false ), 'roles' => array( TEST_STAFF_ROLE ) ) ) );
     }
     if ( preg_match( '~/roles/([0-9]+)$~', $url, $match ) ) {
+        if ( 'PUT' === $method && TEST_FREE === $match[1] && $GLOBALS['free_put_failure'] ) {
+            return array( 'code' => 403, 'body' => '{}' );
+        }
+        if ( 'PUT' === $method && in_array( $match[1], array( TEST_MONTHLY, TEST_LIFETIME ), true ) && $GLOBALS['reenter_on_vip_put'] ) {
+            $GLOBALS['reenter_on_vip_put'] = false;
+            $before = count( $GLOBALS['requests'] );
+            TC_Woo_Bridge::sync_user( TEST_USER );
+            $GLOBALS['nested_requests'] = count( $GLOBALS['requests'] ) - $before;
+        }
+        if ( 'PUT' === $method && in_array( $match[1], array( TEST_MONTHLY, TEST_LIFETIME ), true ) && $GLOBALS['replace_lease_on_vip_put'] ) {
+            $GLOBALS['replace_lease_on_vip_put'] = false;
+            $GLOBALS['options']['_tc_woo_sync_lock_' . TEST_USER] = ( time() + 300 ) . ':replacement-worker';
+        }
         if ( 'PUT' === $method ) { $GLOBALS['member_roles'][] = $match[1]; }
+        if ( 'PUT' === $method && TEST_MONTHLY === $match[1] && $GLOBALS['cancel_during_vip_put'] ) {
+            $GLOBALS['subscriptions'][11]->post_status = 'arraysubs-cancelled';
+        }
+        if ( 'DELETE' === $method && TEST_MONTHLY === $match[1] && $GLOBALS['replace_lease_on_compensating_delete'] ) {
+            $GLOBALS['replace_lease_on_compensating_delete'] = false;
+            $GLOBALS['options']['_tc_woo_sync_lock_' . TEST_USER] = ( time() + 300 ) . ':compensating-replacement';
+            $GLOBALS['meta'][ TEST_USER ]['_tc_woo_owned_roles'] = array( TEST_LIFETIME => 1 );
+        }
         if ( 'DELETE' === $method ) { $GLOBALS['member_roles'] = array_values( array_diff( $GLOBALS['member_roles'], array( $match[1] ) ) ); }
         return array( 'code' => 204, 'body' => '' );
     }
@@ -235,4 +299,128 @@ try {
     verify( str_ends_with( $redirect->url, '/account/?tc_cancel=failed' ), 'Customer scheduling exception returns to profile with failed status' );
 }
 verify( get_user_meta( TEST_USER, '_tc_woo_cancel_error', true ) === 'subscription_cancellation_requires_review', 'Customer cancellation exception records safe diagnostic' );
+/** Reset only synthetic state; the assertions counter intentionally survives. */
+function reset_membership_fixture(): void {
+    foreach ( array( 'meta', 'post_meta', 'orders', 'subscriptions', 'requests', 'cancellations', 'options', 'queue', 'as_queue' ) as $key ) { $GLOBALS[ $key ] = array(); }
+    $GLOBALS['member_roles'] = array( TEST_FREE );
+    foreach ( array( 'subscription_failure', 'cancel_failure', 'schedule_failure', 'pending_cancellation', 'free_put_failure', 'subscription_failure_after_cancel', 'reenter_on_vip_put', 'replace_lease_on_vip_put', 'cancel_during_vip_put', 'replace_lease_on_compensating_delete' ) as $key ) { $GLOBALS[ $key ] = false; }
+    $GLOBALS['audit_role'] = ''; $GLOBALS['audit_at'] = time() + 1; $GLOBALS['cancellation_date'] = ''; $GLOBALS['nested_requests'] = null;
+}
+
+// Turning off renewal must preserve a verified, already-paid period.
+reset_membership_fixture(); monthly_fixture( time() - 100 );
+$GLOBALS['pending_cancellation'] = true;
+$GLOBALS['cancellation_date'] = gmdate( 'Y-m-d H:i:s', time() + 1800 );
+TC_Woo_Bridge::sync_user( TEST_USER );
+verify( TC_Woo_Bridge::paid_access( TEST_USER )['monthly'], 'Scheduled cancellation preserves the paid period' );
+verify( in_array( TEST_MONTHLY, $GLOBALS['member_roles'], true ) && ! in_array( TEST_FREE, $GLOBALS['member_roles'], true ), 'Scheduled cancellation does not prematurely remove Monthly' );
+verify( ! $GLOBALS['cancellations'], 'Routine renewal cancellation never invokes immediate moderation cancellation' );
+
+// A terminal cancellation cannot be revived by an old future next-payment date.
+$GLOBALS['subscriptions'][11]->post_status = 'arraysubs-cancelled';
+$before = count( mutations() );
+TC_Woo_Bridge::sync_user( TEST_USER );
+$expiry_writes = array_slice( mutations(), $before );
+verify( ! TC_Woo_Bridge::paid_access( TEST_USER )['monthly'], 'Terminal cancelled status wins over stale future payment date' );
+verify( in_array( TEST_FREE, $GLOBALS['member_roles'], true ) && ! in_array( TEST_MONTHLY, $GLOBALS['member_roles'], true ), 'Terminal cancellation completes Monthly to Free transition' );
+verify( count( $expiry_writes ) === 2 && $expiry_writes[0][0] === 'PUT' && str_ends_with( $expiry_writes[0][1], '/roles/' . TEST_FREE ) && $expiry_writes[1][0] === 'DELETE' && str_ends_with( $expiry_writes[1][1], '/roles/' . TEST_MONTHLY ), 'Free is established before removing the last owned VIP role' );
+verify( isset( $GLOBALS['orders'][22] ), 'Terminal cancellation keeps original paid financial history' );
+
+// A failed Free grant must not prolong a known-ineligible paid Discord role.
+reset_membership_fixture(); monthly_fixture( time() - 100 ); TC_Woo_Bridge::sync_user( TEST_USER );
+$GLOBALS['subscriptions'][11]->post_status = 'arraysubs-cancelled'; $GLOBALS['free_put_failure'] = true;
+$before = count( mutations() ); TC_Woo_Bridge::sync_user( TEST_USER );
+$failed_writes = array_slice( mutations(), $before );
+verify( ! TC_Woo_Bridge::paid_access( TEST_USER )['monthly'], 'Failed Free grant never restores a cancelled paid entitlement' );
+verify( ! in_array( TEST_MONTHLY, $GLOBALS['member_roles'], true ) && ! in_array( TEST_FREE, $GLOBALS['member_roles'], true ), 'Failed Free grant cannot preserve an ineligible paid Discord role' );
+verify( count( $failed_writes ) === 2 && $failed_writes[0][0] === 'PUT' && $failed_writes[1][0] === 'DELETE', 'Failed Free attempt precedes removal of the ineligible owned VIP' );
+verify( get_user_meta( TEST_USER, '_tc_woo_sync_error', true ) === 'discord_http_403', 'Free grant failure remains visible for support and retry' );
+
+// Moderation must invalidate stale badges even when Free is already present.
+reset_membership_fixture(); monthly_fixture( time() - 100 ); TC_Woo_Bridge::sync_user( TEST_USER );
+$GLOBALS['member_roles'] = array( TEST_FREE ); $GLOBALS['audit_role'] = TEST_MONTHLY;
+$GLOBALS['meta'][TEST_USER]['_tc_discord_status'] = array( 'state' => 'monthly' );
+$before = count( mutations() ); TC_Woo_Bridge::sync_user( TEST_USER );
+verify( '' === get_user_meta( TEST_USER, '_tc_discord_status', true ), 'Moderator cutoff invalidates a stale VIP badge without needing a bot role write' );
+verify( count( mutations() ) === $before && ! TC_Woo_Bridge::paid_access( TEST_USER )['monthly'], 'Already-Free moderation does not restore VIP or make redundant role changes' );
+
+// A dependency failure after recording moderation cannot grant synthetic Free.
+reset_membership_fixture(); monthly_fixture( time() - 100 ); TC_Woo_Bridge::sync_user( TEST_USER );
+$GLOBALS['member_roles'] = array(); $GLOBALS['audit_role'] = TEST_MONTHLY;
+$GLOBALS['subscription_failure_after_cancel'] = true;
+$before = count( mutations() ); TC_Woo_Bridge::sync_user( TEST_USER );
+verify( count( mutations() ) === $before, 'Unknown state after moderator cancellation performs no role mutations' );
+verify( ! empty( get_user_meta( TEST_USER, '_tc_woo_revoked', true )['monthly'] ), 'Unknown reread preserves the moderator entitlement cutoff' );
+
+// Two queued jobs for the same member must never interleave Discord writes.
+reset_membership_fixture(); monthly_fixture( time() - 100 );
+$GLOBALS['reenter_on_vip_put'] = true; TC_Woo_Bridge::sync_user( TEST_USER );
+verify( $GLOBALS['nested_requests'] === 0, 'A nested concurrent worker cannot read or mutate Discord while the first lease is held' );
+verify( in_array( TEST_MONTHLY, $GLOBALS['member_roles'], true ) && empty( $GLOBALS['options'] ), 'Successful reconciliation releases its lease after a consistent role transition' );
+
+// A worker must not clear a lease which another worker now owns.
+reset_membership_fixture(); monthly_fixture( time() - 100 );
+$GLOBALS['replace_lease_on_vip_put'] = true; TC_Woo_Bridge::sync_user( TEST_USER );
+verify( str_ends_with( $GLOBALS['options']['_tc_woo_sync_lock_' . TEST_USER] ?? '', ':replacement-worker' ), 'Lease release uses compare-and-delete and preserves a replacement owner' );
+
+// Expired leases are reclaimed atomically; still-valid leases are respected.
+reset_membership_fixture(); monthly_fixture( time() - 100 );
+$GLOBALS['options']['_tc_woo_sync_lock_' . TEST_USER] = ( time() - 1 ) . ':expired-worker';
+TC_Woo_Bridge::sync_user( TEST_USER );
+verify( in_array( TEST_MONTHLY, $GLOBALS['member_roles'], true ) && empty( $GLOBALS['options'] ), 'Expired worker lease can be reclaimed and released' );
+reset_membership_fixture(); monthly_fixture( time() - 100 );
+$GLOBALS['options']['_tc_woo_sync_lock_' . TEST_USER] = ( time() + 300 ) . ':live-worker';
+TC_Woo_Bridge::sync_user( TEST_USER );
+verify( ! $GLOBALS['requests'] && str_ends_with( $GLOBALS['options']['_tc_woo_sync_lock_' . TEST_USER], ':live-worker' ), 'A live worker lease blocks duplicate Discord work' );
+
+// Committed status and date changes wake reconciliation without changing roles inline.
+reset_membership_fixture(); monthly_fixture( time() - 100 );
+TC_Woo_Bridge::array_status_changed( 'arraysubs-cancelled', 'arraysubs-active', (object) array( 'ID' => 11 ) );
+verify( count( $GLOBALS['as_queue'] ) === 1 && count( $GLOBALS['queue'] ) === 1, 'ArraySubs status change with a post object queues Action Scheduler and WP fallback' );
+verify( ! $GLOBALS['requests'] && ! $GLOBALS['cancellations'], 'Status wake-up never calls Discord or cancels payment inline' );
+$GLOBALS['queue'] = array(); $GLOBALS['as_queue'] = array();
+TC_Woo_Bridge::array_meta_changed( 1, 11, '_next_payment_date', gmdate( 'Y-m-d H:i:s' ) );
+verify( count( $GLOBALS['as_queue'] ) === 1 && count( $GLOBALS['queue'] ) === 1 && ! $GLOBALS['requests'], 'Known subscription date update queues reconciliation without Discord writes' );
+$GLOBALS['queue'] = array(); $GLOBALS['as_queue'] = array();
+TC_Woo_Bridge::array_meta_changed( 2, 11, '_unrelated_note', 'Unrelated edit' );
+TC_Woo_Bridge::array_status_changed( 'arraysubs-active', 'arraysubs-active', (object) array( 'ID' => 11 ) );
+verify( ! $GLOBALS['as_queue'] && ! $GLOBALS['queue'], 'Unrelated metadata and unchanged subscription status do not queue duplicate work' );
+
+// A verified profile read may request a role refresh, at most once per minute.
+reset_membership_fixture(); monthly_fixture( time() - 100 );
+$GLOBALS['meta'][ TEST_USER ]['_tc_woo_tracked'] = '1';
+TC_Woo_Bridge::observe_member( TEST_USER, array( 'member_verified' => true ) );
+verify( count( $GLOBALS['as_queue'] ) === 1 && count( $GLOBALS['queue'] ) === 1 && ! $GLOBALS['requests'], 'Verified tracked member observation queues refresh without synchronous role mutation' );
+verify( get_user_meta( TEST_USER, '_tc_woo_observe_after', true ) >= time() + 59, 'Verified observation sets a one-minute throttle' );
+$GLOBALS['queue'] = array(); $GLOBALS['as_queue'] = array();
+TC_Woo_Bridge::observe_member( TEST_USER, array( 'member_verified' => true ) );
+verify( ! $GLOBALS['queue'] && ! $GLOBALS['as_queue'], 'A second verified observation inside the minute does not enqueue again' );
+$GLOBALS['meta'][ TEST_USER ]['_tc_woo_observe_after'] = time() - 1;
+TC_Woo_Bridge::observe_member( TEST_USER, array( 'member_verified' => true ) );
+verify( count( $GLOBALS['queue'] ) === 1 && count( $GLOBALS['as_queue'] ) === 1, 'Observation can queue a refresh after the throttle expires' );
+reset_membership_fixture(); monthly_fixture( time() - 100 );
+$GLOBALS['meta'][ TEST_USER ]['_tc_woo_tracked'] = '1';
+TC_Woo_Bridge::observe_member( TEST_USER, array( 'member_verified' => false ) );
+verify( ! $GLOBALS['queue'] && ! $GLOBALS['as_queue'] && '' === get_user_meta( TEST_USER, '_tc_woo_observe_after', true ), 'Unverified observation never queues work or marks a throttle' );
+unset( $GLOBALS['meta'][ TEST_USER ]['_tc_woo_tracked'] );
+TC_Woo_Bridge::observe_member( TEST_USER, array( 'member_verified' => true ) );
+verify( ! $GLOBALS['queue'] && ! $GLOBALS['as_queue'], 'Verified but untracked Discord members are not adopted by billing reconciliation' );
+
+// A cancellation while a remote grant is in flight must compensate only that new grant.
+reset_membership_fixture(); monthly_fixture( time() - 100 );
+$GLOBALS['cancel_during_vip_put'] = true;
+TC_Woo_Bridge::sync_user( TEST_USER );
+$inflight_writes = mutations();
+verify( ! in_array( TEST_MONTHLY, $GLOBALS['member_roles'], true ) && in_array( TEST_FREE, $GLOBALS['member_roles'], true ), 'Cancellation during the grant response compensates VIP while preserving existing Free' );
+verify( count( $inflight_writes ) === 2 && $inflight_writes[0][0] === 'PUT' && $inflight_writes[1][0] === 'DELETE', 'An in-flight obsolete grant is followed by its compensating deletion' );
+verify( empty( get_user_meta( TEST_USER, '_tc_woo_owned_roles', true )[ TEST_MONTHLY ] ) && isset( $GLOBALS['orders'][22] ), 'Compensated grant clears only its role ownership and preserves payment history' );
+verify( get_user_meta( TEST_USER, '_tc_woo_sync_error', true ) === 'entitlement_changed_during_grant' && empty( $GLOBALS['options'] ), 'Compensated cancellation records its diagnostic and releases its own lease' );
+
+// A lease lost while compensating may not overwrite the replacement worker's metadata.
+reset_membership_fixture(); monthly_fixture( time() - 100 );
+$GLOBALS['cancel_during_vip_put'] = true; $GLOBALS['replace_lease_on_compensating_delete'] = true;
+TC_Woo_Bridge::sync_user( TEST_USER );
+verify( get_user_meta( TEST_USER, '_tc_woo_owned_roles', true ) === array( TEST_LIFETIME => 1 ), 'Lease loss during compensation preserves replacement worker ownership metadata' );
+verify( str_ends_with( $GLOBALS['options']['_tc_woo_sync_lock_' . TEST_USER] ?? '', ':compensating-replacement' ), 'Compensating worker cannot release the newer worker lease' );
+
 echo 'Woo role lifecycle: ' . $GLOBALS['assertions'] . " assertions PASS (in-memory providers, no HTTP or DB).\n";

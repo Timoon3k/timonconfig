@@ -12,6 +12,9 @@ $roles = array();
 $mode = 'ok';
 $fixtures = array();
 $config_ids = array();
+$member_events = 0;
+$member_observer = static function ( int $event_uid, array $event_status ) use ( &$member_events ): void { if ( true === ( $event_status['member_verified'] ?? false ) ) { ++$member_events; } };
+add_action( 'timonconfigs_discord_member_verified', $member_observer, 20, 2 );
 $https = static fn() => 'https://localhost:8080';
 $encrypt = new ReflectionMethod( TC_Discord::class, 'encrypt' );
 $http = static function ( $pre, $args, $url ) use ( &$roles, &$mode, $id ) {
@@ -50,6 +53,8 @@ try {
 		$mode = 'unavailable' === $state ? 'error' : 'ok';
 		$seed();
 		$html = TC_Member_Area::render();
+		$identity = TC_Discord::status();
+		$assert( ( 'unavailable' !== $state ) === ( $identity['member_verified'] ?? false ), 'Verified server membership is independent of entitlement roles and false on API failure: ' . $state );
 		$assert( str_contains( $html, 'data-state="' . $state . '"' ) && str_contains( $html, $label ), 'Dashboard matches real server-derived state: ' . $state );
 		$assert( str_contains( $html, esc_html( $name ) ) && ! str_contains( $html, '<script>' ), 'Owner name is escaped: ' . $state );
 		$assert( 3 === substr_count( $html, 'class="tc-member-quick__card"' ), 'Three contextual profile actions: ' . $state );
@@ -63,6 +68,33 @@ try {
 		if ( 'monthly' === $state ) { $assert( 2 === substr_count( $html, 'class="tc-member-state"' ), 'Multiple verified roles render without duplicating the current membership badge.' ); }
 		$fixtures[ $state ] = $html;
 	}
+	// A previously paid member may be between VIP and Free roles during reconciliation.
+	$roles = array(); $mode = 'ok';
+	update_user_meta( $uid, '_tc_woo_tracked', '1' );
+	update_user_meta( $uid, '_tc_woo_role_granted_at', array( 'monthly' => time() - 60 ) );
+	$events_before = $member_events;
+	$seed(); $html = TC_Member_Area::render(); $events_after_fresh_read = $member_events; $transition = TC_Discord::status();
+	$assert( $events_after_fresh_read === $events_before + 1 && $member_events === $events_after_fresh_read, 'Successful fresh member read emits one observer event; cache reads do not enqueue again.' );
+	$assert( 'unverified' === $transition['state'] && true === $transition['member_verified'], 'Sync presentation never changes the role-based authorization state.' );
+	$assert( str_contains( $html, 'data-state="syncing"' ) && str_contains( $html, 'Membership update pending' ) && str_contains( $html, 'Discord account connected; roles are updating' ), 'A known prior VIP member sees a membership update rather than lost Discord verification.' );
+	$assert( ! str_contains( $html, 'Reconnect Discord' ) && ! str_contains( $html, 'Complete verification in the TimonConfigs Discord server' ), 'A connected transitioning member is not sent through OAuth or verification again.' );
+	$assert( str_contains( $html, 'Refresh Roles' ) && str_contains( $html, 'contact support</a>' ), 'Transition offers refresh and support without exposing privileged actions.' );
+	$assert( ! str_contains( $html, 'data-state="free"' ) && ! str_contains( $html, 'data-state="monthly"' ) && ! str_contains( $html, 'Current membership' ) && ! str_contains( $html, 'Current license' ), 'Transition never invents a Free or paid membership claim.' );
+	foreach ( array( 'free', 'monthly', 'lifetime' ) as $tier ) {
+		$config_id = wp_insert_post( array( 'post_type' => 'tc_config', 'post_status' => 'publish', 'post_title' => 'Disposable role transition access ' . $tier, 'meta_input' => array( 'tc_tier' => $tier, 'tc_release_status' => 'available' ) ) ); $config_ids[] = $config_id;
+		$assert( false === TC_Discord::can_access( $config_id ), 'Pending role transition cannot grant ' . $tier . ' protected-file access.' );
+	}
+	$fixtures['syncing'] = $html;
+	delete_user_meta( $uid, '_tc_woo_tracked' ); $seed(); $html = TC_Member_Area::render();
+	$assert( str_contains( $html, 'data-state="unverified"' ) && str_contains( $html, 'Reconnect Discord' ) && ! str_contains( $html, 'data-state="syncing"' ), 'A nontracked roleless member retains the normal verification requirement.' );
+	update_user_meta( $uid, '_tc_woo_tracked', '1' ); delete_user_meta( $uid, '_tc_woo_role_granted_at' );
+	update_user_meta( $uid, '_tc_woo_revoked', array( 'monthly' => time() - 30 ) );
+	$seed(); $html = TC_Member_Area::render();
+	$assert( str_contains( $html, 'data-state="syncing"' ), 'A recorded revocation also identifies the prior-membership transition.' );
+	$mode = 'error'; $events_before_error = $member_events; $seed(); $html = TC_Member_Area::render();
+	$assert( $member_events === $events_before_error, 'Failed Discord verification never emits a successful member observer event.' );
+	$assert( str_contains( $html, 'data-state="unavailable"' ) && ! str_contains( $html, 'data-state="syncing"' ) && false === TC_Discord::status()['member_verified'], 'A Discord API failure is unavailable, never a falsely verified transition.' );
+	delete_user_meta( $uid, '_tc_woo_tracked' ); delete_user_meta( $uid, '_tc_woo_revoked' );
 	$settings['owner_role'] = '800000000000000007'; $settings['staff_role'] = '800000000000000008'; $settings['owner_ids'] = $id;
 	update_option( 'timonconfigs_discord', $settings, false ); $roles = array( $settings['owner_role'] ); $mode = 'ok'; $seed();
 	$html = TC_Member_Area::render(); $owner_status = TC_Discord::status();
@@ -91,9 +123,10 @@ try {
 	WP_CLI::line( wp_json_encode( array( 'passed' => true, 'assertions' => $checks, 'fixtures' => $fixtures ) ) );
 } finally {
 	foreach ( $config_ids as $config_id ) { wp_delete_post( $config_id, true ); }
+	remove_action( 'timonconfigs_discord_member_verified', $member_observer, 20 );
 	remove_filter( 'pre_http_request', $http, 10 );
 	remove_filter( 'option_home', $https );
-	if ( $uid ) { require_once ABSPATH . 'wp-admin/includes/user.php'; delete_option( '_tc_discord_binding_' . $id ); delete_option( '_tc_discord_lock_' . $uid ); wp_delete_user( $uid ); }
+	if ( $uid ) { wp_clear_scheduled_hook( 'tc_woo_sync_one', array( $uid ) ); if ( function_exists( 'as_unschedule_all_actions' ) ) { as_unschedule_all_actions( 'tc_woo_sync_one', array( $uid ), 'timonconfigs' ); } require_once ABSPATH . 'wp-admin/includes/user.php'; delete_option( '_tc_discord_binding_' . $id ); delete_option( '_tc_discord_lock_' . $uid ); wp_delete_user( $uid ); }
 	null === $old ? delete_option( 'timonconfigs_discord' ) : update_option( 'timonconfigs_discord', $old, false );
 	wp_set_current_user( $original_user );
 }

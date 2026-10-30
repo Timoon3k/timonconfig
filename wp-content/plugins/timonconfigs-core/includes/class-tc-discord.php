@@ -279,7 +279,7 @@ final class TC_Discord {
     /** Owner-visible data only. TTL = 60 seconds; failed refresh never retains access. */
     public static function status( int $user_id = 0, bool $force = false ): array {
         $uid = $user_id ?: get_current_user_id();
-        $base = array( 'state' => 'unverified', 'checked_at' => 0, 'expires_at' => 0, 'display_name' => '', 'avatar' => '', 'discord_id' => '', 'error' => '', 'badges' => array(), 'staff_verified' => false, 'owner_verified' => false );
+        $base = array( 'state' => 'unverified', 'checked_at' => 0, 'expires_at' => 0, 'display_name' => '', 'avatar' => '', 'discord_id' => '', 'error' => '', 'badges' => array(), 'staff_verified' => false, 'owner_verified' => false, 'member_verified' => false );
         if ( ! $uid || ! self::is_ready() ) { return $base; }
         $id = get_user_meta( $uid, '_tc_discord_id', true );
         if ( ! self::identity_allowed( $id ) || (int) get_option( '_tc_discord_binding_' . $id ) !== $uid ) { return $base; }
@@ -340,6 +340,8 @@ final class TC_Discord {
             if ( ! is_array( $member['roles'] ?? null ) || ( $member['user']['id'] ?? '' ) !== $id || ( isset( $member['guild_id'] ) && $member['guild_id'] !== $s['guild_id'] ) ) { self::record_failure( self::error( 'membership', 'malformed_response', 200 ) ); return self::unavailable( $base ); }
             if ( $blob !== get_user_meta( $uid, self::TOKEN, true ) ) { return self::unavailable( $base ); }
             foreach ( $member['roles'] as $role ) { if ( ! self::snowflake( $role ) ) { self::record_failure( self::error( 'membership', 'malformed_response', 200 ) ); return self::unavailable( $base ); } }
+            // Identity/server membership is separate from entitlement roles. This flag is presentation-only.
+            $base['member_verified'] = true;
             foreach ( array( 'lifetime', 'monthly', 'free' ) as $tier ) { if ( in_array( $s[ $tier . '_role' ], $member['roles'], true ) ) { $base['state'] = $tier; break; } }
             // These are product labels for configured, verified immutable role IDs, not arbitrary guild role names.
             foreach ( array( 'free' => 'Free Member', 'monthly' => 'VIP Monthly', 'lifetime' => 'VIP Lifetime', 'staff' => 'Staff', 'owner' => 'Owner' ) as $key => $label ) {
@@ -349,6 +351,8 @@ final class TC_Discord {
             $base['owner_verified'] = isset( $base['badges']['owner'] ) && in_array( $id, self::pilot_ids( $s['owner_ids'] ?? '' ), true );
             $base['checked_at'] = time(); $base['expires_at'] = min( time() + 60, $tokens['expires'] - 30 );
             update_user_meta( $uid, self::CACHE, array_merge( $base, array( 'fingerprint' => $fingerprint ) ) );
+            // Observers may enqueue reconciliation, never infer paid access from identity alone.
+            do_action( 'timonconfigs_discord_member_verified', $uid, $base );
             return $base;
         } finally { self::consume( $lock, $owner ); }
     }

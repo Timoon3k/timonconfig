@@ -45,6 +45,7 @@ const root = path.resolve(__dirname, '..');
         const focus = await page.locator('.tc-member-quick__card').first().evaluate(el => getComputedStyle(el).outlineStyle);
         assert.notEqual(focus, 'none', 'Keyboard focus remains visible');
         if (state === 'owner-tools') await page.screenshot({ path: path.join(root, `artifacts/member-owner-tools-${width}.png`), fullPage: true });
+        if (state === 'syncing') await page.screenshot({ path: path.join(root, `artifacts/member-syncing-${width}.png`), fullPage: true });
         if (state === 'monthly') await page.screenshot({ path: path.join(root, `artifacts/member-dashboard-fixture-${width}.png`), fullPage: true });
         report.checks.push({ state, width, longName: true, missingAvatar: true });
       }

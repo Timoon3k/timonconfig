@@ -1,3 +1,13 @@
+# Bieżący etap — Core 1.1.10 / theme 0.14.3, 2026-10-30
+
+Kontynuuj poprawkę anulowania i spójności ról z main `7ea5e2b`; przeczytaj początek PROGRESS i `docs/MEMBERSHIP_SYNC_1.1.10.md`. Właściciel potwierdził **natychmiastowe anulowanie w Stripe**. Zwykłe zatrzymanie przyszłych odnowień nadal zachowuje opłacony okres.
+
+Nowe: blokada jednego pracownika na członka, sprawdzanie aktualnego dostępu i właściciela blokady przy zdalnych zapisach, Free przed usunięciem wygasłego VIP, unieważnienie cache po moderacji oraz kolejka po zdarzeniach subskrypcji/świeżym odczycie Discorda. Wcześniej opłacony klient między rolami widzi Membership update pending; nie zmieniano download allowlists i nie nadawano fikcyjnego Free. reCAPTCHA pozostaje usunięta.
+
+Pierwsze testy55role/74profile zaliczone; końcowe wyniki i commit/push z ostatniego raportu. Następny krok: aktualizacja Core, kontrola Action Scheduler/WP-Cron i potwierdzenie prawdziwych webhooków oraz stanu ArraySubs po anulowaniu. Nie twierdź, że lokalny cutoff zatrzymał obciążenia. Brak potwierdzonej produkcyjnej instalacji lub rzeczywistego ArraySubs2.0.9 acceptance; dokumentacja/source zablokowane proxy403. Zachowaj zamówienia, klientów, Ownera, bieżącą konfigurację operatorów i motyw0.14.3.
+
+---
+
 # Aktualizacja checkoutu — theme 0.14.3 / Core 1.1.9, 2026-10-30
 
 Przy podsumowaniu płatności jest angielska informacja o 1–10 minutach na weryfikację i automatyczne nadanie rangi Discord. Checkout nie obiecuje już Instant access. Zmiana dotyczy treści motywu; instalacja na Hostingerze pozostaje niepotwierdzona.

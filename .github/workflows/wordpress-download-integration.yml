@@ -18,6 +18,7 @@ on:
       - 'tests/shared-vip-integration.php'
       - 'tests/catalog-routes-integration.php'
       - 'tests/woo-checkout-presentation-integration.php'
+      - 'tests/woo-sync-lock-integration.php'
       - 'tests/setup-woo-test-translations.php'
       - 'tests/checkout-integration.php'
       - 'tests/site-checkout-copy-integration.php'
@@ -66,6 +67,8 @@ jobs:
           fi
       - name: English checkout fields and WooCommerce AJAX validation
         run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/woo-checkout-presentation-integration.php
+      - name: Atomic per-member synchronization lease
+        run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/woo-sync-lock-integration.php
       - name: Catalog visibility and filters
         run: docker compose -f docker-compose.local.yml run --rm -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/catalog-integration.php
       - name: Website-only checkout and preserved historical URL options

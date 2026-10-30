@@ -36,6 +36,11 @@ final class TC_Woo_Bridge {
         add_action( 'arraysubs_data_status_changed', array( __CLASS__, 'array_native_event' ), 50, 1 );
         add_action( 'arraysubs_renewal_payment_complete', array( __CLASS__, 'array_native_event' ), 50, 1 );
         add_action( 'arraysubs_lifecycle_event', array( __CLASS__, 'array_event' ), 10, 2 );
+        // Observe committed WordPress subscription changes even when a gateway omits a lifecycle hook.
+        add_action( 'transition_post_status', array( __CLASS__, 'array_status_changed' ), 50, 3 );
+        add_action( 'updated_post_meta', array( __CLASS__, 'array_meta_changed' ), 50, 4 );
+        add_action( 'added_post_meta', array( __CLASS__, 'array_meta_changed' ), 50, 4 );
+        add_action( 'timonconfigs_discord_member_verified', array( __CLASS__, 'observe_member' ), 10, 2 );
         add_action( 'woocommerce_checkout_process', array( __CLASS__, 'validate_checkout' ) );
         add_action( 'woocommerce_store_api_checkout_order_processed', array( __CLASS__, 'validate_store_api_checkout' ) );
         add_action( 'admin_menu', static function (): void {
@@ -334,7 +339,8 @@ final class TC_Woo_Bridge {
     }
     /** Native 2.0.9 lifecycle events enqueue a recheck; no payment is trusted here. */
     public static function array_native_event( $subscription_id ): void {
-        $id = is_numeric( $subscription_id ) ? absint( $subscription_id ) : 0;
+        $raw_id = is_object( $subscription_id ) ? ( $subscription_id->ID ?? 0 ) : $subscription_id;
+        $id = is_numeric( $raw_id ) ? absint( $raw_id ) : 0;
         if ( ! $id || ! self::subscriptions_loaded() ) { return; }
         try {
             if ( ! arraysubs_get_subscription( $id ) ) { return; }
@@ -343,6 +349,22 @@ final class TC_Woo_Bridge {
             if ( ! $pid ) { $pid = absint( get_post_meta( $id, '_product_id', true ) ); }
             if ( $uid && $pid === self::product( 'monthly' ) ) { self::track( $uid ); }
         } catch ( \Throwable $e ) { return; }
+    }
+    public static function array_status_changed( string $new, string $old, $post ): void {
+        if ( $new === $old || ( ! str_starts_with( $new, 'arraysubs-' ) && ! str_starts_with( $old, 'arraysubs-' ) ) ) { return; }
+        self::array_native_event( $post );
+    }
+    public static function array_meta_changed( $meta_id, $post_id, $key, $value ): void {
+        if ( ! in_array( $key, array( '_next_payment_date', '_end_date', '_completed_payments', '_scheduled_cancel_date' ), true ) ) { return; }
+        self::array_native_event( $post_id );
+    }
+    /** A fresh member read queues reconciliation; it never grants access or writes Discord roles inline. */
+    public static function observe_member( int $uid, array $status ): void {
+        if ( empty( $status['member_verified'] ) || '1' !== get_user_meta( $uid, self::TRACKED, true ) ||
+             (int) get_user_meta( $uid, '_tc_woo_observe_after', true ) > time() ) { return; }
+        update_user_meta( $uid, '_tc_woo_observe_after', time() + 60 );
+        try { self::track( $uid ); }
+        catch ( \Throwable $e ) { update_user_meta( $uid, '_tc_woo_sync_error', 'sync_queue_unavailable' ); }
     }
     /** Events only queue work; authoritative paid state is reread in sync_user(). */
     public static function array_event( string $event, array $payload ): void {
@@ -577,10 +599,43 @@ final class TC_Woo_Bridge {
         if ( ! empty( $data[ $plan ] ) && $last_grant <= absint( $data[ $plan ] ) ) { return; }
         $data[ $plan ] = time();
         update_user_meta( $uid, self::REVOKED, $data );
+        delete_user_meta( $uid, '_tc_discord_status' );
         if ( 'monthly' === $plan ) { self::stop_moderated_monthly( $uid ); }
     }
 
+    /** One worker per member; compare-and-delete cannot release a newer worker's lease. */
+    private static function sync_lock_value( int $uid ): string {
+        global $wpdb;
+        return (string) $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM $wpdb->options WHERE option_name = %s", '_tc_woo_sync_lock_' . $uid ) );
+    }
+    private static function release_sync( int $uid, string $lease ): void {
+        global $wpdb;
+        $key = '_tc_woo_sync_lock_' . $uid;
+        $wpdb->query( $wpdb->prepare( "DELETE FROM $wpdb->options WHERE option_name = %s AND option_value = %s", $key, $lease ) );
+        wp_cache_delete( $key, 'options' );
+    }
+    private static function owns_sync( int $uid, string $lease ): bool {
+        return (int) $lease > time() && hash_equals( $lease, self::sync_lock_value( $uid ) );
+    }
+    private static function role_change( int $uid, string $lease, string $method, string $path ): array|WP_Error {
+        if ( ! self::owns_sync( $uid, $lease ) ) { return new WP_Error( 'sync_lease_lost', 'Membership synchronization will be retried.' ); }
+        return self::discord_api( $method, $path );
+    }
     public static function sync_user( int $uid ): void {
+        if ( $uid < 1 || ! self::roles_configured() || ! self::woo_loaded() || ! self::subscriptions_loaded() ) { return; }
+        $key = '_tc_woo_sync_lock_' . $uid;
+        $lease = ( time() + 300 ) . ':' . bin2hex( random_bytes( 16 ) );
+        if ( ! add_option( $key, $lease, '', false ) ) {
+            $old = self::sync_lock_value( $uid );
+            if ( ! $old || (int) $old >= time() ) { return; }
+            self::release_sync( $uid, $old );
+            if ( ! add_option( $key, $lease, '', false ) ) { return; }
+        }
+        try { self::sync_member( $uid, $lease ); }
+        catch ( \Throwable $e ) { update_user_meta( $uid, '_tc_woo_sync_error', 'sync_unavailable' ); }
+        finally { self::release_sync( $uid, $lease ); }
+    }
+    private static function sync_member( int $uid, string $lease ): void {
         if ( $uid < 1 || ! self::roles_configured() || ! self::woo_loaded() || ! self::subscriptions_loaded() ) { return; }
         $id = self::linked_discord( $uid ); if ( ! $id ) { return; }
         $settings = self::discord_config(); $guild = $settings['guild_id'];
@@ -592,11 +647,13 @@ final class TC_Woo_Bridge {
             update_user_meta( $uid, '_tc_woo_sync_error', is_wp_error( $member ) ? $member->get_error_code() : 'member_unverified' ); return;
         }
         $present = array_fill_keys( array_map( 'strval', $member['roles'] ), true );
-        $role_changed = false;
+        $role_changed = false; $free_attempted = false;
         $owned = get_user_meta( $uid, self::OWNED, true ); $owned = is_array( $owned ) ? $owned : array();
         $wanted = self::paid_access( $uid );
+        if ( ! self::owns_sync( $uid, $lease ) ) { return; }
         if ( ! empty( $wanted['unknown'] ) ) { update_user_meta( $uid, '_tc_woo_sync_error', 'arraysubs_read_failed' ); return; }
         foreach ( $roles as $plan => $role ) {
+            if ( ! self::owns_sync( $uid, $lease ) ) { return; }
             $exists = isset( $present[ $role ] ); $is_owned = ! empty( $owned[ $role ] );
             if ( ! $exists && $is_owned ) {
                 // A previous TimonConfigs grant disappeared. Never blindly restore it.
@@ -604,10 +661,17 @@ final class TC_Woo_Bridge {
                 $grants = get_user_meta( $uid, self::ROLE_GRANTED_AT, true );
                 $last_grant = is_array( $grants ) ? absint( $grants[ $plan ] ?? 0 ) : 0;
                 if ( self::staff_removed_role( $guild, $id, $role, $last_grant ) ) {
+                    if ( ! self::owns_sync( $uid, $lease ) ) { return; }
                     self::record_manual_revocation( $uid, $plan );
+                    if ( ! self::owns_sync( $uid, $lease ) ) { return; }
                     unset( $owned[ $role ] );
                     $is_owned = false;
                     $wanted = self::paid_access( $uid );
+                    if ( ! self::owns_sync( $uid, $lease ) ) { return; }
+                    if ( ! empty( $wanted['unknown'] ) ) {
+                        update_user_meta( $uid, self::OWNED, $owned );
+                        update_user_meta( $uid, '_tc_woo_sync_error', 'arraysubs_read_failed' ); return;
+                    }
                 } else {
                     update_user_meta( $uid, '_tc_woo_sync_error', 'vip_role_missing_manual_review_required' );
                     continue;
@@ -619,27 +683,69 @@ final class TC_Woo_Bridge {
             if ( 'monthly' === $plan && $wanted['lifetime'] && ! $wanted['monthly'] ) { $need = false; }
             if ( $need && ! $exists ) {
                 $fresh = self::paid_access( $uid );
+                if ( ! self::owns_sync( $uid, $lease ) ) { return; }
                 if ( ! empty( $fresh['unknown'] ) || ! $fresh[ $plan ] ) { continue; }
                 $owned[ $role ] = 1;
                 if ( ! update_user_meta( $uid, self::OWNED, $owned ) ) {
                     update_user_meta( $uid, '_tc_woo_sync_error', 'owned_marker_write_failed' ); continue;
                 }
-                $resp = self::discord_api( 'PUT', $path . '/roles/' . rawurlencode( $role ) );
+                $grant_started = time();
+                $resp = self::role_change( $uid, $lease, 'PUT', $path . '/roles/' . rawurlencode( $role ) );
+                if ( ! self::owns_sync( $uid, $lease ) ) { return; }
                 if ( is_wp_error( $resp ) ) { unset( $owned[ $role ] ); update_user_meta( $uid, self::OWNED, $owned ); update_user_meta( $uid, '_tc_woo_sync_error', $resp->get_error_code() ); continue; }
+                // An entitlement may have changed while the remote PUT was in flight.
+                $after_grant = self::paid_access( $uid );
+                if ( ! self::owns_sync( $uid, $lease ) ) { return; }
+                if ( ! empty( $after_grant['unknown'] ) || ! $after_grant[ $plan ] ) {
+                    $undo = self::role_change( $uid, $lease, 'DELETE', $path . '/roles/' . rawurlencode( $role ) );
+                    if ( ! self::owns_sync( $uid, $lease ) ) { return; }
+                    if ( ! is_wp_error( $undo ) ) { unset( $owned[ $role ] ); }
+                    update_user_meta( $uid, self::OWNED, $owned );
+                    delete_user_meta( $uid, '_tc_discord_status' );
+                    update_user_meta( $uid, '_tc_woo_sync_error', is_wp_error( $undo ) ? $undo->get_error_code() : 'entitlement_changed_during_grant' );
+                    return;
+                }
                 $present[ $role ] = true; $role_changed = true;
                 $granted = get_user_meta( $uid, self::ROLE_GRANTED_AT, true );
                 $granted = is_array( $granted ) ? $granted : array();
-                $granted[ $plan ] = time();
+                $granted[ $plan ] = $grant_started;
                 update_user_meta( $uid, self::ROLE_GRANTED_AT, $granted );
             } elseif ( ! $need && $exists && $is_owned ) {
                 $fresh = self::paid_access( $uid );
+                if ( ! self::owns_sync( $uid, $lease ) ) { return; }
                 if ( ! empty( $fresh['unknown'] ) || $fresh[ $plan ] || ( 'monthly' === $plan && $fresh['lifetime'] && $fresh['monthly'] ) ) { continue; }
-                $resp = self::discord_api( 'DELETE', $path . '/roles/' . rawurlencode( $role ) );
+                // Add the fallback before removing the last paid role, when possible.
+                if ( ! $fresh['monthly'] && ! $fresh['lifetime'] && self::snowflake( $free_role ) &&
+                     ! in_array( $free_role, $roles, true ) && ! isset( $present[ $free_role ] ) ) {
+                    $free_attempted = true;
+                    $fallback = self::role_change( $uid, $lease, 'PUT', $path . '/roles/' . rawurlencode( $free_role ) );
+                    if ( ! self::owns_sync( $uid, $lease ) ) { return; }
+                    if ( is_wp_error( $fallback ) ) { update_user_meta( $uid, '_tc_woo_sync_error', $fallback->get_error_code() ); }
+                    else { $present[ $free_role ] = true; $role_changed = true; }
+                    $fresh = self::paid_access( $uid );
+                    if ( ! self::owns_sync( $uid, $lease ) ) { return; }
+                    if ( ! empty( $fresh['unknown'] ) ) {
+                        update_user_meta( $uid, self::OWNED, $owned );
+                        if ( $role_changed ) { delete_user_meta( $uid, '_tc_discord_status' ); }
+                        update_user_meta( $uid, '_tc_woo_sync_error', 'arraysubs_read_failed' ); return;
+                    }
+                    if ( $fresh[ $plan ] ) { continue; }
+                }
+                $resp = self::role_change( $uid, $lease, 'DELETE', $path . '/roles/' . rawurlencode( $role ) );
+                if ( ! self::owns_sync( $uid, $lease ) ) { return; }
                 if ( is_wp_error( $resp ) ) { update_user_meta( $uid, '_tc_woo_sync_error', $resp->get_error_code() ); continue; }
                 unset( $owned[ $role ] ); unset( $present[ $role ] ); $role_changed = true;
             }
             // Pre-existing, externally granted Discord roles are never adopted
             // or deleted by our service, even if there is no paid Woo access.
+        }
+        if ( ! self::owns_sync( $uid, $lease ) ) { return; }
+        $wanted = self::paid_access( $uid );
+        if ( ! self::owns_sync( $uid, $lease ) ) { return; }
+        if ( ! empty( $wanted['unknown'] ) ) {
+            update_user_meta( $uid, self::OWNED, $owned );
+            if ( $role_changed ) { delete_user_meta( $uid, '_tc_discord_status' ); }
+            update_user_meta( $uid, '_tc_woo_sync_error', 'arraysubs_read_failed' ); return;
         }
         // Free Member is a fallback, never simultaneous with an owned VIP role.
         // Do not remove Free until the VIP grant has actually been confirmed.
@@ -648,16 +754,17 @@ final class TC_Woo_Bridge {
             $has_verified_vip = ( isset( $present[ $settings['monthly_role'] ] ) && ! empty( $wanted['monthly'] ) ) ||
                                 ( isset( $present[ $settings['lifetime_role'] ] ) && ! empty( $wanted['lifetime'] ) );
             if ( $has_verified_vip && isset( $present[ $free_role ] ) ) {
-                $response = self::discord_api( 'DELETE', $path . '/roles/' . rawurlencode( $free_role ) );
+                $response = self::role_change( $uid, $lease, 'DELETE', $path . '/roles/' . rawurlencode( $free_role ) );
                 if ( is_wp_error( $response ) ) { update_user_meta( $uid, '_tc_woo_sync_error', $response->get_error_code() ); }
                 else { unset( $present[ $free_role ] ); $role_changed = true; }
             } elseif ( ! $has_verified_vip && ! $wanted['monthly'] && ! $wanted['lifetime'] &&
-                       ! isset( $present[ $free_role ] ) ) {
-                $response = self::discord_api( 'PUT', $path . '/roles/' . rawurlencode( $free_role ) );
+                       ! isset( $present[ $free_role ] ) && ! $free_attempted ) {
+                $response = self::role_change( $uid, $lease, 'PUT', $path . '/roles/' . rawurlencode( $free_role ) );
                 if ( is_wp_error( $response ) ) { update_user_meta( $uid, '_tc_woo_sync_error', $response->get_error_code() ); }
                 else { $present[ $free_role ] = true; $role_changed = true; }
             }
         }
+        if ( ! self::owns_sync( $uid, $lease ) ) { return; }
         update_user_meta( $uid, self::OWNED, $owned );
         // Invalidate the member page's 60-second role badge cache after successful bot changes.
         if ( $role_changed ) { delete_user_meta( $uid, '_tc_discord_status' ); }
