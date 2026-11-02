@@ -1,3 +1,15 @@
+# Bieżący etap — upload Ownera, Core 1.1.13 / theme 0.15.1, 2026-11-02
+
+Przeczytaj `docs/OWNER_UPLOAD_HOTFIX_1.1.13.md` i początek PROGRESS. Kontynuuj `fix/owner-upload-20261102`, checkpoint `111660d`, końcowy commit w Git. Właściciel zgłosił ZNBK5KB bez draftu; nie nazywaj tego problemem UTF, potwierdzoną utratą Ownera lub limitem rozmiaru bez odpowiedzi serwera.
+
+Gotowy publiczny endpoint zapisu przed głównym zapytaniem WP, zachowana sesja/nonce/allowlista Ownera, HTTP200 sukcesu/JSON413 dla odrzuconego POST. Dokładne błędy klienta, zachowanie pól/plików, brak autoretry, limity zgodne z PHP. Stary admin-post nadal działa; nie przywracaj go jako wymaganego adresu panelu Ownera. GPC/ZNBK/TXT pozostają surowymi plikami w prywatnym katalogu. Kolekcje nie są provisionowane w POST/AJAX/cron/admin-post.
+
+Testy PASS: PHP169+24+68, realHTTP42 (5KiBZNBK publish+byteidentity, Staff denial, multipart9MiB PHPdiscarded→413/nodraft), mocktransport48cases/516assertions, lint124/static/JS/YAML/diff, freshZIP98. Dane lokalnych fixture usunięte. Paczki Core1.1.13/theme0.15.1 i manifest `owner-upload-release-manifest-20261102.json` gotowe w artifacts. Brak wdrożenia main/Hostinger.
+
+Najbliższy krok po autoryzowanej instalacji obu ZIP-ów: cache purge, świeży formularz Ownera i próba oryginalnego pliku5KB. Jeśli nadal błąd, ustalić dokładny HTTP i prywatny log hostingu; nie wyłączać globalnie WAF ani nadawać roli Administrator. Zachowaj wszystkie kolekcje/SEO1.1.12, płatności i role. Nie importuj ponownie JSON-a Rank Math dla tej poprawki.
+
+---
+
 # Bieżący etap — Core 1.1.12 / theme 0.15.0, 2026-10-30
 
 Przeczytaj `docs/COLLECTION_URLS_1.1.12.md` i początek PROGRESS. Kontynuuj gałąź `feature/device-game-collections-20261030`, checkpoint `0a2be44`; końcowy commit sprawdź w Git. Nie przywracaj starych kotwic jako głównych docelowych adresów fraz.

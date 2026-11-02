@@ -1,3 +1,14 @@
+## Upload Ownera — Core 1.1.13 / theme 0.15.1, 2026-11-02
+
+- Zgłoszenie: ZNBK 5 KB, brak draftu i ogólny komunikat zerwanego połączenia. Kod JS maskował HTML/odmowy HTTP/przekierowania tym samym błędem. Dokładnej odpowiedzi produkcyjnej nie odczytano; nie twierdź, że to błąd formatu lub potwierdzone cofnięcie Ownera.
+- Domyślny zapis frontendowy przeniesiony z wp-admin do `/?tc_owner_submit=1`, obsługa przed głównym zapytaniem WP, jawny HTTP200 sukcesu i JSON flag z JS. Zachowano nonce, sesję, lokalną allowlistę Ownerów i legacy admin-post; bez nadawania administratora lub zmian płatności/ról. Formularz bez JS zachowuje natywne przekierowanie.
+- Dokładne błędy HTTP/session/nieprawidłowej odpowiedzi zamiast jednego catch; pliki/pola zostają, brak autoretry. Rzeczywiste limity transportu, preflight rozmiaru/liczby i JSON413 dla POST odrzuconego przez PHP. GPC/ZNBK/TXT nadal byte-for-byte bez UTF/MIME/source parsing. Provisioning kolekcji wyłączony podczas POST/AJAX/cron/admin-post.
+- PASS: **169 Owner + 24 transport + 68 kolekcje**, **42 rzeczywistego lokalnego HTTP** (publikacja ZNBK5KiB, integralność plików/pobrań, Staff denied, faktyczne odrzucenie multipart9MiB przez PHP bez draftu), **48 scenariuszy / 516 asercji Chromium** dla symulowanych odpowiedzi. Lint124PHP, JS/static/YAML/diff i **98 fresh ZIP**. HTTP fixture posprzątany, bez rzeczywistych żądań Discorda/zakupów.
+- Paczki Core1.1.13 (21 plików) i theme0.15.1 (97 plików), manifest `artifacts/owner-upload-release-manifest-20261102.json`; instrukcja `docs/OWNER_UPLOAD_HOTFIX_1.1.13.md`. Należy wgrać oba ZIP-y, wyczyścić cache i otworzyć świeży panel Ownera. Bez ponownego importu JSON-a SEO lub setupu.
+- Gałąź `fix/owner-upload-20261102`, checkpoint `111660d`; końcowy commit odczytaj z Git. Main i produkcja niezmienione. Środowisko ma dostęp tylko do dozwolonych hostów i brak połączenia Hostinger/logów produkcji; nie obchodzono polityki sieciowej.
+
+---
+
 ## Kolekcje gra + urządzenie i wyszukiwanie — Core 1.1.12 / theme 0.15.0, 2026-10-30
 
 - Nowe rzeczywiste strony: 14 połączeń dwóch urządzeń i siedmiu gier oraz `/free-configs/`. Pierwsze skróty prowadzą do `/xim-matrix-apex-legends/`, `/xim-matrix-call-of-duty/`, `/cronus-zen-apex-legends/` i `/cronus-zen-call-of-duty/`. Ogólne kolekcje gier/urządzeń zachowano.

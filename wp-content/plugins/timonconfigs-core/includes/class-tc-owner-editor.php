@@ -13,9 +13,11 @@ final class TC_Owner_Editor {
         add_action( 'admin_post_nopriv_' . self::ACTION, array( __CLASS__, 'handle' ) );
         // Frontend Owners do not need access to wp-admin. Keep the same authorization
         // and nonce checks while avoiding admin redirects and siteurl/home mismatches.
-        add_action( 'template_redirect', static function (): void {
+        // Dispatch before the main query: tc_game[] and tc_device[] are also public
+        // taxonomy query variables and must not turn an upload into a 404 archive.
+        add_action( 'parse_request', static function (): void {
             if ( '1' === ( $_GET['tc_owner_submit'] ?? null ) ) { self::handle(); }
-        }, -2 );
+        }, 0 );
         add_action( 'template_redirect', static function (): void { if ( isset( $_GET['tc_manage_configs'] ) ) { self::headers(); } }, -1 );
         add_shortcode( 'timonconfigs_manage_configs', array( __CLASS__, 'render' ) );
     }
@@ -233,7 +235,7 @@ final class TC_Owner_Editor {
             wp_safe_redirect( self::url( $draft_id ?: absint( self::scalar( $_POST, 'config_id' ) ) ), 303 ); exit;
         }
         set_transient( 'tc_owner_feedback_' . $uid, array( 'message' => 'Configuration saved. You can now attach files or edit its details.', 'error' => false ), 120 );
-        if ( $json ) { wp_send_json_success( array( 'redirect' => self::url( $result ) ) ); }
+        if ( $json ) { wp_send_json_success( array( 'redirect' => self::url( $result ) ), 200 ); }
         wp_safe_redirect( self::url( $result ), 303 ); exit;
     }
     private static function form_start( int $id, string $operation ): void {
