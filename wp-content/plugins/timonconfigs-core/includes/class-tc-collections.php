@@ -100,6 +100,8 @@ final class TC_Collections {
 	}
 
 	public static function maybe_install(): void {
+		// Never provision pages or invoke publication hooks during an Owner upload.
+		if ( 'GET' !== ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) || wp_doing_ajax() || wp_doing_cron() || 'admin-post.php' === ( $GLOBALS['pagenow'] ?? '' ) ) { return; }
 		if ( wp_installing() || ! current_user_can( 'manage_options' ) || self::VERSION === get_option( 'timonconfigs_collections_version' ) ) { return; }
 		$result = self::install();
 		if ( is_wp_error( $result ) ) { return; }

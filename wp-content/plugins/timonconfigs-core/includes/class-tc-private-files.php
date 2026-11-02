@@ -13,6 +13,14 @@ final class TC_Private_Files {
 	private const CONFIG_QUOTA = 104857600;
 	private const STORAGE_QUOTA = 1073741824;
 
+	/** Runtime transport limits; no script bytes are parsed or transformed. Zero POST means unlimited. */
+	public static function upload_limits(): array {
+		$upload = wp_convert_hr_to_bytes( (string) ini_get( 'upload_max_filesize' ) );
+		$post = wp_convert_hr_to_bytes( (string) ini_get( 'post_max_size' ) );
+		$files = (int) ini_get( 'max_file_uploads' );
+		return array( 'file' => $upload > 0 ? min( self::MAX_BYTES, $upload ) : self::MAX_BYTES, 'post' => max( 0, $post ), 'files' => $files > 0 ? min( self::MAX_PER_UPLOAD, $files ) : self::MAX_PER_UPLOAD );
+	}
+
 	public static function init(): void {
 		add_action( 'add_meta_boxes_tc_config', array( __CLASS__, 'add_box' ) );
 		add_action( 'post_edit_form_tag', array( __CLASS__, 'enctype' ) );

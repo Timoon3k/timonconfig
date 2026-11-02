@@ -12,6 +12,7 @@ const root = path.resolve(__dirname, '..');
 const base = new URL(process.env.TC_TEST_URL || 'http://127.0.0.1:8080/');
 if (base.href !== 'http://127.0.0.1:8080/') throw new Error('Owner HTTP mutations require disposable 127.0.0.1:8080.');
 const tag = randomBytes(12).toString('hex');
+const isOwnerPost = request => request.method() === 'POST' && (new URL(request.url()).searchParams.get('tc_owner_submit') === '1' || new URL(request.url()).pathname.endsWith('/wp-admin/admin-post.php'));
 const cookieName = `tc_owner_test_${tag}`;
 const ownerDiscord = `8${BigInt('0x' + tag.slice(0, 12)).toString().padStart(17, '0')}`;
 const staffDiscord = String(BigInt(ownerDiscord) + 1n);
@@ -34,7 +35,7 @@ function dockerFile(content) {
 $root=TC_Private_Files::root();if(is_wp_error($root)){throw new RuntimeException('Private test storage unavailable.');}
 $users=array();foreach(array('owner'=>'${ownerDiscord}','staff'=>'${staffDiscord}') as $kind=>$discord){$uid=wp_insert_user(array('user_login'=>'tc_browser_${tag}_'.$kind,'user_pass'=>wp_generate_password(64,true,true),'display_name'=>'Browser '.ucfirst($kind),'role'=>'subscriber'));if(is_wp_error($uid)){throw new RuntimeException('Fixture user creation failed.');}update_user_meta($uid,'_tc_owner_browser_fixture','${tag}');update_user_meta($uid,'_tc_discord_id',$discord);update_user_meta($uid,'_tc_discord_name','Browser '.ucfirst($kind));update_option('_tc_discord_binding_'.$discord,$uid,false);$encrypt=new ReflectionMethod(TC_Discord::class,'encrypt');update_user_meta($uid,'_tc_discord_token',$encrypt->invoke(null,wp_json_encode(array('access_token'=>'fixture-${tag}-'.$kind,'refresh_token'=>'fixture-refresh','expires'=>time()+3600))));$users[$kind]=$uid;}
 $settings=array('enabled'=>1,'pilot_enabled'=>1,'pilot_ids'=>"${ownerDiscord}\n${staffDiscord}",'owner_ids'=>'${ownerDiscord}','pkce'=>0,'client_id'=>'899999999999999991','guild_id'=>'899999999999999992','free_role'=>'899999999999999993','monthly_role'=>'899999999999999994','lifetime_role'=>'899999999999999995','owner_role'=>'899999999999999996','staff_role'=>'899999999999999997','secret_encrypted'=>$encrypt->invoke(null,'fixture-client-secret'));
-$game=get_term_by('slug','apex-legends','tc_game');$device=get_term_by('slug','cronus-zen','tc_device');if(!$game||!$device){throw new RuntimeException('Seeded game/device terms required.');}echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('users'=>$users,'settings'=>$settings,'game'=>$game->term_id,'device'=>$device->term_id,'last_failure'=>get_transient('tc_discord_last_failure')));`);
+$game=get_term_by('slug','apex-legends','tc_game');$device=get_term_by('slug','cronus-zen','tc_device');if(!$game||!$device){throw new RuntimeException('Seeded game/device terms required.');}echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('users'=>$users,'settings'=>$settings,'game'=>$game->term_id,'device'=>$device->term_id,'limits'=>TC_Private_Files::upload_limits(),'last_failure'=>get_transient('tc_discord_last_failure')));`);
     directory = await fs.mkdtemp(path.join(os.tmpdir(), 'tc-owner-browser-'));
     execFileSync('openssl', ['req', '-x509', '-nodes', '-newkey', 'rsa:2048', '-days', '1', '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1', '-keyout', path.join(directory, 'key.pem'), '-out', path.join(directory, 'cert.pem')], { stdio: 'ignore' });
     proxy = https.createServer({ key: await fs.readFile(path.join(directory, 'key.pem')), cert: await fs.readFile(path.join(directory, 'cert.pem')) }, (request, response) => {
@@ -61,11 +62,13 @@ $game=get_term_by('slug','apex-legends','tc_game');$device=get_term_by('slug','c
 if (($_SERVER['HTTP_X_TC_OWNER_FIXTURE']??'')!=='${tag}' || ($_COOKIE['${cookieName}']??'')!=='${tag}' || ($_SERVER['HTTP_HOST']??'')!=='127.0.0.1:${proxy.address().port}') { return; }
 if (get_option('home')!=='http://127.0.0.1:8080') { return; }
 $_SERVER['HTTPS']='on';
+if (($_SERVER['REQUEST_METHOD']??'')==='POST' && ($_GET['tc_owner_submit']??'')==='1') { header('X-TC-Owner-Fixture-Post-Discarded: '.(empty($_POST)&&empty($_FILES)?'1':'0')); }
 add_filter('option_home',static fn()=>'${origin}');add_filter('option_siteurl',static fn()=>'${origin}');
 add_filter('pre_option_timonconfigs_discord',static fn()=>json_decode('${settingsJSON}',true));
 add_filter('pre_http_request',static function($pre,$args,$url){
  if(!str_starts_with($url,'https://discord.com/api/')){return new WP_Error('fixture_outbound','External requests disabled for browser fixture.');}
  $uid=get_current_user_id();if(get_user_meta($uid,'_tc_owner_browser_fixture',true)!=='${tag}'){return new WP_Error('fixture_actor','Unknown fixture actor.');}
+ update_user_meta($uid,'_tc_owner_browser_discord_calls',1+(int)get_user_meta($uid,'_tc_owner_browser_discord_calls',true));
  $is_owner=$uid===${fixture.users.owner};
  if(str_ends_with($url,'/member')&&get_user_meta($uid,'_tc_owner_browser_fail_member',true)==='once'){delete_user_meta($uid,'_tc_owner_browser_fail_member');return array('response'=>array('code'=>503),'body'=>'{}','headers'=>array());}
  if(str_ends_with($url,'/member')){$body=array('user'=>array('id'=>get_user_meta($uid,'_tc_discord_id',true)),'roles'=>array($is_owner?'899999999999999996':'899999999999999997','899999999999999993'));}
@@ -103,7 +106,7 @@ add_action('template_redirect',static function(){
     }
     let lastResponse;
     page.on('response', async response => {
-      if (!response.url().includes('/wp-admin/admin-post.php') || response.request().method() !== 'POST') return;
+      if (!isOwnerPost(response.request())) return;
       const data = await response.json().catch(() => ({}));
       lastResponse = {status:response.status(),success:data.success,code:data.data?.code,message:data.data?.message?.slice(0,240),redirect:data.data?.redirect ? new URL(data.data.redirect,origin).pathname + new URL(data.data.redirect,origin).search : undefined};
     });
@@ -112,6 +115,20 @@ add_action('template_redirect',static function(){
       catch (error) { throw new Error(`${error.message} Owner fixture response: ${JSON.stringify(lastResponse)}; feedback: ${JSON.stringify(await page.locator('[data-owner-result]').allTextContents())}`); }
     }
     async function reveal(form) { await form.evaluate(el => { for (let node = el.parentElement; node; node = node.parentElement) { if (node.tagName === 'DETAILS') node.open = true; } }); }
+    const formEndpoint = new URL(await quickForm().getAttribute('action'), origin);
+    expect(formEndpoint.origin === origin && formEndpoint.pathname === '/' && formEndpoint.searchParams.get('tc_owner_submit') === '1', 'Actual Owner form submits to the same public site origin instead of wp-admin middleware.');
+    // Bypass browser preflight to exercise PHP's actual whole-request rejection.
+    // The temporary MU header observes POST/FILES after SAPI parsing; it does not fake them.
+    const oversizedBytes = 9 * 1024 * 1024;
+    expect(Number.isInteger(fixture.limits.post) && fixture.limits.post > 0 && fixture.limits.post < oversizedBytes, 'The disposable Apache PHP request limit is below the actual 9 MiB multipart fixture.');
+    const jsonEndpoint = new URL(formEndpoint); jsonEndpoint.searchParams.set('tc_owner_json', '1');
+    const beforeOversized = wp(`echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('posts'=>(int)wp_count_posts('tc_config')->publish+(int)wp_count_posts('tc_config')->draft,'roles'=>get_userdata(${fixture.users.owner})->roles,'discord'=>get_user_meta(${fixture.users.owner},'_tc_discord_id',true)));`);
+    const oversizedResponse = await context.request.post(jsonEndpoint.href, { headers: { Accept: 'application/json' }, maxRedirects: 0, multipart: { action: 'tc_owner_config', operation: 'save', config_id: '0', title: `${title} oversized`, status: 'publish', _wpnonce: await quickForm().locator('[name="_wpnonce"]').inputValue(), tc_tier: 'free', tc_release_status: 'available', 'tc_game[]': String(fixture.game), 'tc_device[]': String(fixture.device), 'tc_private_files[]': { name: 'oversized.gpc', mimeType: 'application/octet-stream', buffer: Buffer.alloc(oversizedBytes, 0x41) } } });
+    const oversizedResult = await oversizedResponse.json();
+    expect(oversizedResponse.status() === 413 && oversizedResult.success === false && oversizedResult.data.code === 'tc_owner_request_too_large', 'A real oversized multipart body receives a structured HTTP 413 response.');
+    expect(oversizedResponse.headers()['x-tc-owner-fixture-post-discarded'] === '1', 'PHP actually discarded POST and FILES before the public Owner handler ran.');
+    const afterOversized = wp(`echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('posts'=>(int)wp_count_posts('tc_config')->publish+(int)wp_count_posts('tc_config')->draft,'roles'=>get_userdata(${fixture.users.owner})->roles,'discord'=>get_user_meta(${fixture.users.owner},'_tc_discord_id',true)));`);
+    expect(JSON.stringify(beforeOversized) === JSON.stringify(afterOversized), 'Whole-request rejection creates no draft and changes no role or Discord identity.');
     // An actual rejected upload must not publish an empty card.
     await fillBasic(`${title} rejected`, 'unsafe.php', Buffer.from('<?php echo 1;'));
     await submit(quickForm(), 'Publish config');
@@ -119,21 +136,13 @@ add_action('template_redirect',static function(){
     expect(rejected.published === 0, 'Rejected HTTP upload never publishes an empty config card.');
     await page.goto(`${origin}/account/?tc_manage_configs=1`, { waitUntil: 'networkidle' });
     await fillBasic(title);
-    // A provider outage must not navigate away, drop the file, or pretend the role was removed.
+    // An approved OAuth-bound Owner uses local management authorization, even during a guild API outage.
+    const callsBeforePublish = wp(`echo 'TC_OWNER_BROWSER:'.wp_json_encode((int)get_user_meta(${fixture.users.owner},'_tc_owner_browser_discord_calls',true));`);
     wp(`update_user_meta(${fixture.users.owner},'_tc_owner_browser_fail_member','once');echo 'TC_OWNER_BROWSER:'.wp_json_encode(true);`);
-    const failedResponse = await Promise.all([
-      page.waitForResponse(response => response.url().includes('/wp-admin/admin-post.php') && response.request().method() === 'POST'),
-      quickForm().getByRole('button', {name:'Publish config',exact:true}).click()
-    ]).then(results => results[0]);
-    expect(failedResponse.status() === 503, 'Fresh Owner verification fails closed with a temporary JSON response.');
-    await quickForm().locator('[data-owner-result][role="alert"]').waitFor();
-    expect(await quickForm().locator('[name="title"]').inputValue() === title, 'Temporary provider failure keeps the typed title.');
-    expect(await quickForm().locator('input[name="tc_private_files[]"]').evaluate(input => input.files.length === 1 && input.files[0].name === 'owner-test.txt'), 'Temporary provider failure keeps the selected file in the browser.');
-    let outage = wp(`$posts=get_posts(array('post_type'=>'tc_config','post_status'=>array('publish','draft'),'title'=>'${title}','numberposts'=>-1));echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('posts'=>count($posts),'roles'=>get_userdata(${fixture.users.owner})->roles,'discord'=>get_user_meta(${fixture.users.owner},'_tc_discord_id',true)));`);
-    expect(outage.posts === 0 && outage.roles.length === 1 && outage.roles[0] === 'subscriber' && outage.discord === ownerDiscord, 'Failed verification performs no draft, role, or identity mutation.');
-    // User clicks again: the existing cooldown is respected without changing _tc_discord_attempt.
     await submit(quickForm(), 'Publish config');
     id = Number(new URL(page.url()).searchParams.get('config_id'));
+    const outage = wp(`$calls=(int)get_user_meta(${fixture.users.owner},'_tc_owner_browser_discord_calls',true);delete_user_meta(${fixture.users.owner},'_tc_owner_browser_fail_member');echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('calls'=>$calls,'roles'=>get_userdata(${fixture.users.owner})->roles,'discord'=>get_user_meta(${fixture.users.owner},'_tc_discord_id',true)));`);
+    expect(outage.calls === callsBeforePublish && outage.roles.length === 1 && outage.roles[0] === 'subscriber' && outage.discord === ownerDiscord, 'Approved Owner publishes without a Discord API call, role promotion or identity change.');
     expect(id > 0, 'One real submit creates the published config. ' + JSON.stringify({feedback:await page.locator('[role="status"],.tc-owner-feedback').allTextContents(),scripts:await page.locator('script[src*="owner-editor.js"]').count(),wait:await quickForm().getAttribute('data-wait-seconds')}));
     let state = wp(`$p=get_post(${id});echo 'TC_OWNER_BROWSER:'.wp_json_encode(array('title'=>$p->post_title,'status'=>$p->post_status,'release'=>get_post_meta(${id},'tc_release_status',true),'ownerRole'=>get_userdata(${fixture.users.owner})->roles,'files'=>TC_Private_Files::files(${id}),'thumb'=>get_post_thumbnail_id(${id}),'game'=>wp_get_object_terms(${id},'tc_game',array('fields'=>'ids')),'device'=>wp_get_object_terms(${id},'tc_device',array('fields'=>'ids'))));`);
     expect(state.status === 'publish' && state.release === 'available' && state.title === title, 'Published title and available release persist.');
@@ -184,7 +193,8 @@ add_action('template_redirect',static function(){
     await backupCatalog.close();
     // Every supported common format can be attached during its first publish, not only later.
     const gpcBytes = Buffer.concat([Buffer.from('// Owner fixture '), Buffer.from([0xa9]), Buffer.from(' 2026\r\nmain { combo_run(Test); }\r\ncombo Test { wait(10); }\r\n')]);
-    for (const [extension, bytes] of [['gpc', gpcBytes], ['znbk', backupBytes]]) {
+    const opaqueZnbk = Buffer.alloc(5 * 1024); for (let index = 0; index < opaqueZnbk.length; index++) opaqueZnbk[index] = (index * 31) % 256;
+    for (const [extension, bytes] of [['gpc', gpcBytes], ['znbk', opaqueZnbk]]) {
       await page.goto(`${origin}/account/?tc_manage_configs=1`, {waitUntil:'networkidle'});
       await fillBasic(`${title} ${extension.toUpperCase()}`, `initial.${extension}`, bytes);
       await submit(quickForm(), 'Publish config');
@@ -231,6 +241,9 @@ add_action('template_redirect',static function(){
     const staffOwnNonce = (await nonceResponse.json()).data.nonce;
     const denied = await staffPage.request.post(`${origin}/wp-admin/admin-post.php`, { form: { action: 'tc_owner_config', operation: 'trash', config_id: String(id), confirm: '1', _wpnonce: staffOwnNonce }, maxRedirects: 0 });
     expect([302, 303, 403].includes(denied.status()), 'Crafted Staff request is denied or redirected with an error.');
+    const frontendDenied = await staffPage.request.post(`${origin}/?tc_owner_submit=1&tc_owner_json=1`, { headers: { Accept: 'application/json' }, form: { action: 'tc_owner_config', operation: 'trash', config_id: String(id), confirm: '1', _wpnonce: staffOwnNonce }, maxRedirects: 0 });
+    const frontendDeniedResult = await frontendDenied.json();
+    expect(frontendDenied.status() === 403 && frontendDeniedResult.success === false && frontendDeniedResult.data.code === 'tc_owner_forbidden', 'The public Owner endpoint independently rejects a Staff session with a real nonce.');
     state = wp(`echo 'TC_OWNER_BROWSER:'.wp_json_encode(get_post_status(${id}));`);
     expect(state === 'publish', 'Crafted Staff request cannot trash a config.');
     await staff.close();

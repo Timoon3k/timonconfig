@@ -11,6 +11,11 @@ final class TC_Owner_Editor {
         add_filter( 'user_has_cap', array( __CLASS__, 'scoped_caps' ), 20, 4 );
         add_action( 'admin_post_' . self::ACTION, array( __CLASS__, 'handle' ) );
         add_action( 'admin_post_nopriv_' . self::ACTION, array( __CLASS__, 'handle' ) );
+        // Frontend Owners do not need access to wp-admin. Keep the same authorization
+        // and nonce checks while avoiding admin redirects and siteurl/home mismatches.
+        add_action( 'template_redirect', static function (): void {
+            if ( '1' === ( $_GET['tc_owner_submit'] ?? null ) ) { self::handle(); }
+        }, -2 );
         add_action( 'template_redirect', static function (): void { if ( isset( $_GET['tc_manage_configs'] ) ) { self::headers(); } }, -1 );
         add_shortcode( 'timonconfigs_manage_configs', array( __CLASS__, 'render' ) );
     }
@@ -189,8 +194,20 @@ final class TC_Owner_Editor {
     }
     public static function handle(): void {
         self::headers();
-        if ( 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) { wp_die( 'POST required.', '', array( 'response' => 405 ) ); }
-        $json = is_string( $_SERVER['HTTP_ACCEPT'] ?? null ) && false !== stripos( $_SERVER['HTTP_ACCEPT'], 'application/json' );
+        $json = '1' === ( $_GET['tc_owner_json'] ?? null ) || ( is_string( $_SERVER['HTTP_ACCEPT'] ?? null ) && false !== stripos( $_SERVER['HTTP_ACCEPT'], 'application/json' ) );
+        if ( 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) ) {
+            if ( $json ) { wp_send_json_error( array( 'message' => 'POST required.', 'code' => 'tc_owner_method' ), 405 ); }
+            wp_die( 'POST required.', '', array( 'response' => 405 ) );
+        }
+        $limits = TC_Private_Files::upload_limits();
+        $length = $_SERVER['CONTENT_LENGTH'] ?? '';
+        // PHP discards POST and FILES before WordPress when the complete body is too large.
+        // The query-based endpoint still reaches this check without attempting a write.
+        if ( $limits['post'] > 0 && is_scalar( $length ) && ctype_digit( (string) $length ) && (float) $length > $limits['post'] ) {
+            $message = 'The upload request exceeds this server\'s ' . size_format( $limits['post'] ) . ' total upload limit. Choose fewer or smaller files, or ask the administrator to raise post_max_size. Nothing was saved.';
+            if ( $json ) { wp_send_json_error( array( 'message' => $message, 'code' => 'tc_owner_request_too_large' ), 413 ); }
+            wp_die( esc_html( $message ), '', array( 'response' => 413 ) );
+        }
         $result = self::perform( wp_unslash( $_POST ), $_FILES );
         $uid = get_current_user_id();
         if ( is_wp_error( $result ) ) {
@@ -220,8 +237,14 @@ final class TC_Owner_Editor {
         wp_safe_redirect( self::url( $result ), 303 ); exit;
     }
     private static function form_start( int $id, string $operation ): void {
-        echo '<form class="tc-owner-form" data-wait-seconds="' . esc_attr( (string) max( 0, min( 10, 10 + (int) get_user_meta( get_current_user_id(), '_tc_discord_attempt', true ) - time() ) ) ) . '" method="post" enctype="multipart/form-data" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '"><input type="hidden" name="action" value="' . esc_attr( self::ACTION ) . '"><input type="hidden" name="operation" value="' . esc_attr( $operation ) . '"><input type="hidden" name="config_id" value="' . esc_attr( (string) $id ) . '">';
+        $limits = TC_Private_Files::upload_limits();
+        $endpoint = add_query_arg( 'tc_owner_submit', 1, home_url( '/' ) );
+        echo '<form class="tc-owner-form" data-upload-max-bytes="' . esc_attr( (string) $limits['file'] ) . '" data-post-max-bytes="' . esc_attr( (string) $limits['post'] ) . '" data-upload-max-files="' . esc_attr( (string) $limits['files'] ) . '" data-wait-seconds="' . esc_attr( (string) max( 0, min( 10, 10 + (int) get_user_meta( get_current_user_id(), '_tc_discord_attempt', true ) - time() ) ) ) . '" method="post" enctype="multipart/form-data" action="' . esc_url( $endpoint ) . '"><input type="hidden" name="action" value="' . esc_attr( self::ACTION ) . '"><input type="hidden" name="operation" value="' . esc_attr( $operation ) . '"><input type="hidden" name="config_id" value="' . esc_attr( (string) $id ) . '">';
         wp_nonce_field( self::ACTION );
+    }
+    private static function upload_hint(): string {
+        $limits = TC_Private_Files::upload_limits();
+        return 'Current upload limits: ' . $limits['files'] . ' files, ' . size_format( $limits['file'] ) . ' per file' . ( $limits['post'] > 0 ? ', ' . size_format( $limits['post'] ) . ' per request including the form' : '' ) . '. Files remain private and their contents are stored unchanged.';
     }
     private static function input( string $key, string $label, string $value, bool $area = false ): void {
         echo '<label>' . esc_html( $label );
@@ -248,7 +271,7 @@ final class TC_Owner_Editor {
         echo '<p class="tc-owner-upload-hint">Uploader version: ' . esc_html( TIMONCONFIGS_CORE_VERSION ) . '. Private configuration files are stored byte-for-byte, without UTF, MIME or source-code parsing. Reviewed extensions and storage safeguards still apply.</p>';
         self::form_start( $id, 'upload' );
         echo '<label class="tc-owner-script-picker"><strong>Choose private script files</strong><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple required></label>';
-        echo '<p class="tc-owner-upload-hint">Choose up to 10 private files, max 20 MB each. GPC, ZNBK, XIMMR, TXT and other enabled configuration formats keep their exact bytes. Only the file extension, storage limits and authenticated access are enforced; optional trusted scanners can veto uploads. For XIM Matrix text-code downloads, provide actual TXT content or Values; binary backups are downloaded in their original formats.</p>';
+        echo '<p class="tc-owner-upload-hint">' . esc_html( self::upload_hint() ) . ' GPC, ZNBK, XIMMR, TXT and other enabled configuration formats keep their exact bytes. Only the file extension, storage limits and authenticated access are enforced; optional trusted scanners can veto uploads. For XIM Matrix text-code downloads, provide actual TXT content or Values; binary backups are downloaded in their original formats.</p>';
         self::input( 'version', 'File version (optional)', '' );
         self::input( 'notes', 'Notes (optional)', '', true );
         echo '<button class="tc-button" type="submit">Upload script files</button></form>';
@@ -321,7 +344,7 @@ final class TC_Owner_Editor {
             $storage_status = TC_Private_Files::root(); $storage_ready = ! is_wp_error( $storage_status );
             echo '<div class="tc-owner-first-upload"><label><strong>Script file</strong><input type="file" name="tc_private_files[]" accept="' . esc_attr( TC_Private_Files::accept() ) . '" multiple ' . ( $storage_ready ? '' : 'disabled aria-disabled="true"' ) . '></label><p>The card uses its game artwork automatically. Choose a file and publish, or save a draft.</p>';
             if ( ! $storage_ready ) { echo '<p class="tc-owner-feedback tc-owner-feedback--error" role="alert">' . esc_html( $storage_status->get_error_message() ) . '</p>'; }
-            else { echo '<p class="tc-owner-upload-hint">ZNBK and TXT are checked automatically. Your upload stays private.</p>'; }
+            else { echo '<p class="tc-owner-upload-hint">' . esc_html( self::upload_hint() ) . '</p>'; }
             echo '</div>';
         }
         echo '<details class="tc-owner-advanced"><summary>Advanced options — description, versions, Guide &amp; Values</summary><div class="tc-owner-advanced__fields">';
