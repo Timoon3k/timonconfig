@@ -26,4 +26,4 @@ Nie zmieniono ról, płatności, listy zatwierdzonych Ownerów ani reguł pobier
 - 48 przypadków transportu w Chromium, 516 asercji, brak błędów JS. Scenariusze HTTP były symulowane na loopback; nie są pomiarem serwera produkcyjnego.
 - Lint 124 PHP, JS/static/YAML/diff oraz 98 kontroli świeżej instalacji finalnych ZIP-ów w oddzielnym WordPressie offline.
 
-Paczki: `artifacts/timonconfigs-core-1.1.13.zip` (21 plików), `artifacts/timonconfigs-theme-0.15.1.zip` (97 plików). CRC, SHA-256 i zgodność źródeł: `artifacts/owner-upload-release-manifest-20261102.json`. Kod na `fix/owner-upload-20261102`; checkpoint `111660d`, końcowy commit w historii Git. Nie wdrożono na main ani na Hostingerze.
+Paczki: `artifacts/timonconfigs-core-1.1.13.zip` (21 plików), `artifacts/timonconfigs-theme-0.15.1.zip` (97 plików). CRC, SHA-256 i zgodność źródeł: `artifacts/owner-upload-release-manifest-20261102.json`. Kod na `fix/owner-upload-20261102`; checkpoint `111660d`, końcowy commit w historii Git. Właściciel zlecił publikację GitHub main 2026-11-02; wynik potwierdza zdalny ref. Push repozytorium nie potwierdza instalacji na Hostingerze.

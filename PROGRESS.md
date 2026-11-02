@@ -5,7 +5,7 @@
 - Dokładne błędy HTTP/session/nieprawidłowej odpowiedzi zamiast jednego catch; pliki/pola zostają, brak autoretry. Rzeczywiste limity transportu, preflight rozmiaru/liczby i JSON413 dla POST odrzuconego przez PHP. GPC/ZNBK/TXT nadal byte-for-byte bez UTF/MIME/source parsing. Provisioning kolekcji wyłączony podczas POST/AJAX/cron/admin-post.
 - PASS: **169 Owner + 24 transport + 68 kolekcje**, **42 rzeczywistego lokalnego HTTP** (publikacja ZNBK5KiB, integralność plików/pobrań, Staff denied, faktyczne odrzucenie multipart9MiB przez PHP bez draftu), **48 scenariuszy / 516 asercji Chromium** dla symulowanych odpowiedzi. Lint124PHP, JS/static/YAML/diff i **98 fresh ZIP**. HTTP fixture posprzątany, bez rzeczywistych żądań Discorda/zakupów.
 - Paczki Core1.1.13 (21 plików) i theme0.15.1 (97 plików), manifest `artifacts/owner-upload-release-manifest-20261102.json`; instrukcja `docs/OWNER_UPLOAD_HOTFIX_1.1.13.md`. Należy wgrać oba ZIP-y, wyczyścić cache i otworzyć świeży panel Ownera. Bez ponownego importu JSON-a SEO lub setupu.
-- Gałąź `fix/owner-upload-20261102`, checkpoint `111660d`; końcowy commit odczytaj z Git. Main i produkcja niezmienione. Środowisko ma dostęp tylko do dozwolonych hostów i brak połączenia Hostinger/logów produkcji; nie obchodzono polityki sieciowej.
+- Poprawka kodu `23823e6`, checkpoint `111660d`, gałąź `fix/owner-upload-20261102`. Właściciel 2026-11-02 zlecił push do GitHub main; wynik potwierdza końcowy zdalny ref. Push repozytorium nie potwierdza instalacji na Hostingerze. Środowisko ma dostęp tylko do dozwolonych hostów i brak połączenia Hostinger/logów produkcji; nie obchodzono polityki sieciowej.
 
 ---
 
