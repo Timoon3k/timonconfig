@@ -27,7 +27,7 @@ const report = { passed: false, cases: [], motion: [], screenshots: [], errors: 
         const url = new URL(request.request().url());
         return url.origin === origin.origin || url.protocol === 'data:' ? request.continue() : request.abort();
       });
-      for (const route of ['/', '/configs/', '/pricing/', '/contact/']) {
+      for (const route of ['/', '/configs/', '/pricing/', '/contact/', '/account/']) {
         routeName = route;
         const response = await page.goto(new URL(route, baseURL).href, { waitUntil: 'networkidle' });
         assert.equal(response.status(), 200, `${width} ${route}: HTTP 200`);

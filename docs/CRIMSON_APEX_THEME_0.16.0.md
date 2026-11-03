@@ -33,4 +33,4 @@ Sama zmiana grafiki nie wymaga ponownego ręcznego zgłaszania wszystkich adres�
 
 ## Weryfikacja
 
-Wyniki końcowych testów i pliki podglądów opisano w `PROGRESS.md`. Podgląd motywu `screenshot.png` pochodzi z rzeczywistego lokalnego WordPressa w oknie 1200 × 900; nie zmienia układu ani nie ukrywa sekcji. Zrzuty komputer/telefon i manifest paczki znajdują się w `artifacts/`. Brak potwierdzonej instalacji na produkcji.
+Zaliczone: 230 asercji PHP (obrazy/import, Home, SEO, kolekcje), 44 widoki Chromium obejmujące publiczne strony i logowanie, lint126PHP oraz105 asercji świeżej instalacji finalnego ZIP-a w oddzielnym WordPressie offline. Bez błędów JS/PHP, uszkodzonych obrazów lub poziomego przewijania w sprawdzonych widokach. Wyniki i pliki podglądów opisano w `PROGRESS.md`. Podgląd motywu `screenshot.png` pochodzi z rzeczywistego lokalnego WordPressa w oknie 1200 × 900; nie zmienia układu ani nie ukrywa sekcji. Zrzuty komputer/telefon i manifest paczki znajdują się w `artifacts/`. Brak potwierdzonej instalacji na produkcji.
