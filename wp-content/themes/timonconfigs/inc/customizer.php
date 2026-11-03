@@ -28,7 +28,7 @@ add_action(
 			'apex_cta_url' => array( 'label' => __( 'Hero Apex destination', 'timonconfigs' ), 'default' => timonconfigs_collection_url( 'apex-legends', 'xim-matrix' ), 'url' => true ),
 			'hero_cta'     => array( 'label' => __( 'Hero primary button label', 'timonconfigs' ), 'default' => 'Get Started' ),
 			'hero_cta_url' => array( 'label' => __( 'Primary CTA destination', 'timonconfigs' ), 'default' => home_url( '/pricing/' ), 'url' => true ),
-			'trust_access' => array( 'label' => __( 'Hero benefit 1', 'timonconfigs' ), 'default' => 'Instant Access' ),
+			'trust_access' => array( 'label' => __( 'Hero benefit 1', 'timonconfigs' ), 'default' => 'Discord Member Access' ),
 			'trust_updates'=> array( 'label' => __( 'Hero benefit 2', 'timonconfigs' ), 'default' => 'Regular Updates' ),
 			'trust_support'=> array( 'label' => __( 'Hero benefit 3', 'timonconfigs' ), 'default' => 'Active Support' ),
 			'final_title'  => array( 'label' => __( 'Final CTA title', 'timonconfigs' ), 'default' => 'Join the TimonConfigs Community' ),
@@ -61,13 +61,17 @@ add_action(
 
 
 		$manager->add_setting( 'timonconfigs_hero_image', array(
-			'default' => get_template_directory_uri() . '/assets/images/hero-reference-wide.webp',
+			'default' => get_template_directory_uri() . '/assets/images/apex-legends-crimson-hero.webp',
 			'sanitize_callback' => 'esc_url_raw',
 		) );
 		$manager->add_control( new WP_Customize_Image_Control( $manager, 'timonconfigs_hero_image', array(
 			'label' => __( 'Hero background artwork', 'timonconfigs' ),
 			'section' => 'timonconfigs_home',
 		) ) );
+		$manager->add_setting( 'timonconfigs_hero_alt', array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ) );
+		$manager->add_control( 'timonconfigs_hero_alt', array( 'label' => __( 'Hero image alternative text', 'timonconfigs' ), 'description' => __( 'Describe your own replacement artwork. The bundled artwork has a descriptive default.', 'timonconfigs' ), 'section' => 'timonconfigs_home', 'type' => 'text' ) );
+		$manager->add_setting( 'timonconfigs_hero_motion', array( 'default' => true, 'sanitize_callback' => 'rest_sanitize_boolean' ) );
+		$manager->add_control( 'timonconfigs_hero_motion', array( 'label' => __( 'Enable subtle hero atmosphere', 'timonconfigs' ), 'description' => __( 'Visitors can pause it. Reduced-motion preferences are respected.', 'timonconfigs' ), 'section' => 'timonconfigs_home', 'type' => 'checkbox' ) );
 		$manager->add_setting( 'timonconfigs_member_hero_image', array( 'default' => '', 'sanitize_callback' => 'esc_url_raw' ) );
 		$manager->add_control( new WP_Customize_Image_Control( $manager, 'timonconfigs_member_hero_image', array( 'label' => __( 'Member profile background artwork', 'timonconfigs' ), 'section' => 'timonconfigs_home' ) ) );
 

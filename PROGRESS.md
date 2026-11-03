@@ -1,3 +1,12 @@
+## Crimson Apex — theme 0.16.0 / Core 1.1.13, 2026-11-03
+
+- Bazą jest potwierdzony GitHub main `5388965`; zmiany przygotowane na `feature/crimson-apex-theme-20261103`. Mroczny grafit/srebro/czerwień, emblemat z obrazu właściciela i oryginalne hero inspirowane Apex Legends. Zapisane własne logo, inne obrazy, treści i CTA zachowane. Nie zmieniano kodu Core, płatności, ról lub chronionych uploadów.
+- Hero WebP 1817×866 / 91 628 B i warianty 960/640; emblemat512×512 / 59 880 B. Animacja transform/opacity z pauzą, reduced motion, wyłączeniem poza ekranem i po ukryciu karty. Bez JS statyczny obraz. Faktyczny podgląd WordPress1200×900 w screenshot.png bez skracania układu.
+- Descriptive alt/wymiary/srcset i manifest metadanych; opcjonalny import dwóch publicznych grafik przez Wygląd → TimonConfigs brand assets, POST+nonce+administrator/upload_files. Ponowny import zachowuje edytowane metadane. Rank Math nadal właścicielem OG/JSON-LD; fallback motywu działa tylko bez zewnętrznego dostawcy. Instrukcja `docs/CRIMSON_APEX_THEME_0.16.0.md` opisuje własne logo, import i obraz udostępniania.
+- PASS dotąd: **48 obrazów/importu + 29 Home + 85 SEO + 68 kolekcji** (230 asercji PHP), **16 widoków crimson 320/390/768/1440** z klawiaturą/pauzą/reduced motion/poza ekranem i **24 widoki Home/kolekcji**; bez błędów JS/PHP, uszkodzonych obrazów lub overflow. Static/JS/diff i lint125PHP zaliczone; końcowy lint i świeża instalacja finalnego ZIP-a w toku. Nie deklaruj wdrożenia na Hostingerze lub main.
+
+---
+
 ## Upload Ownera — Core 1.1.13 / theme 0.15.1, 2026-11-02
 
 - Zgłoszenie: ZNBK 5 KB, brak draftu i ogólny komunikat zerwanego połączenia. Kod JS maskował HTML/odmowy HTTP/przekierowania tym samym błędem. Dokładnej odpowiedzi produkcyjnej nie odczytano; nie twierdź, że to błąd formatu lub potwierdzone cofnięcie Ownera.

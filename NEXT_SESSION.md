@@ -1,3 +1,11 @@
+# Bieżący etap — Crimson Apex, theme 0.16.0 / Core 1.1.13, 2026-11-03
+
+Przeczytaj `docs/CRIMSON_APEX_THEME_0.16.0.md` i początek PROGRESS. Kontynuuj gałąź `feature/crimson-apex-theme-20261103`, bazę main `5388965`. Nowy emblemat Timon i hero WebP, grafit/czerwień/srebro, lekka pauzowana animacja, metadata i opcjonalny import do Media Library. Własne logo/obrazy/treści i Rank Math zachowane. Core i funkcjonalności chronione bez zmian.
+
+48+29+85+68 PHP oraz16+24 widoki Chromium zaliczone. Końcowy lint, paczka motywu0.16.0 i świeża instalacja w toku; sprawdź późniejszy wpis PROGRESS i rzeczywisty Git. Nie wdrażaj main/Hostinger bez polecenia. Użytkownik może wgrać ZIP motywu i wyczyścić cache; własne logo WordPressa ma pierwszeństwo, trzeba usunąć wybór aby pokazać nowy fallback lub wybrać nowy importowany emblemat. Nie importuj starego JSON-a Rank Math ani nie uruchamiaj setupu. Brak gwarancji pozycji SEO.
+
+---
+
 # Bieżący etap — upload Ownera, Core 1.1.13 / theme 0.15.1, 2026-11-02
 
 Przeczytaj `docs/OWNER_UPLOAD_HOTFIX_1.1.13.md` i początek PROGRESS. Poprawka kodu `23823e6` jest na `fix/owner-upload-20261102`; właściciel 2026-11-02 zlecił publikację GitHub main. Sprawdź końcowy zdalny ref zamiast zakładać brak push. Checkpoint `111660d`. Właściciel zgłosił ZNBK5KB bez draftu; nie nazywaj tego problemem UTF, potwierdzoną utratą Ownera lub limitem rozmiaru bez odpowiedzi serwera.

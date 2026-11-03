@@ -7,9 +7,10 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.15.1' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.16.0' );
 
 require_once get_template_directory() . '/inc/plans.php';
+require_once get_template_directory() . '/inc/brand-assets.php';
 require_once get_template_directory() . '/inc/customizer.php';
 require_once get_template_directory() . '/inc/seo.php';
 require_once get_template_directory() . '/inc/setup-notice.php';
@@ -34,7 +35,7 @@ add_action(
 		add_theme_support( 'html5', array( 'search-form', 'gallery', 'caption', 'style', 'script' ) );
 		add_theme_support( 'editor-styles' );
 		add_theme_support( 'woocommerce' );
-		add_editor_style( array( 'assets/css/editor.css', 'assets/css/main.css', 'assets/css/premium.css', 'assets/css/catalog.css', 'assets/css/media.css' ) );
+		add_editor_style( array( 'assets/css/editor.css', 'assets/css/main.css', 'assets/css/premium.css', 'assets/css/catalog.css', 'assets/css/media.css', 'assets/css/crimson.css' ) );
 		register_nav_menus( array( 'primary' => __( 'Primary navigation', 'timonconfigs' ), 'footer' => __( 'Footer navigation', 'timonconfigs' ) ) );
 	}
 );
@@ -44,11 +45,15 @@ add_action(
 	static function (): void {
 		wp_enqueue_style( 'timonconfigs', get_template_directory_uri() . '/assets/css/main.css', array(), TIMONCONFIGS_THEME_VERSION );
 		wp_enqueue_style( 'timonconfigs-premium', get_template_directory_uri() . '/assets/css/premium.css', array( 'timonconfigs' ), TIMONCONFIGS_THEME_VERSION );
+		$crimson_dependencies = array( 'timonconfigs-premium' );
 		foreach ( array( 'catalog', 'media', 'member', 'config-content', 'owner-editor', 'billing', 'woocommerce' ) as $stylesheet ) {
 			if ( file_exists( get_template_directory() . '/assets/css/' . $stylesheet . '.css' ) ) {
 				wp_enqueue_style( 'timonconfigs-' . $stylesheet, get_template_directory_uri() . '/assets/css/' . $stylesheet . '.css', array( 'timonconfigs-premium' ), TIMONCONFIGS_THEME_VERSION );
+				$crimson_dependencies[] = 'timonconfigs-' . $stylesheet;
 			}
 		}
+		wp_enqueue_style( 'timonconfigs-crimson', get_template_directory_uri() . '/assets/css/crimson.css', $crimson_dependencies, TIMONCONFIGS_THEME_VERSION );
+		wp_enqueue_script( 'timonconfigs-hero-atmosphere', get_template_directory_uri() . '/assets/js/hero-atmosphere.js', array(), TIMONCONFIGS_THEME_VERSION, true );
 		if ( isset( $_GET['tc_manage_configs'] ) ) { wp_enqueue_script( 'timonconfigs-owner-editor', get_template_directory_uri() . '/assets/js/owner-editor.js', array(), TIMONCONFIGS_THEME_VERSION, true ); }
 		wp_enqueue_script( 'timonconfigs-config-content', get_template_directory_uri() . '/assets/js/config-content.js', array(), TIMONCONFIGS_THEME_VERSION, true );
 		wp_enqueue_script( 'timonconfigs', get_template_directory_uri() . '/assets/js/main.js', array(), TIMONCONFIGS_THEME_VERSION, true );

@@ -1,0 +1,32 @@
+{
+  "emblem": {
+    "file": "timon-crimson-emblem.webp",
+    "width": 512,
+    "height": 512,
+    "title": "TimonConfigs crimson community emblem",
+    "alt": "TimonConfigs circular logo with silver Timon lettering and red lightning",
+    "caption": "The TimonConfigs community emblem.",
+    "description": "TimonConfigs community emblem adapted from the owner's supplied Timon Discord logo, with a crimson lightning ring, silver lettering and transparent outer corners."
+  },
+  "hero": {
+    "file": "apex-legends-crimson-hero.webp",
+    "width": 1817,
+    "height": 866,
+    "title": "TimonConfigs — Crimson Apex arena",
+    "alt": "A Wraith-inspired operative in a dark sci-fi arena beneath red lightning",
+    "caption": "Original Apex Legends-inspired artwork for the TimonConfigs community.",
+    "description": "Original cinematic illustration of a Wraith-inspired operative holding a silver kunai in a dark volcanic sci-fi arena illuminated by crimson lightning. Created for the TimonConfigs website; an illustration rather than a gameplay screenshot.",
+    "variants": [
+      {
+        "file": "apex-legends-crimson-hero-640.webp",
+        "width": 640,
+        "height": 305
+      },
+      {
+        "file": "apex-legends-crimson-hero-960.webp",
+        "width": 960,
+        "height": 458
+      }
+    ]
+  }
+}

@@ -30,6 +30,7 @@
         controls.push(el(TextControl, { key: 'eyebrow', label: 'Eyebrow', value: attributes.eyebrow || '', onChange: eyebrow => setAttributes({ eyebrow }) }));
         controls.push(el(TextControl, { key: 'tagline', label: 'Tagline', value: attributes.tagline || '', onChange: tagline => setAttributes({ tagline }) }));
         controls.push(el(TextControl, { key: 'image', label: 'Background image URL', type: 'url', value: attributes.image || '', help: 'Use a Media Library URL. Leave empty to use the shared Hero.', onChange: image => setAttributes({ image }) }));
+        controls.push(el(TextControl, { key: 'imageAlt', label: 'Image alternative text', value: attributes.imageAlt || '', help: 'Describe a custom image. The bundled hero includes its own description.', onChange: imageAlt => setAttributes({ imageAlt }) }));
       }
       if (section === 'benefits') {
         (attributes.items?.length ? attributes.items : benefits).forEach((item, index) => {

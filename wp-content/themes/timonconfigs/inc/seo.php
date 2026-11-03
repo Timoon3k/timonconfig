@@ -100,7 +100,7 @@ function timonconfigs_social_image(): string {
 			if ( $image ) { return $image; }
 		}
 	}
-	return (string) get_theme_mod( 'timonconfigs_hero_image', get_template_directory_uri() . '/assets/images/hero-reference-wide.webp' );
+	return function_exists( 'timonconfigs_hero_media' ) ? timonconfigs_hero_media()['src'] : (string) get_theme_mod( 'timonconfigs_hero_image', get_template_directory_uri() . '/assets/images/hero-reference-wide.webp' );
 }
 
 add_filter( 'pre_get_document_title', static function ( string $title ): string {
@@ -121,6 +121,7 @@ function timonconfigs_print_metadata(): void {
 	$description = timonconfigs_seo_description();
 	$url = timonconfigs_canonical_url();
 	$image = timonconfigs_social_image();
+	$image_metadata = function_exists( 'timonconfigs_brand_image_metadata' ) ? timonconfigs_brand_image_metadata( $image ) : array();
 	?>
 	<meta name="description" content="<?php echo esc_attr( $description ); ?>">
 	<?php if ( $url && ! is_404() ) : ?><link rel="canonical" href="<?php echo esc_url( $url ); ?>"><?php endif; ?>
@@ -130,10 +131,16 @@ function timonconfigs_print_metadata(): void {
 	<meta property="og:description" content="<?php echo esc_attr( $description ); ?>">
 	<?php if ( $url && ! is_404() ) : ?><meta property="og:url" content="<?php echo esc_url( $url ); ?>"><?php endif; ?>
 	<meta property="og:image" content="<?php echo esc_url( $image ); ?>">
+	<?php if ( $image_metadata ) : ?>
+	<meta property="og:image:width" content="<?php echo esc_attr( (string) $image_metadata['width'] ); ?>">
+	<meta property="og:image:height" content="<?php echo esc_attr( (string) $image_metadata['height'] ); ?>">
+	<meta property="og:image:alt" content="<?php echo esc_attr( $image_metadata['alt'] ); ?>">
+	<?php endif; ?>
 	<meta name="twitter:card" content="summary_large_image">
 	<meta name="twitter:title" content="<?php echo esc_attr( $title ); ?>">
 	<meta name="twitter:description" content="<?php echo esc_attr( $description ); ?>">
 	<meta name="twitter:image" content="<?php echo esc_url( $image ); ?>">
+	<?php if ( $image_metadata ) : ?><meta name="twitter:image:alt" content="<?php echo esc_attr( $image_metadata['alt'] ); ?>"><?php endif; ?>
 	<?php
 }
 add_action( 'wp_head', 'timonconfigs_print_metadata', 2 );
@@ -144,6 +151,7 @@ function timonconfigs_schema_graph(): array {
 	if ( is_front_page() ) {
 		$organization = array( '@type' => 'Organization', '@id' => home_url( '/#organization' ), 'name' => 'TimonConfigs', 'url' => home_url( '/' ) );
 		$logo = wp_get_attachment_image_url( (int) get_theme_mod( 'custom_logo' ), 'full' );
+		if ( ! $logo && function_exists( 'timonconfigs_brand_emblem' ) ) { $emblem = timonconfigs_brand_emblem(); $logo = $emblem['available'] ? $emblem['src'] : ''; }
 		if ( $logo ) { $organization['logo'] = $logo; }
 		$socials = array_filter( array_map( static fn( string $key ): string => (string) get_theme_mod( 'timonconfigs_' . $key . '_url', '' ), array( 'discord', 'youtube', 'x', 'instagram' ) ) );
 		if ( $socials ) { $organization['sameAs'] = array_values( $socials ); }

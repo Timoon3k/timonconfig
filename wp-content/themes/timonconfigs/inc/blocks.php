@@ -40,7 +40,7 @@ function timonconfigs_render_section( array $attributes ): string {
 		return '';
 	}
 	$settings = array();
-	foreach ( array( 'title', 'eyebrow', 'description', 'tagline', 'primaryLabel' ) as $key ) {
+	foreach ( array( 'title', 'eyebrow', 'description', 'tagline', 'primaryLabel', 'imageAlt' ) as $key ) {
 		if ( isset( $attributes[ $key ] ) && is_string( $attributes[ $key ] ) && '' !== trim( $attributes[ $key ] ) ) {
 			$settings[ $key ] = sanitize_text_field( $attributes[ $key ] );
 		}
@@ -83,6 +83,7 @@ add_action( 'init', static function (): void {
 			'description' => array( 'type' => 'string', 'default' => '' ),
 			'tagline' => array( 'type' => 'string', 'default' => '' ),
 			'image' => array( 'type' => 'string', 'default' => '' ),
+			'imageAlt' => array( 'type' => 'string', 'default' => '' ),
 			'primaryLabel' => array( 'type' => 'string', 'default' => '' ),
 			'primaryUrl' => array( 'type' => 'string', 'default' => '' ),
 			'items' => array( 'type' => 'array', 'default' => array() ),

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.15.1.zip}")"
+theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.16.0.zip}")"
 core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-1.1.13.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
@@ -114,6 +114,16 @@ $expect( is_plugin_active( 'timonconfigs-core/timonconfigs-core.php' ), 'the pac
 $expect( 'timonconfigs' === get_stylesheet(), 'the packaged theme is activated' );
 $expect( getenv( 'TC_EXPECTED_THEME_VERSION' ) === wp_get_theme()->get( 'Version' ), 'installed theme version matches its ZIP' );
 $expect( getenv( 'TC_EXPECTED_CORE_VERSION' ) === TIMONCONFIGS_CORE_VERSION, 'installed plugin version matches its ZIP' );
+$expect( function_exists( 'timonconfigs_brand_assets' ), 'the installed theme loads its public artwork helper' );
+$artwork = timonconfigs_brand_assets();
+foreach ( array( 'emblem', 'hero' ) as $asset_name ) {
+	$expect( $artwork[ $asset_name ]['available'] && is_file( $artwork[ $asset_name ]['path'] ), 'the actual ZIP includes its ' . $asset_name . ' artwork' );
+}
+$hero_markup = timonconfigs_render_section( array( 'section' => 'hero' ) );
+$expect( str_contains( $hero_markup, 'apex-legends-crimson-hero.webp' ) && str_contains( $hero_markup, '640w' ) && str_contains( $hero_markup, '960w' ), 'the installed hero renders the packaged responsive artwork' );
+$expect( str_contains( $hero_markup, esc_attr( $artwork['hero']['alt'] ) ), 'the installed hero renders its artwork description' );
+$expect( is_file( get_template_directory() . '/assets/css/crimson.css' ) && is_file( get_template_directory() . '/assets/js/hero-atmosphere.js' ), 'the actual ZIP includes crimson styling and motion controls' );
+$expect( 0 === (int) wp_count_posts( 'attachment' )->inherit, 'activating and rendering the theme does not import artwork automatically' );
 $expect( class_exists( 'TC_Woo_Bridge' ) && class_exists( 'TC_Woo_Checkout_Presentation' ), 'the WooCommerce bridge and checkout presentation are packaged and loaded' );
 $expect( ! class_exists( 'TC_Billing' ) && ! class_exists( 'TC_Billing_Stripe' ) && ! class_exists( 'TC_Billing_PayPal' ), 'retired direct-payment controllers are not restored by this package' );
 $expect( ! class_exists( 'TC_Woo_Captcha' ) && false === has_action( 'wc_ajax_tc_recaptcha_verify' ), 'retired captcha does not load or register a checkout verification endpoint' );
