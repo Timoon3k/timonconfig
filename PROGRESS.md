@@ -1,3 +1,11 @@
+## Publikacja Crimson do main — 2026-11-03
+
+- Właściciel wyraźnie polecił push do main oraz wdrożenie produkcyjne. Zmiany kodu `72911b6` i walidacji `34ff6bc` scalono fast-forward z `feature/crimson-apex-theme-20261103`, bez zmiany przetestowanych plików motywu/Core. Końcowy zdalny ref main potwierdź w Git.
+- Bezpośrednie wdrożenie Hostinger pozostaje niewykonane: brak narzędzi i skonfigurowanej sesji MCP Hostinger (`codex mcp get hostinger`: no server), brak tożsamości/sekretów hostingu w bieżącym środowisku, polityka sieci nie dopuszcza domeny produkcyjnej/Hostinger. Repozytorium ma tylko workflow testowe, brak skonfigurowanego wdrożenia z main. Nie omijano ograniczeń ani nie ponawiano wcześniej nieskutecznej rejestracji w read-only konfiguracji.
+- Paczka motywu0.16.0 w artifacts jest gotowa i przeszła105kontroli izolowanej instalacji; Core1.1.13 pozostaje bez zmian. Po podłączeniu Hostinger można kontynuować już autoryzowaną aktualizację motywu na timonconfigs.com, zachowując bazę/ustawienia i sprawdzając żywą stronę po purge cache. Push GitHub nie jest potwierdzeniem instalacji produkcyjnej.
+
+---
+
 ## Crimson Apex — theme 0.16.0 / Core 1.1.13, 2026-11-03
 
 - Bazą jest potwierdzony GitHub main `5388965`; zmiany przygotowane na `feature/crimson-apex-theme-20261103`. Mroczny grafit/srebro/czerwień, emblemat z obrazu właściciela i oryginalne hero inspirowane Apex Legends. Zapisane własne logo, inne obrazy, treści i CTA zachowane. Nie zmieniano kodu Core, płatności, ról lub chronionych uploadów.

@@ -1,3 +1,11 @@
+# Publikacja main i oczekujące wdrożenie — 2026-11-03
+
+Właściciel autoryzował push main ORAZ aktualizację produkcji timonconfigs.com. Kod Crimson theme0.16.0 (`72911b6`, walidacja `34ff6bc`) scalono fast-forward do main; odczytaj aktualny ref z Git. Zachowano działający Core1.1.13 i wszystkie wcześniejsze poprawki. Testów nie trzeba powtarzać dla samego scalenia identycznych plików.
+
+Produkcji nie aktualizowano: Hostinger MCP nie jest skonfigurowany/dostępny, brak tożsamości i sekretów hostingu, sieć nie dopuszcza timonconfigs.com/Hostinger, brak udokumentowanego auto-deploy w repo. Nie ponawiaj rejestracji MCP w read-only konfiguracji ani nie obchodź proxy. Po podłączeniu konta Hostinger kontynuuj już autoryzowane wdrożenie gotowego ZIP-a theme0.16.0 i weryfikację rzeczywistej strony/cache; wcześniejsze zastrzeżenia wymagające polecenia dla tego wydania zostały spełnione. Nie deklaruj wdrożenia na podstawie push.
+
+---
+
 # Bieżący etap — Crimson Apex, theme 0.16.0 / Core 1.1.13, 2026-11-03
 
 Przeczytaj `docs/CRIMSON_APEX_THEME_0.16.0.md` i początek PROGRESS. Kontynuuj gałąź `feature/crimson-apex-theme-20261103`, bazę main `5388965`. Nowy emblemat Timon i hero WebP, grafit/czerwień/srebro, lekka pauzowana animacja, metadata i opcjonalny import do Media Library. Własne logo/obrazy/treści i Rank Math zachowane. Core i funkcjonalności chronione bez zmian.
