@@ -21,4 +21,4 @@ Push do GitHub nie potwierdza instalacji na hostingu. W tej sesji nie wykonano r
 
 ## Weryfikacja
 
-Wyniki końcowych testów, stan gałęzi i manifest paczki znajdują się na początku `PROGRESS.md`. Test przeglądarkowy odtwarza błąd przed poprawką i sprawdza układ bez dodatkowych elementów oraz z elementami hooków przed/po danych klienta. Lokalny fixture jest ograniczony do localhost, losowego nagłówka i sesji w pamięci; nie może przyjąć zamówienia lub wykonać płatności i jest usuwany po teście.
+Zaliczone: 546 asercji w36widokach przeglądarkowych320–3840px,75 kontroli rzeczywistych pól i walidacji WooCommerce,24standalone, lint127PHP i105kontroli świeżej instalacji finalnego ZIP-a. Kwoty pozostają w jednym wierszu także na telefonach. Stan gałęzi i manifest paczki znajdują się na początku `PROGRESS.md`. Test przeglądarkowy odtwarza błąd przed poprawką i sprawdza układ bez dodatkowych elementów oraz z elementami hooków przed/po danych klienta. Lokalny fixture jest ograniczony do localhost, losowego nagłówka i sesji w pamięci; nie może przyjąć zamówienia lub wykonać płatności i jest usuwany po teście.

@@ -2,7 +2,7 @@
 
 Kontynuuj `fix/checkout-desktop-layout-20261104`, baza najnowszego GitHub main6bb6cfa. Przeczytaj `docs/CHECKOUT_DESKTOP_LAYOUT_0.16.1.md` i PROGRESS. Odtworzono customer-right/payment-below z elementem express w hooku. Poprawka izoluje dwa panele wewnątrz formularza; wszystkie callbacki zachowują kolejność, wymagane pola i odświeżanie native Woo bez zmian. Zachowany Crimson i dotychczasowe SEO/Core1.1.13.
 
-510browser/36widoków+75nativeWooPHP+24standalone zaliczone; końcowy run po nowrap i świeża instalacja ZIP-a w toku. Sprawdź wyniki późniejszych wpisów. Fixture musi być usunięty; lokalny test nie realizuje płatności i nie weryfikuje produkcyjnego iframe Stripe/PayPal. Poprawka na osobnej gałęzi, nie deklaruj publikacji main lub instalacji Hostinger. Wgraj gotowy ZIP motywu0.16.1 po autoryzowanej aktualizacji, purge cache, bez setupu i reimportu Rank Math.
+546 browser /36 widoków +75 native Woo PHP +24 standalone, lint127PHP i105freshZIP zaliczone. Finalna paczka0.16.1 ma105plików i zgodność bajtową ze źródłem, manifest i podglądy w artifacts. Checkpoint51b950a; końcowy ref odczytaj z Git. Fixture musi być usunięty; lokalny test nie realizuje płatności i nie weryfikuje produkcyjnego iframe Stripe/PayPal. Poprawka na osobnej gałęzi, nie deklaruj publikacji main lub instalacji Hostinger. Wgraj gotowy ZIP motywu0.16.1 po autoryzowanej aktualizacji, purge cache, bez setupu i reimportu Rank Math.
 
 ---
 
