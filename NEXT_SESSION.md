@@ -1,3 +1,9 @@
+# Stan publikacji checkoutu — 2026-11-04
+
+Właściciel polecił push do main. Zmiany motywu 0.16.1 z `fix/checkout-desktop-layout-20261104` (`51b950a`, walidacja `b0f6c56`) scalono fast-forward do aktualnego main; końcowy zdalny ref odczytaj z Git. Wyniki testów i gotowy ZIP są opisane w PROGRESS oraz `docs/CHECKOUT_DESKTOP_LAYOUT_0.16.1.md`. Nie zmieniono przetestowanych plików ani Core 1.1.13. Nie deklaruj instalacji produkcyjnej na podstawie push GitHub; nie wykonano wdrożenia WordPressa na Hostingerze.
+
+---
+
 # Bieżąca poprawka — checkout desktop, theme 0.16.1 / Core 1.1.13, 2026-11-04
 
 Kontynuuj `fix/checkout-desktop-layout-20261104`, baza najnowszego GitHub main6bb6cfa. Przeczytaj `docs/CHECKOUT_DESKTOP_LAYOUT_0.16.1.md` i PROGRESS. Odtworzono customer-right/payment-below z elementem express w hooku. Poprawka izoluje dwa panele wewnątrz formularza; wszystkie callbacki zachowują kolejność, wymagane pola i odświeżanie native Woo bez zmian. Zachowany Crimson i dotychczasowe SEO/Core1.1.13.

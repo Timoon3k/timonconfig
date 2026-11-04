@@ -1,3 +1,9 @@
+## Publikacja poprawki checkoutu do main — 2026-11-04
+
+Właściciel wyraźnie polecił push do main. Poprawkę `51b950a` i walidację `b0f6c56` scalono fast-forward z `fix/checkout-desktop-layout-20261104` po pobraniu aktualnego main. Przetestowane pliki motywu 0.16.1 i Core 1.1.13 pozostają identyczne z gałęzią poprawki. Końcowy zdalny ref potwierdź w Git. Publikacja GitHub nie potwierdza instalacji na Hostingerze; takiej instalacji w tej sesji nie wykonywano.
+
+---
+
 ## Układ checkoutu desktop — theme 0.16.1 / Core 1.1.13, 2026-11-04
 
 - Pobranie najnowszego GitHub main potwierdziło `6bb6cfa`. Gałąź `fix/checkout-desktop-layout-20261104`. Odtworzono zrzut właściciela na rzeczywistym lokalnym WooCommerce10.3.5: hook express zajmował pierwszą komórkę formularza-gridu, dane klienta trafiały na prawo, a review/pay do kolejnego wiersza po lewej. Dokładnego produkcyjnego DOM nie odczytano.
