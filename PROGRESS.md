@@ -1,3 +1,12 @@
+## Układ checkoutu desktop — theme 0.16.1 / Core 1.1.13, 2026-11-04
+
+- Pobranie najnowszego GitHub main potwierdziło `6bb6cfa`. Gałąź `fix/checkout-desktop-layout-20261104`. Odtworzono zrzut właściciela na rzeczywistym lokalnym WooCommerce10.3.5: hook express zajmował pierwszą komórkę formularza-gridu, dane klienta trafiały na prawo, a review/pay do kolejnego wiersza po lewej. Dokładnego produkcyjnego DOM nie odczytano.
+- Zewnętrzny formularz pozostaje zwykłym formularzem Woo, wewnętrzny grid ma tylko lewą kolumnę danych/hooka po nich i prawe review/pay. Hook przed danymi pozostaje nad gridem, zachowano kolejność callbacków, action, identyfikatory i selektory fragmentów Woo. Kwoty mają nowrap w tabeli checkoutu. Do820px jedna kolumna, na komputerze wspólna górna krawędź, maksymalny wyśrodkowany shell1190px. Zasoby mają wersję0.16.1. Core/backend płatności/ról/plików bez zmian.
+- PASS dotąd: lokalna reprodukcja przed poprawką, **510 asercji /36 widoków 320–3840px** i native update_order_review z zachowaniem wybranej metody; **75 rzeczywistych PHP Woo page/AJAX billing/validation**,24standalone, static/JS/diff. Końcowy run po nowrap i finalny ZIP w toku; odczytaj późniejszy wpis. Fixture localhost+losowyheader, memory-session+session-backedcustomer, blokada składania zamówień i ruchu zewnętrznego, cleanup finally. Brak rzeczywistych operatorów lub transakcji.
+- Instrukcja `docs/CHECKOUT_DESKTOP_LAYOUT_0.16.1.md`; brak wdrożenia na main/Hostinger dla tej poprawki. Nie powtarzaj importu JSON-a SEO ani setupu witryny.
+
+---
+
 ## Publikacja Crimson do main — 2026-11-03
 
 - Właściciel wyraźnie polecił push do main oraz wdrożenie produkcyjne. Zmiany kodu `72911b6` i walidacji `34ff6bc` scalono fast-forward z `feature/crimson-apex-theme-20261103`, bez zmiany przetestowanych plików motywu/Core. Końcowy zdalny ref main potwierdź w Git.

@@ -1,3 +1,11 @@
+# Bieżąca poprawka — checkout desktop, theme 0.16.1 / Core 1.1.13, 2026-11-04
+
+Kontynuuj `fix/checkout-desktop-layout-20261104`, baza najnowszego GitHub main6bb6cfa. Przeczytaj `docs/CHECKOUT_DESKTOP_LAYOUT_0.16.1.md` i PROGRESS. Odtworzono customer-right/payment-below z elementem express w hooku. Poprawka izoluje dwa panele wewnątrz formularza; wszystkie callbacki zachowują kolejność, wymagane pola i odświeżanie native Woo bez zmian. Zachowany Crimson i dotychczasowe SEO/Core1.1.13.
+
+510browser/36widoków+75nativeWooPHP+24standalone zaliczone; końcowy run po nowrap i świeża instalacja ZIP-a w toku. Sprawdź wyniki późniejszych wpisów. Fixture musi być usunięty; lokalny test nie realizuje płatności i nie weryfikuje produkcyjnego iframe Stripe/PayPal. Poprawka na osobnej gałęzi, nie deklaruj publikacji main lub instalacji Hostinger. Wgraj gotowy ZIP motywu0.16.1 po autoryzowanej aktualizacji, purge cache, bez setupu i reimportu Rank Math.
+
+---
+
 # Publikacja main i oczekujące wdrożenie — 2026-11-03
 
 Właściciel autoryzował push main ORAZ aktualizację produkcji timonconfigs.com. Kod Crimson theme0.16.0 (`72911b6`, walidacja `34ff6bc`) scalono fast-forward do main; odczytaj aktualny ref z Git. Zachowano działający Core1.1.13 i wszystkie wcześniejsze poprawki. Testów nie trzeba powtarzać dla samego scalenia identycznych plików.
