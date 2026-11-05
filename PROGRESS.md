@@ -1,3 +1,9 @@
+## Publikacja opinii Discord i SEO do main — 2026-11-05
+
+Właściciel autoryzował push do main. Kod `a512187` i walidację `764c660` scalono fast-forward do aktualnego main po ponownym pobraniu GitHub. Przetestowane źródła Core 1.2.0 i motywu 0.17.0 są identyczne z finalnymi ZIP-ami. Końcowy zdalny ref sprawdź w Git. Import obejmuje zwykłe tekstowe wiadomości członków, zgodnie z ostatnim wyborem właściciela; nie obejmuje ramek botów. Push nie potwierdza instalacji na hostingu ani rzeczywistego pobrania prywatnego kanału. Instalacja: motyw pierwszy, potem Core, cache purge i Reviews → Discord vouches → Synchronize now. Szczegóły i testy poniżej.
+
+---
+
 ## Discord vouches, filmy i SEO — Core 1.2.0 / theme 0.17.0, 2026-11-05
 
 - Baza GitHub main `4d302d4`; gałąź `feature/discord-vouches-media-seo-20261105`. Właściciel zlecił automatyczne pobieranie opinii z serwera1557854161805115402/kanału1560781856931315832, usunięcie fikcyjnych opinii, opisy filmów/obrazów i SEO oraz push main. Potwierdził rolę Administrator bota; Message Content Intent to oddzielne ustawienie. Ostatni wybór właściciela to zwykłe wiadomości tekstowe; embedów bota nie włączono do importu. W tej sesji brak dostępu do prywatnych wiadomości Discorda i aktualnego hostingu — nie twierdź, że pobrano prawdziwe opinie lub wdrożono produkcję.

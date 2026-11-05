@@ -1,3 +1,9 @@
+# Stan publikacji opinii Discord i SEO — 2026-11-05
+
+Właściciel autoryzował push do main. Kod `a512187` i walidację `764c660` scalono fast-forward do aktualnego main po ponownym pobraniu GitHub. Przetestowane źródła Core 1.2.0 i motywu 0.17.0 są identyczne z finalnymi ZIP-ami. Końcowy zdalny ref sprawdź w Git. Import obejmuje zwykłe tekstowe wiadomości członków, zgodnie z ostatnim wyborem właściciela; nie obejmuje ramek botów. Push nie potwierdza instalacji na hostingu ani rzeczywistego pobrania prywatnego kanału. Instalacja: motyw pierwszy, potem Core, cache purge i Reviews → Discord vouches → Synchronize now. Szczegóły i testy poniżej.
+
+---
+
 # Bieżące wydanie — Core 1.2.0 / theme 0.17.0, 2026-11-05
 
 Kontynuuj `feature/discord-vouches-media-seo-20261105`, baza main4d302d4. Właściciel autoryzował końcowy push do main dla tego wydania. Instrukcja w `docs/DISCORD_VOUCHES_MEDIA_SEO_1.2.0.md`, katalog SEO w `docs/CONFIG_CATALOG_SEO_2026-11-05.md`. Nowe: automatyczny importer tekstowych opinii członków ze wskazanego kanału, brak publicznych demos/udawanych ocen, źródła i daty, opisy filmów/alt i provider-aware VideoObject, publiczne linki do wydań. Zachowany checkout0.16.1 i wszystkie wcześniejsze uprawnienia/płatności/SEO.
