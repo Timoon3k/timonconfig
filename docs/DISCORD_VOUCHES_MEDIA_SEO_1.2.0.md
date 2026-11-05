@@ -4,6 +4,8 @@ Wydanie przygotowano na podstawie GitHub main `4d302d4`. Zachowano poprawkę uk�
 
 ## Prawdziwe opinie z kanału vouches
 
+Zgodnie z ostatnim wyborem właściciela import obejmuje zwykłe wiadomości tekstowe członków; istniejące ramki bota nie są automatycznie traktowane jako ich opinie.
+
 Źródło wskazane przez właściciela: https://discord.com/channels/1557854161805115402/1560781856931315832 . Importer wykonuje wyłącznie serwerowe żądania GET do Discord API. Używa prywatnego tokena istniejącego bota, nie sesji przeglądarki użytkownika.
 
 - Zwykła wiadomość tekstowa członka daje jedną opinię z jego rzeczywistą nazwą wyświetlaną, tekstem, datą wiadomości i odnośnikiem do oryginału. Nierozpoznane wzmianki i emoji Discorda mają tekstowe odpowiedniki; identyfikatory prywatnych wzmianek nie są rozwiązywane.
@@ -50,4 +52,4 @@ Rozwijaj własny opis każdego wydania: urządzenie, gra, input, potwierdzone pl
 
 ## Walidacja i zakres
 
-Końcowe wyniki testów, gałąź/commit i manifesty ZIP są zapisane w `PROGRESS.md` i `artifacts/`. Publikacja do GitHub main nie potwierdza instalacji na hostingu ani rzeczywistego odczytu kanału. Nie zmieniano konfiguracji operatorów, zamówień, cen, subskrypcji ani ról Discorda. Unikalna publiczna treść i lepsze linkowanie wspierają odkrywanie strony; nie gwarantują pozycji w Google.
+Zaliczone: 448 asercji PHP, 348 asercji przeglądarkowych w22widokach, lint130PHP oraz113kontroli świeżej instalacji finalnych ZIP-ów. Fixture i tymczasowe zasoby są posprzątane. Gałąź/commit i manifesty ZIP są zapisane w `PROGRESS.md` i `artifacts/`. Publikacja do GitHub main nie potwierdza instalacji na hostingu ani rzeczywistego odczytu kanału. Nie zmieniano konfiguracji operatorów, zamówień, cen, subskrypcji ani ról Discorda. Unikalna publiczna treść i lepsze linkowanie wspierają odkrywanie strony; nie gwarantują pozycji w Google.
