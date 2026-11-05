@@ -302,7 +302,7 @@ function timonconfigs_review_items(): array {
 			'config' => (string) get_post_meta( $post->ID, 'tc_review_config', true ),
 			'rating' => $imported ? 0 : min( 5, max( 0, (int) get_post_meta( $post->ID, 'tc_review_rating', true ) ) ),
 			'demo' => false, 'image' => (string) get_the_post_thumbnail_url( $post, 'thumbnail' ),
-			'source_url' => $source, 'source_label' => $source ? 'Discord vouch' : '',
+			'source_url' => $source, 'source_label' => $source ? 'View original on Discord' : '',
 			'date' => $date, 'date_label' => $date_label,
 		);
 	}

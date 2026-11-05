@@ -4,8 +4,8 @@
 set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.17.0.zip}")"
-core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-1.2.0.zip}")"
+theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.17.1.zip}")"
+core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-1.2.1.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
 db_image='mariadb:11.4'
@@ -129,7 +129,7 @@ $vouches_config = TC_Discord_Vouches::config();
 $expect( '1557854161805115402' === $vouches_config['guild_id'] && '1560781856931315832' === $vouches_config['channel_id'], 'the importer targets the channel supplied by the owner' );
 $expect( ! TC_Discord_Vouches::ready() && ! wp_next_scheduled( 'tc_discord_vouches_sync' ), 'a fresh install invents no bot credentials and starts no authenticated synchronization' );
 $review_markup = timonconfigs_render_section( array( 'section' => 'reviews' ) );
-$expect( str_contains( $review_markup, 'tc-reviews-empty' ) && ! str_contains( $review_markup, 'tc-review-card' ), 'an empty release shows the community source link instead of fictional testimonials' );
+$expect( str_contains( $review_markup, 'tc-reviews-empty' ) && ! str_contains( $review_markup, 'tc-review-card' ), 'an empty release reports no published reviews instead of fictional testimonials' );
 $default_videos = TC_Videos::get_public_videos();
 $expect( 3 === count( $default_videos ), 'the three bundled clips remain available after installation' );
 foreach ( $default_videos as $video ) {

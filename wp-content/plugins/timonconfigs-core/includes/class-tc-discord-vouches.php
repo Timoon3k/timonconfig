@@ -7,7 +7,7 @@ final class TC_Discord_Vouches {
 	private const STATE = 'timonconfigs_vouches_state';
 	private const LOCK = '_tc_vouches_lock';
 	private const HOOK = 'tc_discord_vouches_sync';
-	private const INTERVAL = 'tc_vouches_fifteen_minutes';
+	private const INTERVAL = 'tc_vouches_one_minute';
 	private const GUILD = '1557854161805115402';
 	private const CHANNEL = '1560781856931315832';
 	private static string $active_owner = '';
@@ -15,7 +15,7 @@ final class TC_Discord_Vouches {
 
 	public static function init(): void {
 		add_filter( 'cron_schedules', static function ( array $schedules ): array {
-			$schedules[ self::INTERVAL ] = array( 'interval' => 900, 'display' => 'Every fifteen minutes' );
+			$schedules[ self::INTERVAL ] = array( 'interval' => 60, 'display' => 'Every minute' );
 			return $schedules;
 		} );
 		add_action( 'init', array( __CLASS__, 'maybe_schedule' ), 40 );
@@ -54,7 +54,12 @@ final class TC_Discord_Vouches {
 
 	public static function maybe_schedule(): void {
 		if ( ! self::ready() ) { self::deactivate(); return; }
-		if ( ! wp_next_scheduled( self::HOOK ) ) { wp_schedule_event( time() + 60, self::INTERVAL, self::HOOK ); }
+		$event = wp_get_scheduled_event( self::HOOK );
+		// Existing installations must leave the old fifteen-minute recurrence behind.
+		if ( $event && ( self::INTERVAL !== $event->schedule || 60 !== (int) $event->interval ) ) {
+			self::deactivate(); $event = false;
+		}
+		if ( ! $event ) { wp_schedule_event( time(), self::INTERVAL, self::HOOK ); }
 	}
 
 	public static function source_url( string $message_id, ?array $config = null ): string {
@@ -291,11 +296,20 @@ final class TC_Discord_Vouches {
 		if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'Administrator permission is required.', '', array( 'response' => 403 ) ); }
 		$config = self::config(); $state = self::state( $config );
 		$count = new WP_Query( array( 'post_type' => 'tc_review', 'post_status' => 'publish', 'posts_per_page' => 1, 'fields' => 'ids', 'meta_query' => array( array( 'key' => '_tc_vouch_channel_id', 'value' => $config['channel_id'] ), array( 'key' => '_tc_vouch_guild_id', 'value' => $config['guild_id'] ) ) ) );
-		echo '<div class="wrap"><h1>Discord vouches</h1><p>Read genuine text feedback from the selected Discord channel. Original wording, display names, dates and source links are retained. No star rating or verified purchase is invented.</p>';
+		echo '<div class="wrap"><h1>Discord vouches</h1><p>New member text messages in the selected channel are automatically published as full review cards on Home and Reviews. No manual approval or Discord redirect is required to read them. Original wording, display names, dates and optional source links are retained. No star rating or verified purchase is invented.</p>';
+		if ( ! $config['enabled'] ) {
+			echo '<div class="notice notice-warning inline"><p>Automatic publishing is paused. Enable automatic synchronization below to publish new channel messages on the website.</p></div>';
+		} elseif ( ! self::bot_token() ) {
+			echo '<div class="notice notice-error inline"><p>Automatic publishing is waiting for bot credentials. Configure the private bot token on this server; a channel link alone cannot retrieve its messages.</p></div>';
+		} else {
+			echo '<div class="notice notice-success inline"><p>Automatic publishing is enabled. New member text messages are published on the website after the next successful synchronization.</p></div>';
+		}
 		echo '<p>Published source entries: <strong>' . esc_html( (string) $count->found_posts ) . '</strong>.</p>';
 		echo '<p>Bot credentials: <strong>' . ( self::bot_token() ? 'available privately on this server' : 'not configured' ) . '</strong>. The existing TimonConfigs Woo bot token is reused. An optional private <code>TIMONCONFIGS_VOUCHES_DISCORD_BOT_TOKEN</code> constant can select a different bot. Never paste tokens into this page or GitHub.</p>';
 		echo '<p>The bot needs <strong>View Channel</strong> and <strong>Read Message History</strong>. Enable <strong>Message Content Intent</strong> in the Discord Developer Portal so Discord returns the message text. It does not need permission to send messages.</p>';
-		echo '<p>Schedule: every 15 minutes through WP-Cron when credentials are present. Low-traffic sites should run WordPress cron from the hosting scheduler. Each run processes bounded pages; older feedback is imported gradually.</p>';
+		echo '<p>Schedule: every minute through WP-Cron when credentials are present. New entries are published automatically; Home and Reviews page caches are purged after changes. For regular delivery even without visitors, run WordPress cron every minute from the hosting scheduler. Delays or Discord rate limits may postpone publication. Each run processes bounded pages; older feedback is imported gradually.</p>';
+		$next = wp_next_scheduled( self::HOOK );
+		if ( $next ) { echo '<p>Next scheduled check: ' . esc_html( wp_date( 'Y-m-d H:i:s', $next ) ) . '</p>'; }
 		if ( ! empty( $state['last_success'] ) ) { echo '<p>Last successful synchronization: ' . esc_html( wp_date( 'Y-m-d H:i:s', (int) $state['last_success'] ) ) . '</p>'; }
 		if ( ! empty( $state['last_error'] ) ) { echo '<div class="notice notice-warning inline"><p>' . esc_html( $state['last_error'] ) . '</p></div>'; }
 		if ( ! empty( $state['content_notice'] ) ) { echo '<div class="notice notice-info inline"><p>' . esc_html( $state['content_notice'] ) . '</p></div>'; }

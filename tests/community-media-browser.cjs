@@ -103,7 +103,8 @@ async function screenshot(page, name, element) {
       for (const route of ['/', '/reviews/']) {
         await visit(page, route, width);
         check(await page.locator('.tc-review-card').count() === 0, `${route}/${width}: empty state invents no fallback testimonials`);
-        check(await page.locator('.tc-reviews-empty a').getAttribute('href') === data.channel, `${route}/${width}: empty state links to the actual configured channel`);
+        check(await page.locator('.tc-reviews-empty').innerText() === 'No community reviews have been published here yet.', `${route}/${width}: empty state describes missing website reviews`);
+        check(await page.locator('.tc-reviews-empty a').count() === 0, `${route}/${width}: guests are not redirected to Discord instead of reading reviews`);
       }
     }
     check(report.errors.length === 0, 'No browser runtime errors'); report.passed = true;

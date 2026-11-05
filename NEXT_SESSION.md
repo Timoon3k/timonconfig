@@ -1,3 +1,13 @@
+# Bieżąca poprawka — automatyczne pełne vouches, Core 1.2.1 / theme 0.17.1
+
+Właściciel doprecyzował, że nowe tekstowe posty w vouches mają automatycznie pokazywać pełną treść na stronie, bez konieczności przejścia do Discorda. Baza GitHub main `e787e67`; gałąź `fix/automatic-inline-vouches-20261105`. Core 1.2.1 przenosi harmonogram z 15 minut na 60 sekund i planuje pierwszy odczyt od razu przy dostępnym tokenie; nie wykonuje HTTP podczas renderowania. Panel pokazuje gotowość, pauzę/brak tokena, najbliższy termin oraz błędy. Motyw 0.17.1 zachowuje pełne karty i oznacza link jako opcjonalne źródło; pusty stan dla gościa nie przekierowuje na Discorda, administrator dostaje link do ustawień.
+
+PASS: 227 asercji importera z symulowanym API (w tym nowe: migracja, brak duplikatów i przesuwania zadania, cron → nowy publish → pełny cytat dla gościa → purge Home/Reviews), 354 asercje browser / 22 widoki z usuniętym fixture, 124 lint PHP i static/JS/diff. Finalne ZIP-y Core 1.2.1 / theme 0.17.1 mają potwierdzone CRC i zgodność bajtową. Świeża instalacja finalnych ZIP-ów: 113 asercji PASS w odrębnym WordPressie offline; zasoby tymczasowe usunięte. Końcowy ref odczytaj z Git. Manifest `artifacts/automatic-inline-vouches-release-manifest-20261105.json`.
+
+Wdrożenie hostingu i rzeczywisty odczyt prywatnego kanału nie były wykonywane. Do regularnego odczytu bez ruchu wymagany jest cron hostingu co minutę; aktywny token i Message Content Intent są niezbędne. Otwarta karta odświeża dane po przeładowaniu. Nie dodano Gateway/webhooka/obietnicy natychmiastowej publikacji, nie zmieniono płatności ani prywatnych plików. Instrukcja `docs/AUTOMATIC_INLINE_VOUCHES_1.2.1.md`; kontynuacja autoryzowanego zadania obejmuje push do main.
+
+---
+
 # Stan publikacji opinii Discord i SEO — 2026-11-05
 
 Właściciel autoryzował push do main. Kod `a512187` i walidację `764c660` scalono fast-forward do aktualnego main po ponownym pobraniu GitHub. Przetestowane źródła Core 1.2.0 i motywu 0.17.0 są identyczne z finalnymi ZIP-ami. Końcowy zdalny ref sprawdź w Git. Import obejmuje zwykłe tekstowe wiadomości członków, zgodnie z ostatnim wyborem właściciela; nie obejmuje ramek botów. Push nie potwierdza instalacji na hostingu ani rzeczywistego pobrania prywatnego kanału. Instalacja: motyw pierwszy, potem Core, cache purge i Reviews → Discord vouches → Synchronize now. Szczegóły i testy poniżej.

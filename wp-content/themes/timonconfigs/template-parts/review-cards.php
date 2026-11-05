@@ -3,12 +3,11 @@
 defined( 'ABSPATH' ) || exit;
 $reviews = timonconfigs_review_items();
 if ( ! $reviews ) {
-	$channel_url = 'https://discord.com/channels/1557854161805115402/1560781856931315832';
-	if ( class_exists( 'TC_Discord_Vouches' ) ) {
-		$config = TC_Discord_Vouches::config();
-		if ( preg_match( '/^[1-9][0-9]{16,19}$/D', (string) ( $config['guild_id'] ?? '' ) ) && preg_match( '/^[1-9][0-9]{16,19}$/D', (string) ( $config['channel_id'] ?? '' ) ) ) { $channel_url = 'https://discord.com/channels/' . $config['guild_id'] . '/' . $config['channel_id']; }
+	echo '<div class="tc-reviews-empty"><p>No community reviews have been published here yet.</p>';
+	if ( current_user_can( 'manage_options' ) && class_exists( 'TC_Discord_Vouches' ) ) {
+		echo '<p>Administrator: check the bot connection and automatic publishing status in <a href="' . esc_url( admin_url( 'edit.php?post_type=tc_review&page=tc-discord-vouches' ) ) . '">Discord vouches settings</a>.</p>';
 	}
-	echo '<div class="tc-reviews-empty"><p>Read community feedback in our Discord vouches channel.</p><a class="tc-text-link" href="' . esc_url( $channel_url ) . '" rel="noopener noreferrer" target="_blank">Read Discord vouches</a></div>';
+	echo '</div>';
 	return;
 }
 ?>

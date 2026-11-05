@@ -4,7 +4,7 @@ defined( 'ABSPATH' ) || exit;
 if ( ! defined( 'WP_CLI' ) || ! WP_CLI || ! in_array( wp_parse_url( home_url(), PHP_URL_HOST ), array( 'localhost', '127.0.0.1' ), true ) ) { throw new RuntimeException( 'Disposable localhost WordPress required.' ); }
 if ( ! class_exists( 'TC_Discord_Vouches' ) ) { throw new RuntimeException( 'Load the vouches module first.' ); }
 
-$checks = 0; $calls = array(); $created = array(); $manual = 0; $shortcode_runs = 0;
+$checks = 0; $calls = array(); $created = array(); $manual = 0; $shortcode_runs = 0; $purges = array();
 $old_user = get_current_user_id(); $old_post = $_POST; $old_request = $_REQUEST; $old_method = $_SERVER['REQUEST_METHOD'] ?? null;
 $saved = array();
 foreach ( array( 'timonconfigs_vouches', 'timonconfigs_vouches_state', '_tc_vouches_lock' ) as $key ) { $saved[ $key ] = array( 'exists' => false !== get_option( $key, false ), 'value' => get_option( $key, false ) ); }
@@ -61,15 +61,30 @@ $publication_check = static function ( string $new, string $old, WP_Post $post )
 		$published_safely = $published_safely && $channel === get_post_meta( $post->ID, '_tc_vouch_channel_id', true ) && (bool) get_post_meta( $post->ID, '_tc_vouch_source_url', true ) && (bool) get_post_meta( $post->ID, '_tc_vouch_managed_hash', true );
 	}
 };
+$purge_check = static function ( string $url ) use ( &$purges ): void { $purges[] = $url; };
+$legacy_schedule = static function ( array $schedules ): array { $schedules['tc_vouches_fifteen_minutes'] = array( 'interval' => 900, 'display' => 'Legacy test schedule' ); return $schedules; };
 add_filter( 'pre_http_request', $intercept, 1, 3 );
 add_action( 'transition_post_status', $publication_check, 10, 3 );
+add_action( 'litespeed_purge_url', $purge_check );
 add_shortcode( 'tc_vouch_fixture', static function () use ( &$shortcode_runs ): string { ++$shortcode_runs; return 'SHOULD NOT RUN'; } );
 try {
 	update_option( 'timonconfigs_vouches', $config, false ); delete_option( 'timonconfigs_vouches_state' ); delete_option( '_tc_vouches_lock' );
+	TC_Discord_Vouches::deactivate();
 	$private = new ReflectionMethod( TC_Discord_Vouches::class, 'bot_token' );
-	if ( '' === $private->invoke( null ) ) { $assert( is_wp_error( TC_Discord_Vouches::sync() ) && ! $calls, 'Missing credentials do not perform HTTP or invent feedback.' ); }
+	if ( '' === $private->invoke( null ) ) {
+		TC_Discord_Vouches::maybe_schedule();
+		$assert( is_wp_error( TC_Discord_Vouches::sync() ) && ! $calls && ! wp_next_scheduled( 'tc_discord_vouches_sync' ), 'Missing credentials do not schedule HTTP or invent feedback.' );
+	}
 	define( 'TIMONCONFIGS_VOUCHES_DISCORD_BOT_TOKEN', $token );
-	TC_Discord_Vouches::maybe_schedule(); $assert( false !== wp_next_scheduled( 'tc_discord_vouches_sync' ), 'A configured bot enables the fifteen-minute job.' );
+	add_filter( 'cron_schedules', $legacy_schedule );
+	wp_schedule_event( time() + 900, 'tc_vouches_fifteen_minutes', 'tc_discord_vouches_sync' );
+	TC_Discord_Vouches::maybe_schedule(); $event = wp_get_scheduled_event( 'tc_discord_vouches_sync' );
+	$assert( $event && 'tc_vouches_one_minute' === $event->schedule && 60 === $event->interval && $event->timestamp <= time() + 10, 'Updating an old fifteen-minute install starts the one-minute recurring job promptly.' );
+	$assert( ! $calls, 'Scheduling never performs a blocking Discord request on a visitor page.' );
+	TC_Discord_Vouches::maybe_schedule(); $assert( $event == wp_get_scheduled_event( 'tc_discord_vouches_sync' ), 'Repeated page loads keep the existing next check instead of postponing it.' );
+	$events = 0; foreach ( _get_cron_array() as $hooks ) { $events += count( $hooks['tc_discord_vouches_sync'] ?? array() ); }
+	$assert( 1 === $events, 'The upgrade leaves one job rather than duplicate old and new recurrences.' );
+	remove_filter( 'cron_schedules', $legacy_schedule );
 	$first = TC_Discord_Vouches::sync();
 	$assert( ! is_wp_error( $first ) && 146 === $first['changed'], 'Pagination imports only 146 genuine text messages from 150 source entries.' );
 	$created = $source_posts(); $assert( 146 === count( $created ), 'One attributed review is stored per eligible source message.' );
@@ -87,6 +102,18 @@ try {
 	$assert( 'https://discord.com/channels/' . $guild . '/' . $channel . '/' . $message_id === get_post_meta( $post->ID, '_tc_vouch_source_url', true ), 'Each review has a deterministic real-message source URL.' );
 	$assert( TC_Discord_Vouches::is_source_review( $post->ID ), 'Source attribution is checked against the selected guild and channel.' );
 	$again = TC_Discord_Vouches::sync(); $assert( ! is_wp_error( $again ) && 0 === $again['changed'] && $created === $source_posts(), 'Repeated polling is idempotent.' );
+	// A new channel post reaches the actual public template through the cron hook, without an admin request.
+	$latest = $message( 500, 'LOCAL QA newly shared text appears directly on the website.' );
+	$latest['timestamp'] = gmdate( DATE_ATOM ); $dataset[ $latest['id'] ] = $latest; $purges = array();
+	do_action( 'tc_discord_vouches_sync' );
+	$new_ids = array_values( array_diff( $source_posts(), $created ) );
+	$assert( 1 === count( $new_ids ) && 'publish' === get_post_status( $new_ids[0] ), 'The scheduled hook automatically publishes a new member post without approval.' );
+	wp_set_current_user( 0 ); ob_start(); get_template_part( 'template-parts/review-cards' ); $cards = ob_get_clean();
+	$assert( str_contains( $cards, $latest['content'] ) && str_contains( $cards, 'Actual Discord Display Name' ) && str_contains( $cards, 'tc-review-quote' ) && ! str_contains( $cards, 'tc-reviews-empty' ), 'An anonymous visitor reads the complete new message inline rather than a redirect-only placeholder.' );
+	$assert( str_contains( $cards, TC_Discord_Vouches::source_url( $latest['id'], $config ) ) && str_contains( $cards, 'View original on Discord' ), 'Discord remains an optional source link below the public quote.' );
+	$reviews_page = get_page_by_path( 'reviews' );
+	$assert( in_array( home_url( '/' ), $purges, true ) && in_array( $reviews_page ? get_permalink( $reviews_page ) : home_url( '/reviews/' ), $purges, true ), 'Automatic publication invalidates Home and Reviews caches.' );
+	wp_delete_post( $new_ids[0], true ); unset( $dataset[ $latest['id'] ] );
 	$dataset[ $message_id ]['content'] = 'The source author edited this feedback.'; $dataset[ $message_id ]['edited_timestamp'] = '2026-10-16T13:00:00Z';
 	$edited = TC_Discord_Vouches::sync(); $assert( ! is_wp_error( $edited ) && 'The source author edited this feedback.' === get_post_field( 'post_content', $post->ID ), 'Source edits update the existing review rather than create another.' );
 	$assert( '2026-10-16T13:00:00Z' === get_post_meta( $post->ID, '_tc_vouch_edited_timestamp', true ), 'The source edit timestamp is retained.' );
@@ -137,19 +164,23 @@ try {
 	remove_filter( 'wp_die_handler', $die_filter );
 	$before = count( $calls ); ob_start(); TC_Discord_Vouches::settings_page(); $html = ob_get_clean();
 	$assert( ! str_contains( $html, $token ) && str_contains( $html, 'View Channel' ) && str_contains( $html, 'Read Message History' ) && count( $calls ) === $before, 'The settings page explains read permissions without making HTTP or exposing credentials.' );
+	$assert( str_contains( $html, 'Automatic publishing is enabled' ) && str_contains( $html, 'every minute through WP-Cron' ) && str_contains( $html, 'Next scheduled check' ), 'The administrator sees automatic publication status, its cadence and the next check.' );
 	$config['enabled'] = false; update_option( 'timonconfigs_vouches', $config, false ); TC_Discord_Vouches::maybe_schedule();
 	$assert( ! wp_next_scheduled( 'tc_discord_vouches_sync' ), 'Disabling sync removes its cron event.' );
+	ob_start(); TC_Discord_Vouches::settings_page(); $paused_html = ob_get_clean();
+	$assert( str_contains( $paused_html, 'Automatic publishing is paused' ), 'An explicit owner pause is preserved and clearly reported.' );
 	$assert( '' === TC_Discord_Vouches::source_url( '../unsafe' ), 'Invalid source IDs cannot create arbitrary source links.' );
 	WP_CLI::success( "Discord vouches integration: $checks assertions passed; mocked Discord only, no genuine reviews fabricated or published outside the disposable fixture." );
 } finally {
 	remove_filter( 'pre_http_request', $intercept, 1 ); remove_filter( 'wp_die_handler', $die_filter ); remove_shortcode( 'tc_vouch_fixture' );
 	remove_action( 'transition_post_status', $publication_check, 10 );
+	remove_action( 'litespeed_purge_url', $purge_check ); remove_filter( 'cron_schedules', $legacy_schedule );
 	if ( isset( $fresh_state ) ) { remove_action( 'added_option', $fresh_state ); }
 	foreach ( $source_posts() as $id ) { wp_delete_post( $id, true ); }
 	if ( $manual ) { wp_delete_post( $manual, true ); }
 	TC_Discord_Vouches::deactivate();
 	foreach ( $saved as $key => $backup ) { $backup['exists'] ? update_option( $key, $backup['value'], false ) : delete_option( $key ); }
-	foreach ( $scheduled as $entry ) { $event = $entry['event']; if ( $event['schedule'] ) { wp_schedule_event( (int) $entry['timestamp'], $event['schedule'], $event['args'] ); } else { wp_schedule_single_event( (int) $entry['timestamp'], 'tc_discord_vouches_sync', $event['args'] ); } }
+	foreach ( $scheduled as $entry ) { $event = $entry['event']; if ( $event['schedule'] ) { wp_schedule_event( (int) $entry['timestamp'], $event['schedule'], 'tc_discord_vouches_sync', $event['args'] ); } else { wp_schedule_single_event( (int) $entry['timestamp'], 'tc_discord_vouches_sync', $event['args'] ); } }
 	wp_set_current_user( $old_user ); $_POST = $old_post; $_REQUEST = $old_request;
 	if ( null === $old_method ) { unset( $_SERVER['REQUEST_METHOD'] ); } else { $_SERVER['REQUEST_METHOD'] = $old_method; }
 }
