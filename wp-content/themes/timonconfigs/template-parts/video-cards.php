@@ -10,26 +10,27 @@ if ( ! class_exists( 'TC_Videos' ) ) {
             'device' => get_theme_mod( 'timonconfigs_video_' . $index . '_device', 'Apex Legends · Gameplay showcase' ),
             'url' => get_theme_mod( 'timonconfigs_video_' . $index . '_url', get_template_directory_uri() . '/assets/video/apex-demo-0' . $index . '.mp4' ),
             'poster' => get_theme_mod( 'timonconfigs_video_' . $index . '_poster', get_template_directory_uri() . '/assets/images/apex-demo-0' . $index . '.jpg' ),
-            'type' => 'mp4', 'youtube_id' => '', 'mode' => 'inline', 'captions' => '', 'description' => '',
+            'type' => 'mp4', 'youtube_id' => '', 'mode' => 'inline', 'captions' => '', 'description' => get_theme_mod( 'timonconfigs_video_' . $index . '_description', '' ), 'poster_alt' => get_theme_mod( 'timonconfigs_video_' . $index . '_poster_alt', '' ),
         );
     }
 }
 ?>
 <div class="tc-video-grid">
 <?php foreach ( $videos as $index => $video ) : ?>
+    <?php $description_id = wp_unique_id( 'tc-video-description-' ); $poster_id = wp_unique_id( 'tc-video-poster-' ); $poster_alt = (string) ( $video['poster_alt'] ?? '' ); $describe_poster = $poster_alt && 'mp4' === $video['type']; $described_by = array(); if ( $video['description'] ) { $described_by[] = $description_id; } if ( $describe_poster ) { $described_by[] = $poster_id; } ?>
     <article class="tc-video-card">
         <div class="tc-inline-video" data-inline-video data-video-kind="<?php echo esc_attr( $video['type'] ); ?>" data-video-mode="<?php echo esc_attr( $video['mode'] ); ?>" data-video-title="<?php echo esc_attr( $video['title'] ); ?>"<?php if ( 'youtube' === $video['type'] ) : ?> data-youtube-id="<?php echo esc_attr( $video['youtube_id'] ); ?>"<?php endif; ?>>
             <?php if ( 'youtube' === $video['type'] ) : ?>
-                <?php if ( $video['poster'] ) : ?><img class="tc-youtube-poster" src="<?php echo esc_url( $video['poster'] ); ?>" alt="" width="960" height="540" loading="lazy" decoding="async"><?php endif; ?>
+                <?php if ( $video['poster'] ) : ?><img class="tc-youtube-poster" src="<?php echo esc_url( $video['poster'] ); ?>" alt="<?php echo esc_attr( $poster_alt ); ?>"<?php if ( ! empty( $video['poster_width'] ) && ! empty( $video['poster_height'] ) ) : ?> width="<?php echo esc_attr( (string) $video['poster_width'] ); ?>" height="<?php echo esc_attr( (string) $video['poster_height'] ); ?>"<?php endif; ?> loading="lazy" decoding="async"><?php endif; ?>
             <?php else : ?>
-                <video controls playsinline preload="none" poster="<?php echo esc_url( $video['poster'] ); ?>" aria-label="<?php echo esc_attr( $video['title'] ); ?>" data-video-player data-video-src="<?php echo esc_url( $video['url'] ); ?>">
+                <video controls playsinline preload="none" poster="<?php echo esc_url( $video['poster'] ); ?>" aria-label="<?php echo esc_attr( $video['title'] ); ?>"<?php if ( $described_by ) : ?> aria-describedby="<?php echo esc_attr( implode( ' ', $described_by ) ); ?>"<?php endif; ?> data-video-player data-video-src="<?php echo esc_url( $video['url'] ); ?>">
                     <?php if ( $video['captions'] ) : ?><track kind="captions" srclang="en" label="English" data-video-track-src="<?php echo esc_url( $video['captions'] ); ?>"><?php endif; ?>
                 </video>
             <?php endif; ?>
             <button class="tc-inline-video__play" type="button" data-video-play aria-label="<?php echo esc_attr( sprintf( 'Play %s', $video['title'] ) ); ?>"><span class="tc-play"><?php echo timonconfigs_icon( 'play' ); // phpcs:ignore ?></span><span class="tc-inline-video__label"><?php echo 'youtube' === $video['type'] ? 'LOAD YOUTUBE VIDEO' : 'WATCH GAMEPLAY'; ?></span><?php if ( 'youtube' === $video['type'] ) : ?><span class="tc-youtube-notice">Loads YouTube after you click.</span><?php endif; ?></button>
             <noscript><a class="tc-video-fallback" href="<?php echo esc_url( $video['url'] ); ?>">Watch <?php echo esc_html( $video['title'] ); ?></a></noscript>
         </div>
-        <div class="tc-video-card__copy"><p>APEX LEGENDS / <?php echo esc_html( sprintf( '%02d', $index + 1 ) ); ?></p><h3><?php echo esc_html( $video['title'] ); ?></h3><span><?php echo esc_html( $video['device'] ); ?></span><?php if ( $video['description'] && ! is_front_page() ) : ?><p class="tc-video-description"><?php echo esc_html( $video['description'] ); ?></p><?php endif; ?></div>
+        <div class="tc-video-card__copy"><p>APEX LEGENDS / <?php echo esc_html( sprintf( '%02d', $index + 1 ) ); ?></p><h3><?php echo esc_html( $video['title'] ); ?></h3><span><?php echo esc_html( $video['device'] ); ?></span><?php if ( $video['description'] ) : ?><p id="<?php echo esc_attr( $description_id ); ?>" class="tc-video-description"><?php echo esc_html( $video['description'] ); ?></p><?php endif; ?><?php if ( $describe_poster ) : ?><span class="screen-reader-text" id="<?php echo esc_attr( $poster_id ); ?>"><?php echo esc_html( 'Video poster: ' . $poster_alt ); ?></span><?php endif; ?></div>
     </article>
 <?php endforeach; ?>
 <?php if ( ! $videos ) : ?><p class="tc-empty-state">The Apex showcase is being updated. New first-party videos will appear here after publication.</p><?php endif; ?>

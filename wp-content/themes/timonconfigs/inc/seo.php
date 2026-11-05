@@ -19,10 +19,10 @@ function timonconfigs_seo_page_defaults(): array {
 		'pricing' => array( 'title' => 'Free, VIP Monthly & Lifetime Pricing | TimonConfigs', 'description' => sprintf( 'Compare Free access, VIP Monthly at %1$s per month, and VIP Lifetime at %2$s one time. Review renewal, license terms, and %3$s.', $monthly, $lifetime, $checkout ) ),
 		'vip-monthly' => array( 'title' => sprintf( 'TimonConfigs VIP Monthly — %s per Month', $monthly ), 'description' => 'VIP Monthly offers premium config access, covered updates while subscribed, private Discord channels, and VIP support. Review recurring billing and cancellation.' ),
 		'vip-lifetime' => array( 'title' => sprintf( 'TimonConfigs VIP Lifetime — %s One Time', $lifetime ), 'description' => sprintf( 'Choose VIP Lifetime for a %s one-time purchase. Explore premium configuration access, included license terms, and covered updates without monthly billing.', $lifetime ) ),
-		'reviews' => array( 'title' => 'Community Reviews & Customer Vouches | TimonConfigs', 'description' => 'Read TimonConfigs community feedback and configuration experiences. Demonstration cards are explicitly marked Sample Review and are not customer endorsements.' ),
+		'reviews' => array( 'title' => 'Discord Community Reviews & Vouches | TimonConfigs', 'description' => 'Read TimonConfigs community feedback imported from our Discord vouches channel, with message dates and links to the original posts.' ),
 		'faq' => array( 'title' => 'Configuration, Membership & Checkout FAQ | TimonConfigs', 'description' => sprintf( 'Find answers about Cronus Zen and XIM Matrix compatibility, Apex Legends releases, Free and VIP plans, %s, Discord access, and support.', 'website checkout' ) ),
 		'contact' => array( 'title' => 'Cronus Zen Discord & XIM Matrix Support | TimonConfigs', 'description' => 'Join the TimonConfigs Cronus Zen Discord community for XIM Matrix and Apex Legends setup help, release updates and Free or VIP membership support.' ),
-		'video-showcase' => array( 'title' => 'Apex Legends Gameplay Video Showcase | TimonConfigs', 'description' => 'Watch first-party TimonConfigs Apex Legends demonstrations. Check each video for confirmed device, configuration, recording, and setup information.' ),
+		'video-showcase' => array( 'title' => 'Apex Legends Gameplay Videos & Firing Range Practice | TimonConfigs', 'description' => 'Watch TimonConfigs Apex Legends videos featuring scoped firing-range practice and indoor or outdoor combat. Read a description beside each gameplay clip.' ),
 		'terms-of-service' => array( 'title' => 'Terms of Service | TimonConfigs', 'description' => 'Review TimonConfigs terms for digital configuration licenses, memberships, acceptable use, payment handling, account responsibilities, and consumer rights.' ),
 		'privacy-policy' => array( 'title' => 'Privacy Policy | TimonConfigs', 'description' => 'Learn how TimonConfigs handles website, account, Discord, support, and technical information, including data access and privacy contact options.' ),
 		'refund-policy' => array( 'title' => 'Refund & Cancellation Policy | TimonConfigs', 'description' => 'Review TimonConfigs digital-access refund requests, recurring subscription cancellation, support options, and applicable statutory consumer rights.' ),
@@ -145,6 +145,21 @@ function timonconfigs_print_metadata(): void {
 }
 add_action( 'wp_head', 'timonconfigs_print_metadata', 2 );
 
+/** Video schema shared by the theme fallback and an active provider's adapter. */
+function timonconfigs_video_schema_items(): array {
+	$visible = ( is_front_page() && ( ! function_exists( 'timonconfigs_home_has_section' ) || timonconfigs_home_has_section( 'videos' ) ) ) || is_page( 'video-showcase' );
+	if ( ! $visible || ! is_callable( array( 'TC_Videos', 'get_public_videos' ) ) ) { return array(); }
+	$schemas = array();
+	foreach ( TC_Videos::get_public_videos() as $video ) {
+		if ( empty( $video['verified'] ) || '' === trim( (string) $video['title'] ) || '' === trim( (string) $video['description'] ) || empty( $video['upload_date'] ) || empty( $video['duration'] ) || empty( $video['poster'] ) || empty( $video['url'] ) || ! strtotime( $video['upload_date'] ) ) { continue; }
+		$schema = array( '@type' => 'VideoObject', '@id' => home_url( '/video-showcase/#video-' . sanitize_title( (string) $video['id'] ) ), 'name' => $video['title'], 'description' => $video['description'], 'thumbnailUrl' => $video['poster'], 'uploadDate' => gmdate( 'c', strtotime( $video['upload_date'] ) ), 'duration' => $video['duration'] );
+		if ( 'youtube' === $video['type'] && ! empty( $video['youtube_id'] ) ) { $schema['embedUrl'] = 'https://www.youtube-nocookie.com/embed/' . rawurlencode( $video['youtube_id'] ); }
+		else { $schema['contentUrl'] = $video['url']; }
+		$schemas[] = $schema;
+	}
+	return $schemas;
+}
+
 /** @return array<int,array<string,mixed>> */
 function timonconfigs_schema_graph(): array {
 	$schemas = array();
@@ -168,15 +183,7 @@ function timonconfigs_schema_graph(): array {
 	if ( count( $crumbs ) > 1 && ! is_404() ) {
 		$schemas[] = array( '@type' => 'BreadcrumbList', 'itemListElement' => array_map( static fn( array $item, int $index ): array => array( '@type' => 'ListItem', 'position' => $index + 1, 'name' => $item['name'], 'item' => $item['url'] ), $crumbs, array_keys( $crumbs ) ) );
 	}
-	if ( ( ( is_front_page() && ( ! function_exists( 'timonconfigs_home_has_section' ) || timonconfigs_home_has_section( 'videos' ) ) ) || is_page( 'video-showcase' ) ) && method_exists( 'TC_Videos', 'get_public_videos' ) ) {
-		foreach ( TC_Videos::get_public_videos() as $video ) {
-			if ( empty( $video['verified'] ) || empty( $video['upload_date'] ) || empty( $video['duration'] ) || empty( $video['poster'] ) || empty( $video['url'] ) || ! strtotime( $video['upload_date'] ) ) { continue; }
-			$schema = array( '@type' => 'VideoObject', 'name' => $video['title'], 'description' => $video['description'], 'thumbnailUrl' => $video['poster'], 'uploadDate' => gmdate( 'c', strtotime( $video['upload_date'] ) ), 'duration' => $video['duration'] );
-			if ( 'youtube' === $video['type'] && ! empty( $video['youtube_id'] ) ) { $schema['embedUrl'] = 'https://www.youtube-nocookie.com/embed/' . rawurlencode( $video['youtube_id'] ); }
-			else { $schema['contentUrl'] = $video['url']; }
-			$schemas[] = $schema;
-		}
-	}
+	$schemas = array_merge( $schemas, timonconfigs_video_schema_items() );
 	if ( is_page( array( 'vip-monthly', 'vip-lifetime' ) ) && timonconfigs_direct_billing() ) {
 		$plan = is_page( 'vip-lifetime' ) ? 'lifetime' : 'monthly';
 		$checkout = timonconfigs_plan_url( $plan );

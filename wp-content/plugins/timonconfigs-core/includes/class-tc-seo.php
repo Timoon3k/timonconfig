@@ -26,6 +26,7 @@ final class TC_SEO {
 		add_filter( 'rank_math/sitemap/entry', array( __CLASS__, 'sitemap_entry' ), 10, 3 );
 		add_filter( 'rank_math/frontend/title', array( __CLASS__, 'rank_math_title' ), 20 );
 		add_filter( 'rank_math/frontend/description', array( __CLASS__, 'rank_math_description' ), 20 );
+		add_filter( 'rank_math/json_ld', array( __CLASS__, 'rank_math_video_schema' ), 99 );
 		add_filter( 'wpseo_robots_array', array( __CLASS__, 'provider_robots' ), 99 );
 		add_filter( 'rank_math/frontend/robots', array( __CLASS__, 'provider_robots' ), 99 );
 		add_filter( 'aioseo_robots_meta', array( __CLASS__, 'aioseo_robots' ), 99 );
@@ -64,6 +65,24 @@ final class TC_SEO {
 	public static function rank_math_title( string $title ): string { return self::rank_math_metadata( 'title', $title ); }
 	public static function rank_math_description( string $description ): string { return self::rank_math_metadata( 'description', $description ); }
 
+	/** Add verified visible video data through Rank Math, preserving its authored graph. */
+	public static function rank_math_video_schema( array $data ): array {
+		if ( ! function_exists( 'timonconfigs_video_schema_items' ) ) { return $data; }
+		$has_video = static function ( array $node, int $depth = 0 ) use ( &$has_video ): bool {
+			if ( in_array( 'VideoObject', (array) ( $node['@type'] ?? array() ), true ) ) { return true; }
+			if ( $depth >= 8 ) { return false; }
+			foreach ( $node as $value ) { if ( is_array( $value ) && $has_video( $value, $depth + 1 ) ) { return true; } }
+			return false;
+		};
+		if ( $has_video( $data ) ) { return $data; }
+		foreach ( timonconfigs_video_schema_items() as $index => $video ) {
+			$key = 'timonconfigs_video_' . $index;
+			while ( array_key_exists( $key, $data ) ) { $key .= '_'; }
+			$data[ $key ] = $video;
+		}
+		return $data;
+	}
+
 	private static function rank_math_metadata( string $field, string $incoming ): string {
 		if ( is_admin() ) { return $incoming; }
 		$object = get_queried_object();
@@ -77,7 +96,7 @@ final class TC_SEO {
 					$settings = get_option( 'rank-math-options-titles', array() );
 					$source = is_array( $settings ) ? ( $settings[ 'homepage_' . $field ] ?? '' ) : '';
 					$default = 'home';
-				} elseif ( 'contact' === $object->post_name ) { $default = 'contact'; }
+				} elseif ( in_array( $object->post_name, array( 'contact', 'reviews', 'video-showcase' ), true ) ) { $default = $object->post_name; }
 			}
 		} elseif ( $object instanceof WP_Term && in_array( $object->taxonomy, array( 'tc_game', 'tc_device' ), true ) ) {
 			$authored = get_term_meta( $object->term_id, 'rank_math_' . $field, true );

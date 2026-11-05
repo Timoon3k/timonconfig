@@ -38,6 +38,7 @@ $target = 'pending' === ( $access['action'] ?? '' ) ? get_permalink( $config_id 
     <div class="tc-config-card__body">
         <p class="tc-config-card__meta"><?php echo esc_html( implode( ' · ', array_filter( array( $game?->name, $device?->name ) ) ) ); ?></p>
         <h2><?php the_title(); ?></h2>
+        <a class="tc-config-card__details" href="<?php the_permalink(); ?>" aria-label="<?php echo esc_attr( 'Release details: ' . get_the_title() ); ?>">Release details</a>
         <?php if ( is_callable( array( 'TC_Config_Content', 'buttons' ) ) ) { echo TC_Config_Content::buttons( $config_id ); /* Buttons open server-authorized content dialogs. */ } ?>
         <span class="tc-config-card__primary" aria-hidden="true"><?php echo esc_html( $label ); ?> <span aria-hidden="true">↓</span></span>
     </div>

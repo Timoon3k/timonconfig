@@ -14,6 +14,7 @@ final class TC_Videos {
 		'tc_video_url'         => 'sanitize_video_url',
 		'tc_video_device'      => 'sanitize_label',
 		'tc_video_poster'      => 'sanitize_media_url',
+		'tc_video_poster_alt'  => 'sanitize_label',
 		'tc_video_upload_date' => 'sanitize_upload_date',
 		'tc_video_duration'    => 'sanitize_duration',
 		'tc_video_captions'    => 'sanitize_captions_url',
@@ -152,6 +153,7 @@ final class TC_Videos {
 			'tc_video_url' => array( 'Video URL — first-party MP4 or YouTube', 'url', 'https://…/apex-demo.mp4' ),
 			'tc_video_device' => array( 'Device / input label — publish only confirmed mapping', 'text', 'Cronus Zen S30 / XIM Matrix Controller / XIM Matrix MnK' ),
 			'tc_video_poster' => array( 'Poster image URL (or use the featured image)', 'url', 'https://…/poster.webp' ),
+			'tc_video_poster_alt' => array( 'Poster alternative text — describe the image; blank uses its Media Library text', 'text', 'Scoped target practice in the Apex Legends firing range' ),
 			'tc_video_upload_date' => array( 'Actual publication date (ISO 8601, with time zone)', 'text', '2026-10-21T12:00:00+00:00' ),
 			'tc_video_duration' => array( 'Actual duration (ISO 8601)', 'text', 'PT37S' ),
 			'tc_video_captions' => array( 'English captions URL (.vtt), where available', 'url', 'https://…/captions.vtt' ),
@@ -183,6 +185,54 @@ final class TC_Videos {
 		update_post_meta( $post_id, 'tc_video_verified', isset( $_POST['tc_video_verified'] ) && '1' === $_POST['tc_video_verified'] );
 	}
 
+	/** Descriptions apply only to the bundled footage inspected for this release. */
+	public static function bundled_video_details( int $index ): array {
+		$details = array(
+			1 => array( 'title' => 'Apex Legends Firing Range — Scoped Practice', 'description' => 'Watch scoped target practice in the Apex Legends firing range. The recording focuses on aiming through an optic and firing at a training dummy.', 'poster_alt' => 'A scoped weapon aimed at a training dummy in the Apex Legends firing range' ),
+			2 => array( 'title' => 'Apex Legends — Target Practice and Combat', 'description' => 'An Apex Legends gameplay montage combining scoped firing-range practice with combat footage. Watch the aiming view, weapon use, and movement shown in the recording.', 'poster_alt' => 'Scoped target practice in Apex Legends, framed by a blurred gameplay background' ),
+			3 => array( 'title' => 'Apex Legends — Indoor and Outdoor Combat', 'description' => 'Apex Legends combat clips with scoped aiming in indoor and outdoor encounters. The montage carries the caption “getting better each day”.', 'poster_alt' => 'Scoped Apex Legends combat inside a building beneath the caption getting better each day' ),
+		);
+		return $details[ $index ] ?? array( 'title' => '', 'description' => '', 'poster_alt' => '' );
+	}
+
+	private static function bundled_video_index( string $url ): int {
+		for ( $index = 1; $index <= 3; $index++ ) {
+			if ( $url === get_template_directory_uri() . '/assets/video/apex-demo-0' . $index . '.mp4' ) { return $index; }
+		}
+		return 0;
+	}
+
+	/** Empty descriptions may use known footage copy; authored text always wins. */
+	private static function description_for_url( string $url, string $description ): string {
+		if ( '' !== trim( $description ) ) { return $description; }
+		$index = self::bundled_video_index( $url );
+		return $index ? self::bundled_video_details( $index )['description'] : '';
+	}
+
+	/** Read only local attachment metadata or these known bundled poster files. */
+	public static function poster_details( string $poster, string $alternative = '', int $featured_id = 0 ): array {
+		$details = array( 'poster_alt' => self::sanitize_label( $alternative ), 'poster_width' => 0, 'poster_height' => 0 );
+		$attachment_id = $featured_id ?: attachment_url_to_postid( $poster );
+		if ( $attachment_id ) {
+			if ( '' === $details['poster_alt'] ) { $details['poster_alt'] = self::sanitize_label( get_post_meta( $attachment_id, '_wp_attachment_image_alt', true ) ); }
+			$metadata = wp_get_attachment_metadata( $attachment_id );
+			if ( is_array( $metadata ) ) {
+				$details['poster_width'] = absint( $metadata['width'] ?? 0 ); $details['poster_height'] = absint( $metadata['height'] ?? 0 );
+				$large = wp_get_attachment_image_src( $attachment_id, 'large' );
+				if ( is_array( $large ) && $poster === $large[0] ) { $details['poster_width'] = absint( $large[1] ); $details['poster_height'] = absint( $large[2] ); }
+			}
+		}
+		for ( $index = 1; $index <= 3; $index++ ) {
+			$file = '/assets/images/apex-demo-0' . $index . '.jpg';
+			if ( $poster !== get_template_directory_uri() . $file ) { continue; }
+			$dimensions = @getimagesize( get_template_directory() . $file );
+			if ( is_array( $dimensions ) ) { $details['poster_width'] = (int) $dimensions[0]; $details['poster_height'] = (int) $dimensions[1]; }
+			if ( '' === $details['poster_alt'] ) { $details['poster_alt'] = self::bundled_video_details( $index )['poster_alt']; }
+			break;
+		}
+		return $details;
+	}
+
 	/** @return array<int, array<string,mixed>> */
 	public static function get_public_videos(): array {
 		$posts = get_posts( array( 'post_type' => self::POST_TYPE, 'post_status' => 'publish', 'posts_per_page' => 3, 'orderby' => array( 'menu_order' => 'ASC', 'date' => 'DESC' ) ) );
@@ -194,10 +244,12 @@ final class TC_Videos {
 			}
 			$youtube_id = self::youtube_id( $url );
 			$poster = self::sanitize_media_url( get_post_meta( $post->ID, 'tc_video_poster', true ) );
-			$videos[] = array(
+			$featured_id = $poster ? 0 : (int) get_post_thumbnail_id( $post );
+			$poster = $poster ?: (string) get_the_post_thumbnail_url( $post, 'large' );
+			$videos[] = array_merge( array(
 				'id' => $post->ID, 'title' => get_the_title( $post ),
-				'description' => wp_strip_all_tags( get_the_excerpt( $post ) ?: $post->post_content ),
-				'url' => $url, 'poster' => $poster ?: (string) get_the_post_thumbnail_url( $post, 'large' ),
+				'description' => self::description_for_url( $url, wp_strip_all_tags( get_the_excerpt( $post ) ?: $post->post_content ) ),
+				'url' => $url, 'poster' => $poster,
 				'device' => self::sanitize_label( get_post_meta( $post->ID, 'tc_video_device', true ) ),
 				'upload_date' => self::sanitize_upload_date( get_post_meta( $post->ID, 'tc_video_upload_date', true ) ),
 				'duration' => self::sanitize_duration( get_post_meta( $post->ID, 'tc_video_duration', true ) ),
@@ -205,7 +257,7 @@ final class TC_Videos {
 				'captions' => self::sanitize_captions_url( get_post_meta( $post->ID, 'tc_video_captions', true ) ),
 				'mode' => self::sanitize_mode( get_post_meta( $post->ID, 'tc_video_mode', true ) ),
 				'type' => $youtube_id ? 'youtube' : 'mp4', 'youtube_id' => $youtube_id,
-			);
+			), self::poster_details( $poster, self::sanitize_label( get_post_meta( $post->ID, 'tc_video_poster_alt', true ) ), $featured_id ) );
 		}
 		if ( $posts ) {
 			return $videos;
@@ -216,16 +268,20 @@ final class TC_Videos {
 				continue;
 			}
 			$youtube_id = self::youtube_id( $url );
-			$videos[] = array(
+			$bundled_index = self::bundled_video_index( $url );
+			$bundled = $bundled_index > 0;
+			$stock = self::bundled_video_details( $bundled_index ?: $index );
+			$poster = self::sanitize_media_url( get_theme_mod( 'timonconfigs_video_' . $index . '_poster', $bundled ? get_template_directory_uri() . '/assets/images/apex-demo-0' . $bundled_index . '.jpg' : '' ) );
+			$videos[] = array_merge( array(
 				'id' => 'fallback-' . $index,
-				'title' => get_theme_mod( 'timonconfigs_video_' . $index . '_title', sprintf( 'Apex Legends Gameplay %02d', $index ) ),
-				'description' => 'First-party TimonConfigs Apex Legends gameplay demonstration.',
+				'title' => get_theme_mod( 'timonconfigs_video_' . $index . '_title', $bundled ? $stock['title'] : sprintf( 'Gameplay Video %02d', $index ) ),
+				'description' => self::description_for_url( $url, self::sanitize_label( get_theme_mod( 'timonconfigs_video_' . $index . '_description', '' ) ) ),
 				'url' => $url,
-				'poster' => self::sanitize_media_url( get_theme_mod( 'timonconfigs_video_' . $index . '_poster', get_template_directory_uri() . '/assets/images/apex-demo-0' . $index . '.jpg' ) ),
+				'poster' => $poster,
 				'device' => get_theme_mod( 'timonconfigs_video_' . $index . '_device', 'Apex Legends · Gameplay showcase' ),
 				'upload_date' => '', 'duration' => '', 'verified' => false, 'captions' => '', 'mode' => 'inline',
 				'type' => $youtube_id ? 'youtube' : 'mp4', 'youtube_id' => $youtube_id,
-			);
+			), self::poster_details( $poster, self::sanitize_label( get_theme_mod( 'timonconfigs_video_' . $index . '_poster_alt', '' ) ) ) );
 		}
 		return $videos;
 	}

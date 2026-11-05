@@ -59,6 +59,7 @@ required_files=(
   "$plugin/includes/class-tc-site.php"
   "$plugin/includes/class-tc-seo.php"
   "$plugin/includes/class-tc-videos.php"
+  "$plugin/includes/class-tc-discord-vouches.php"
 )
 
 for file in "${required_files[@]}"; do
@@ -77,7 +78,11 @@ rg -q "wp_verify_nonce" "$plugin/includes/class-tc-catalog.php"
 rg -q "tc_review" "$plugin/includes/class-tc-editorial.php"
 rg -q "tc_faq" "$plugin/includes/class-tc-editorial.php"
 rg -q "wp_verify_nonce" "$plugin/includes/class-tc-editorial.php"
-rg -q "SAMPLE REVIEW · DEMO CONTENT" "$theme/template-parts/review-cards.php"
+rg -q "source_url" "$theme/template-parts/review-cards.php"
+if rg -q "SAMPLE REVIEW · DEMO CONTENT" "$theme/template-parts/review-cards.php"; then
+  echo "Demo review markup must not appear in public community feedback"
+  exit 1
+fi
 rg -q "BreadcrumbList" "$theme/inc/seo.php"
 rg -q "Coming soon" "$theme/template-parts/game-strip.php"
 

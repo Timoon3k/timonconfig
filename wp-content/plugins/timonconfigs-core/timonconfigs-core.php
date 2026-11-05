@@ -2,7 +2,7 @@
 /**
  * Plugin Name: TimonConfigs Core
  * Description: TimonConfigs private configuration library, Discord membership and WooCommerce VIP/Discord bridge and protected membership access.
- * Version: 1.1.13
+ * Version: 1.2.0
  * Author: TimonConfigs
  * Text Domain: timonconfigs-core
  * Requires at least: 6.5
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_CORE_VERSION', '1.1.13' );
+define( 'TIMONCONFIGS_CORE_VERSION', '1.2.0' );
 define( 'TIMONCONFIGS_CORE_FILE', __FILE__ );
 
 require_once __DIR__ . '/includes/class-tc-checkout.php';
@@ -29,6 +29,7 @@ require_once __DIR__ . '/includes/class-tc-settings.php';
 require_once __DIR__ . '/includes/class-tc-editorial.php';
 require_once __DIR__ . '/includes/class-tc-seo.php';
 require_once __DIR__ . '/includes/class-tc-videos.php';
+require_once __DIR__ . '/includes/class-tc-discord-vouches.php';
 require_once __DIR__ . '/includes/class-tc-legal.php';
 require_once __DIR__ . '/includes/class-tc-site.php';
 
@@ -56,6 +57,7 @@ add_action(
 		TC_Editorial::init();
 		TC_SEO::init();
 		TC_Videos::init();
+		TC_Discord_Vouches::init();
 		TC_Legal::init();
 		TC_Site::init();
 	}
@@ -77,4 +79,5 @@ register_activation_hook(
 );
 
 register_deactivation_hook( __FILE__, 'flush_rewrite_rules' );
+register_deactivation_hook( __FILE__, array( TC_Discord_Vouches::class, 'deactivate' ) );
 

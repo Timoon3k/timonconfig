@@ -4,8 +4,8 @@
 set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
-theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.16.1.zip}")"
-core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-1.1.13.zip}")"
+theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.17.0.zip}")"
+core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-1.2.0.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
 db_image='mariadb:11.4'
@@ -124,6 +124,17 @@ $expect( str_contains( $hero_markup, 'apex-legends-crimson-hero.webp' ) && str_c
 $expect( str_contains( $hero_markup, esc_attr( $artwork['hero']['alt'] ) ), 'the installed hero renders its artwork description' );
 $expect( is_file( get_template_directory() . '/assets/css/crimson.css' ) && is_file( get_template_directory() . '/assets/js/hero-atmosphere.js' ), 'the actual ZIP includes crimson styling and motion controls' );
 $expect( 0 === (int) wp_count_posts( 'attachment' )->inherit, 'activating and rendering the theme does not import artwork automatically' );
+$expect( class_exists( 'TC_Discord_Vouches' ), 'the packaged Core loads the Discord vouches importer' );
+$vouches_config = TC_Discord_Vouches::config();
+$expect( '1557854161805115402' === $vouches_config['guild_id'] && '1560781856931315832' === $vouches_config['channel_id'], 'the importer targets the channel supplied by the owner' );
+$expect( ! TC_Discord_Vouches::ready() && ! wp_next_scheduled( 'tc_discord_vouches_sync' ), 'a fresh install invents no bot credentials and starts no authenticated synchronization' );
+$review_markup = timonconfigs_render_section( array( 'section' => 'reviews' ) );
+$expect( str_contains( $review_markup, 'tc-reviews-empty' ) && ! str_contains( $review_markup, 'tc-review-card' ), 'an empty release shows the community source link instead of fictional testimonials' );
+$default_videos = TC_Videos::get_public_videos();
+$expect( 3 === count( $default_videos ), 'the three bundled clips remain available after installation' );
+foreach ( $default_videos as $video ) {
+	$expect( ! empty( $video['description'] ) && ! empty( $video['poster_alt'] ), 'bundled footage has descriptive copy and poster alternative text' );
+}
 $expect( class_exists( 'TC_Woo_Bridge' ) && class_exists( 'TC_Woo_Checkout_Presentation' ), 'the WooCommerce bridge and checkout presentation are packaged and loaded' );
 $expect( ! class_exists( 'TC_Billing' ) && ! class_exists( 'TC_Billing_Stripe' ) && ! class_exists( 'TC_Billing_PayPal' ), 'retired direct-payment controllers are not restored by this package' );
 $expect( ! class_exists( 'TC_Woo_Captcha' ) && false === has_action( 'wc_ajax_tc_recaptcha_verify' ), 'retired captcha does not load or register a checkout verification endpoint' );

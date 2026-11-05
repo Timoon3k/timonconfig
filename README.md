@@ -1,6 +1,6 @@
 # TimonConfigs WordPress website
 
-Current implementation: **Core 1.1.13 / theme 0.16.1** uses WooCommerce and ArraySubs for payments, orders and recurring subscriptions. TimonConfigs connects Discord identities, verifies paid membership and manages its assigned Discord roles. The native `TC_Billing_*` checkout and its webhook endpoints were retired in Core 1.1.3; earlier billing guides describe historical releases and must not be used to configure the current checkout.
+Current implementation: **Core 1.2.0 / theme 0.17.0** uses WooCommerce and ArraySubs for payments, orders and recurring subscriptions. TimonConfigs connects Discord identities, verifies paid membership and manages its assigned Discord roles. The native `TC_Billing_*` checkout and its webhook endpoints were retired in Core 1.1.3; earlier billing guides describe historical releases and must not be used to configure the current checkout.
 
 Core 1.1.8 fixes undefined revocation/grant constants introduced in 1.1.7, protects profile rendering from subscription dependency errors, preserves Monthly cancellation controls after a Lifetime purchase, and ignores moderation audit entries older than the newest grant. English billing fields retain gateway-required validation and country refresh behavior. Core 1.1.9 removes TimonConfigs reCAPTCHA from checkout, including its widget, Google requests and classic/Store API payment gates, as requested by the owner. No reCAPTCHA keys are required. See the [critical-error hotfix and recovery guide](docs/HOTFIX_CORE_1.1.8.md), [member roles and reCAPTCHA setup](docs/VIP_DISCORD_CHECKOUT_ROLES_CAPTCHA_1.1.7.md), and [English checkout/Stripe wallet configuration](docs/STRIPE_WALLETS_CHECKOUT_EN_1.1.4.md).
 
@@ -17,6 +17,8 @@ Core 1.1.13/theme 0.15.1 sends Owner uploads through an authenticated frontend e
 Theme 0.16.0 adds the crimson Apex-inspired identity, adapted community emblem, responsive hero artwork, pausable reduced-motion-aware atmosphere and optional Media Library import with image metadata. Authored branding/content and Rank Math ownership are preserved. See the [Crimson theme update guide](docs/CRIMSON_APEX_THEME_0.16.0.md).
 
 Theme 0.16.1 isolates the desktop checkout panels from gateway hook elements, keeping billing details and payment aligned while preserving native WooCommerce updates and the mobile layout. See the [checkout layout update guide](docs/CHECKOUT_DESKTOP_LAYOUT_0.16.1.md).
+
+Core 1.2.0/theme 0.17.0 imports attributable text feedback from the configured Discord vouches channel, removes public demo testimonials, adds inspected video descriptions/poster alternatives and provider-aware video schema, and links catalogue cards to public release details. See the [Discord vouches, media and SEO update guide](docs/DISCORD_VOUCHES_MEDIA_SEO_1.2.0.md) and [catalogue SEO plan](docs/CONFIG_CATALOG_SEO_2026-11-05.md).
 
 Custom WordPress theme and business plugin for `timonconfigs.com`.
 

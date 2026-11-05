@@ -1,3 +1,11 @@
+# Bieżące wydanie — Core 1.2.0 / theme 0.17.0, 2026-11-05
+
+Kontynuuj `feature/discord-vouches-media-seo-20261105`, baza main4d302d4. Właściciel autoryzował końcowy push do main dla tego wydania. Instrukcja w `docs/DISCORD_VOUCHES_MEDIA_SEO_1.2.0.md`, katalog SEO w `docs/CONFIG_CATALOG_SEO_2026-11-05.md`. Nowe: automatyczny importer tekstowych opinii członków ze wskazanego kanału, brak publicznych demos/udawanych ocen, źródła i daty, opisy filmów/alt i provider-aware VideoObject, publiczne linki do wydań. Zachowany checkout0.16.1 i wszystkie wcześniejsze uprawnienia/płatności/SEO.
+
+448 PHP +348 browser /22 widoki, lint130PHP i static/JS/diff PASS, fixture posprzątany. Końcowa instalacja ZIP-ów w toku; sprawdź późniejsze PROGRESS/Git. Brak rzeczywistego dostępu do Discorda/hostingu — nie twierdź, że pobrano lub opublikowano autentyczne dane na produkcji. Właściciel potwierdził Administrator bota, nadal potrzebny Message Content Intent i prywatny token na serwerze. Importer pomija boty/webhooki/embed-only/załączniki; ewentualna odpowiedź właściciela o innym formacie źródła jest istotnym dalszym wymaganiem. Pakiety należy zainstalować razem (motyw pierwszy), bez ponownego setupu/JSON-a SEO.
+
+---
+
 # Stan publikacji checkoutu — 2026-11-04
 
 Właściciel polecił push do main. Zmiany motywu 0.16.1 z `fix/checkout-desktop-layout-20261104` (`51b950a`, walidacja `b0f6c56`) scalono fast-forward do aktualnego main; końcowy zdalny ref odczytaj z Git. Wyniki testów i gotowy ZIP są opisane w PROGRESS oraz `docs/CHECKOUT_DESKTOP_LAYOUT_0.16.1.md`. Nie zmieniono przetestowanych plików ani Core 1.1.13. Nie deklaruj instalacji produkcyjnej na podstawie push GitHub; nie wykonano wdrożenia WordPressa na Hostingerze.

@@ -7,7 +7,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TIMONCONFIGS_THEME_VERSION', '0.16.1' );
+define( 'TIMONCONFIGS_THEME_VERSION', '0.17.0' );
 
 require_once get_template_directory() . '/inc/plans.php';
 require_once get_template_directory() . '/inc/brand-assets.php';
@@ -264,38 +264,49 @@ function timonconfigs_render_faqs( ?int $limit = null ): void {
 	}
 }
 
-/**
- * Published reviews or clearly labelled layout samples for an empty site.
- *
- * @return array<int, array{name:string,quote:string,config:string,rating:int,demo:bool,image:string}>
- */
+/** Published community feedback; layout samples never appear as testimonials. */
 function timonconfigs_review_items(): array {
-	$posts = get_posts( array( 'post_type' => 'tc_review', 'post_status' => 'publish', 'posts_per_page' => 50, 'orderby' => array( 'menu_order' => 'ASC', 'date' => 'DESC' ) ) );
-	if ( $posts ) {
-		return array_map(
-			static fn( WP_Post $post ): array => array(
-				'name'   => get_the_title( $post ),
-				'quote'  => apply_filters( 'the_content', $post->post_content ),
-				'config' => (string) get_post_meta( $post->ID, 'tc_review_config', true ),
-				'rating' => min( 5, max( 1, (int) get_post_meta( $post->ID, 'tc_review_rating', true ) ) ),
-				'demo'   => (bool) get_post_meta( $post->ID, 'tc_review_demo', true ),
-				'image'  => (string) get_the_post_thumbnail_url( $post, 'thumbnail' ),
-			),
-			$posts
+	$posts = get_posts( array(
+		'post_type' => 'tc_review', 'post_status' => 'publish', 'posts_per_page' => 50,
+		'orderby' => array( 'menu_order' => 'ASC', 'date' => 'DESC' ),
+		'meta_query' => array( 'relation' => 'OR', array( 'key' => 'tc_review_demo', 'compare' => 'NOT EXISTS' ), array( 'key' => 'tc_review_demo', 'value' => '1', 'compare' => '!=' ) ),
+	) );
+	$reviews = array();
+	foreach ( $posts as $post ) {
+		$message = get_post_meta( $post->ID, '_tc_vouch_message_id', true );
+		$imported = is_string( $message ) && '' !== $message;
+		$source = '';
+		$date = get_post_time( DATE_ATOM, true, $post );
+		$date_label = get_post_time( 'Y-m-d', true, $post );
+		if ( $imported ) {
+			$managed_hash = get_post_meta( $post->ID, '_tc_vouch_managed_hash', true );
+			if ( get_post_meta( $post->ID, '_tc_vouch_hidden', true ) || get_post_meta( $post->ID, '_tc_vouch_deleted', true ) || ! is_string( $managed_hash ) || ! hash_equals( $managed_hash, hash( 'sha256', $post->post_title . "\n" . $post->post_content ) ) ) { continue; }
+			$guild = get_post_meta( $post->ID, '_tc_vouch_guild_id', true );
+			$channel = get_post_meta( $post->ID, '_tc_vouch_channel_id', true );
+			$valid_id = static fn( mixed $id ): bool => is_string( $id ) && 1 === preg_match( '/^[1-9][0-9]{16,19}$/D', $id );
+			if ( $valid_id( $guild ) && $valid_id( $channel ) && $valid_id( $message ) ) { $source = 'https://discord.com/channels/' . $guild . '/' . $channel . '/' . $message; }
+			if ( ! $source ) { continue; }
+			$timestamp = get_post_meta( $post->ID, '_tc_vouch_timestamp', true );
+			if ( ! is_string( $timestamp ) || ! preg_match( '/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/D', $timestamp ) ) { continue; }
+			try {
+				$source_date = new DateTimeImmutable( $timestamp );
+				$errors = DateTimeImmutable::getLastErrors();
+				if ( $errors && ( $errors['warning_count'] || $errors['error_count'] ) ) { continue; }
+				$date = $source_date->format( DATE_ATOM ); $date_label = $source_date->format( 'Y-m-d' );
+			} catch ( Exception $error ) { continue; }
+		}
+		$reviews[] = array(
+			'name' => get_the_title( $post ),
+			// The importer stores escaped text; never execute its WordPress shortcodes or blocks.
+			'quote' => $imported ? wpautop( $post->post_content ) : apply_filters( 'the_content', $post->post_content ),
+			'config' => (string) get_post_meta( $post->ID, 'tc_review_config', true ),
+			'rating' => $imported ? 0 : min( 5, max( 0, (int) get_post_meta( $post->ID, 'tc_review_rating', true ) ) ),
+			'demo' => false, 'image' => (string) get_the_post_thumbnail_url( $post, 'thumbnail' ),
+			'source_url' => $source, 'source_label' => $source ? 'Discord vouch' : '',
+			'date' => $date, 'date_label' => $date_label,
 		);
 	}
-	$samples = array(
-		array( 'Nova', '“Clear setup steps and a well-organized library. Finding the right profile felt straightforward.”', 'Apex Legends · Cronus Zen' ),
-		array( 'Vector', '“I liked being able to check the device and input details before choosing a configuration.”', 'Apex Legends · XIM Matrix' ),
-		array( 'Orbit', '“The walkthrough made it easy to follow each step and understand the settings for my setup.”', 'XIM Matrix · Controller' ),
-		array( 'Pulse', '“A focused library with clear version information. The setup guide was a useful starting point.”', 'Cronus Zen · Controller' ),
-		array( 'Cipher', '“Having the compatibility details in one place helped me compare the available options.”', 'Apex Legends · MnK' ),
-		array( 'Echo', '“A welcoming community and a simple way to explore the different membership options.”', 'TimonConfigs Community' ),
-	);
-	return array_map(
-		static fn( array $sample ): array => array( 'name' => $sample[0], 'quote' => $sample[1], 'config' => $sample[2], 'rating' => 5, 'demo' => true, 'image' => '' ),
-		$samples
-	);
+	return $reviews;
 }
 
 function timonconfigs_icon( string $name ): string {

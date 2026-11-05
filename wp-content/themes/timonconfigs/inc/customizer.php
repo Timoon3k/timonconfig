@@ -112,6 +112,11 @@ add_action(
 		}
 
 		for ( $index = 1; $index <= 3; $index++ ) {
+			foreach ( array( 'description' => 'description', 'poster_alt' => 'poster alternative text' ) as $field => $label ) {
+				$key = 'timonconfigs_video_' . $index . '_' . $field;
+				$manager->add_setting( $key, array( 'default' => '', 'sanitize_callback' => 'sanitize_textarea_field' ) );
+				$manager->add_control( $key, array( 'label' => sprintf( __( 'Apex video %1$d %2$s', 'timonconfigs' ), $index, $label ), 'section' => 'timonconfigs_home', 'type' => 'description' === $field ? 'textarea' : 'text', 'description' => __( 'Describe the actual recording or your replacement image. Bundled media includes descriptive defaults.', 'timonconfigs' ) ) );
+			}
 			$manager->add_setting(
 				'timonconfigs_video_' . $index . '_title',
 				array(

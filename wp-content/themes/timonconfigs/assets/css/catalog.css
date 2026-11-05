@@ -143,3 +143,7 @@
 .tc-config-card--compact.tc-config-card--pending{cursor:default}
 .tc-config-card--compact.tc-config-card--pending:hover{transform:none;border-color:#26343e}
 .tc-config-card--compact.tc-config-card--pending .tc-config-card__primary{background:#17242c;border:1px solid #3b4a53;color:#bbcad3}
+
+/* Public release pages stay discoverable alongside the protected download action. */
+.tc-config-card--compact .tc-config-card__details { position:relative; z-index:6; display:inline-flex; align-items:center; min-height:32px; margin-bottom:8px; color:var(--orange-2); font-size:12px; text-decoration:underline; text-underline-offset:3px; pointer-events:auto; }
+.tc-config-card--compact .tc-config-card__details:focus-visible { outline:3px solid var(--orange-2); outline-offset:3px; }

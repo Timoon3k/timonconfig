@@ -150,7 +150,7 @@ final class TC_Site {
 		$copy = array(
 			'pricing'        => 'Choose selected Free materials, a recurring VIP Monthly membership, or a one-time VIP Lifetime license. Compare the current website offer and review the price, renewal terms, and payment consent before secure hosted checkout.',
 			'games'          => 'Apex Legends is our flagship collection. Explore each game to check published releases, supported devices, and availability. Collections without published configurations are clearly marked Coming soon.',
-			'reviews'        => 'Explore community feedback. Cards marked “Sample Review / Demo Content” are examples of the layout rather than real customer testimonials.',
+			'reviews'        => 'Read community feedback from the TimonConfigs Discord vouches channel. Imported messages include their original date and a link to the source post.',
 			'faq'            => 'Find answers about supported devices, compatibility, membership access, checkout, and support. Check each configuration’s listed requirements before choosing a plan.',
 			'contact'        => 'For a faster answer, include the configuration name, device, input method, platform, and version. Use private support for account or purchase information; never post passwords or full payment details.',
 			'video-showcase' => 'Watch first-party TimonConfigs Apex Legends footage. Device and configuration labels are confirmed only when the recording metadata has been verified.',
