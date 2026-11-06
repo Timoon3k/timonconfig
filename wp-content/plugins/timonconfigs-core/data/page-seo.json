@@ -1,0 +1,244 @@
+{
+  "pages": {
+    "home": {
+      "title": "TimonConfigs | XIM Matrix & Cronus Zen Game Configs",
+      "focus_keyword": "TimonConfigs",
+      "description": "Explore TimonConfigs game configs for XIM Matrix and Cronus Zen. Compare releases, read setup details and choose Free or VIP access for your device."
+    },
+    "games": {
+      "title": "Game Config Collections | TimonConfigs",
+      "focus_keyword": "game config collections",
+      "description": "Explore TimonConfigs game config collections for Apex Legends, Call of Duty and more. Check supported devices, release status and setup details."
+    },
+    "pricing": {
+      "title": "TimonConfigs Pricing | Free, Monthly & Lifetime Access",
+      "focus_keyword": "TimonConfigs pricing",
+      "description": "Compare TimonConfigs pricing for Free, VIP Monthly and VIP Lifetime access. Review included materials, renewal terms and payment options before choosing."
+    },
+    "vip-monthly": {
+      "title": "TimonConfigs VIP Monthly | Monthly Config Access",
+      "focus_keyword": "TimonConfigs VIP Monthly",
+      "description": "Explore TimonConfigs VIP Monthly configuration access. Review included releases, covered updates, Discord access, recurring billing and cancellation terms."
+    },
+    "vip-lifetime": {
+      "title": "TimonConfigs VIP Lifetime | One-Time Config Access",
+      "focus_keyword": "TimonConfigs VIP Lifetime",
+      "description": "Explore TimonConfigs VIP Lifetime access with a one-time purchase. Read the included configuration scope, license terms and covered updates before choosing."
+    },
+    "reviews": {
+      "title": "TimonConfigs Reviews | Discord Community Vouches",
+      "focus_keyword": "TimonConfigs reviews",
+      "description": "Read TimonConfigs reviews from the Discord vouches channel. View community messages with their original wording, author, date and source link."
+    },
+    "faq": {
+      "title": "TimonConfigs FAQ | Configs, Devices & Memberships",
+      "focus_keyword": "TimonConfigs FAQ",
+      "description": "Read the TimonConfigs FAQ for device compatibility, configuration setup, Free and VIP access, Discord sign-in, checkout and membership questions."
+    },
+    "contact": {
+      "title": "Cronus Zen Discord & XIM Matrix Support | TimonConfigs",
+      "focus_keyword": "Cronus Zen Discord",
+      "description": "Join the TimonConfigs Cronus Zen Discord community for XIM Matrix setup questions, release information, membership help and contact options."
+    },
+    "video-showcase": {
+      "title": "Apex Legends Gameplay Videos | TimonConfigs",
+      "focus_keyword": "Apex Legends gameplay videos",
+      "description": "Watch TimonConfigs Apex Legends gameplay videos with scoped firing-range practice and indoor or outdoor combat. Read a description beside each clip."
+    },
+    "free-configs": {
+      "title": "Free Configs for XIM Matrix & Cronus Zen | TimonConfigs",
+      "focus_keyword": "Free configs",
+      "description": "Explore Free configs for XIM Matrix and Cronus Zen. Check each release for its game, supported input, platform, setup guide and access requirements."
+    },
+    "terms-of-service": {
+      "title": "TimonConfigs Terms of Service | Digital Access & Licenses",
+      "focus_keyword": "TimonConfigs terms of service",
+      "description": "Read the TimonConfigs terms of service for digital configuration licenses, Free and VIP access, account responsibilities, billing and consumer rights."
+    },
+    "privacy-policy": {
+      "title": "TimonConfigs Privacy Policy | Accounts, Data & Cookies",
+      "focus_keyword": "TimonConfigs privacy policy",
+      "description": "Read the TimonConfigs privacy policy for website and Discord account data, cookies, payment providers, support correspondence and privacy contact options."
+    },
+    "refund-policy": {
+      "title": "TimonConfigs Refund Policy | Refunds & Cancellation",
+      "focus_keyword": "TimonConfigs refund policy",
+      "description": "Read the TimonConfigs refund policy for digital-access requests, recurring subscription cancellation, support procedures and statutory consumer rights."
+    },
+    "xim-matrix-apex-legends": {
+      "title": "XIM Matrix Apex Legends Configs | TimonConfigs",
+      "focus_keyword": "XIM Matrix Apex Legends configs",
+      "description": "Explore the XIM Matrix Apex Legends configs collection. Check release status, supported input, platform, release version and setup guide before choosing your setup."
+    },
+    "cronus-zen-apex-legends": {
+      "title": "Cronus Zen Apex Legends Configs | TimonConfigs",
+      "focus_keyword": "Cronus Zen Apex Legends configs",
+      "description": "Explore the Cronus Zen Apex Legends configs collection. Check release status, supported input, platform, release version and setup guide before choosing your setup."
+    },
+    "xim-matrix-call-of-duty": {
+      "title": "XIM Matrix Call of Duty Configs | TimonConfigs",
+      "focus_keyword": "XIM Matrix Call of Duty configs",
+      "description": "Explore the XIM Matrix Call of Duty configs collection. Check release status, exact game title, update, platform and supported input before choosing your setup."
+    },
+    "cronus-zen-call-of-duty": {
+      "title": "Cronus Zen Call of Duty Configs | TimonConfigs",
+      "focus_keyword": "Cronus Zen Call of Duty configs",
+      "description": "Explore the Cronus Zen Call of Duty configs collection. Check release status, exact game title, update, platform and supported input before choosing your setup."
+    },
+    "xim-matrix-fortnite": {
+      "title": "XIM Matrix Fortnite Configs | TimonConfigs",
+      "focus_keyword": "XIM Matrix Fortnite configs",
+      "description": "Explore the XIM Matrix Fortnite configs collection. Check release status, version, supported input, platform and installation details before choosing your setup."
+    },
+    "cronus-zen-fortnite": {
+      "title": "Cronus Zen Fortnite Configs | TimonConfigs",
+      "focus_keyword": "Cronus Zen Fortnite configs",
+      "description": "Explore the Cronus Zen Fortnite configs collection. Check release status, version, supported input, platform and installation details before choosing your setup."
+    },
+    "xim-matrix-rainbow-six-siege": {
+      "title": "XIM Matrix Rainbow Six Siege Configs | TimonConfigs",
+      "focus_keyword": "XIM Matrix Rainbow Six Siege configs",
+      "description": "Explore the XIM Matrix Rainbow Six Siege configs collection. Check release status, game update, supported platform, input and setup notes before choosing your setup."
+    },
+    "cronus-zen-rainbow-six-siege": {
+      "title": "Cronus Zen Rainbow Six Siege Configs | TimonConfigs",
+      "focus_keyword": "Cronus Zen Rainbow Six Siege configs",
+      "description": "Explore the Cronus Zen Rainbow Six Siege configs collection. Check release status, game update, supported platform, input and setup notes before choosing your setup."
+    },
+    "xim-matrix-rust": {
+      "title": "XIM Matrix Rust Configs | TimonConfigs",
+      "focus_keyword": "XIM Matrix Rust configs",
+      "description": "Explore the XIM Matrix Rust configs collection. Check release status, edition, platform, input and game-update compatibility before choosing your setup."
+    },
+    "cronus-zen-rust": {
+      "title": "Cronus Zen Rust Configs | TimonConfigs",
+      "focus_keyword": "Cronus Zen Rust configs",
+      "description": "Explore the Cronus Zen Rust configs collection. Check release status, edition, platform, input and game-update compatibility before choosing your setup."
+    },
+    "xim-matrix-ea-sports-fc": {
+      "title": "XIM Matrix EA Sports FC Configs | TimonConfigs",
+      "focus_keyword": "XIM Matrix EA Sports FC configs",
+      "description": "Explore the XIM Matrix EA Sports FC configs collection. Check release status, edition, supported platform, controls and setup details before choosing your setup."
+    },
+    "cronus-zen-ea-sports-fc": {
+      "title": "Cronus Zen EA Sports FC Configs | TimonConfigs",
+      "focus_keyword": "Cronus Zen EA Sports FC configs",
+      "description": "Explore the Cronus Zen EA Sports FC configs collection. Check release status, edition, supported platform, controls and setup details before choosing your setup."
+    },
+    "xim-matrix-nba-2k": {
+      "title": "XIM Matrix NBA 2K Configs | TimonConfigs",
+      "focus_keyword": "XIM Matrix NBA 2K configs",
+      "description": "Explore the XIM Matrix NBA 2K configs collection. Check release status, annual edition, platform, input and supported update before choosing your setup."
+    },
+    "cronus-zen-nba-2k": {
+      "title": "Cronus Zen NBA 2K Configs | TimonConfigs",
+      "focus_keyword": "Cronus Zen NBA 2K configs",
+      "description": "Explore the Cronus Zen NBA 2K configs collection. Check release status, annual edition, platform, input and supported update before choosing your setup."
+    }
+  },
+  "games": {
+    "apex-legends": {
+      "title": "Apex Legends Configs | XIM Matrix & Cronus Zen",
+      "focus_keyword": "Apex Legends configs",
+      "description": "Explore Apex Legends configs from TimonConfigs. Compare XIM Matrix and Cronus Zen releases, input methods, supported platforms and setup information."
+    },
+    "call-of-duty": {
+      "title": "Call of Duty Configs & Release Status | TimonConfigs",
+      "focus_keyword": "Call of Duty configs",
+      "description": "Check TimonConfigs Call of Duty configs and collection status. Review the exact game title, update, device, platform and input listed for each release."
+    },
+    "fortnite": {
+      "title": "Fortnite Configs & Device Compatibility | TimonConfigs",
+      "focus_keyword": "Fortnite configs",
+      "description": "Explore the TimonConfigs Fortnite configs collection. Check release status and the game version, device, platform and input required for each setup."
+    },
+    "rainbow-six-siege": {
+      "title": "Rainbow Six Siege Configs & Setup Notes | TimonConfigs",
+      "focus_keyword": "Rainbow Six Siege configs",
+      "description": "Explore TimonConfigs Rainbow Six Siege configs and collection status. Check device, game update, platform and input details before choosing a setup."
+    },
+    "rust": {
+      "title": "Rust Configs & Platform Details | TimonConfigs",
+      "focus_keyword": "Rust configs",
+      "description": "Check TimonConfigs Rust configs and release status. Compare the edition, supported platform, device, input and game-update notes for each setup."
+    },
+    "ea-sports-fc": {
+      "title": "EA Sports FC Configs & Edition Details | TimonConfigs",
+      "focus_keyword": "EA Sports FC configs",
+      "description": "Explore TimonConfigs EA Sports FC configs and collection status. Check the exact edition, platform, device and supported controls for each setup."
+    },
+    "nba-2k": {
+      "title": "NBA 2K Configs & Edition Details | TimonConfigs",
+      "focus_keyword": "NBA 2K configs",
+      "description": "Check TimonConfigs NBA 2K configs and collection status. Review the annual edition, supported platform, device, input and update notes for each release."
+    }
+  },
+  "devices": {
+    "xim-matrix": {
+      "title": "XIM Matrix Configs & Setup Guides | TimonConfigs",
+      "focus_keyword": "XIM Matrix configs",
+      "description": "Explore TimonConfigs XIM Matrix configs by game. Compare controller or mouse-and-keyboard inputs, supported platforms, release versions and setup guides."
+    },
+    "cronus-zen": {
+      "title": "Cronus Zen Configs & Script Details | TimonConfigs",
+      "focus_keyword": "Cronus Zen configs",
+      "description": "Explore TimonConfigs Cronus Zen configs by game. Check each release for its script or backup format, supported input, platform and installation steps."
+    }
+  },
+  "archive": {
+    "tc_config": {
+      "title": "Game Configs for XIM Matrix & Cronus Zen | TimonConfigs",
+      "focus_keyword": "game configs",
+      "description": "Browse TimonConfigs game configs by game, XIM Matrix or Cronus Zen device, input and access tier. Read release details and setup notes before downloading."
+    }
+  },
+  "utility": {
+    "account": {
+      "title": "TimonConfigs Account | Discord Profile & Access",
+      "focus_keyword": "TimonConfigs account",
+      "description": "Sign in to your TimonConfigs account with Discord. View your profile, check membership access and manage the account options available to you."
+    },
+    "my-downloads": {
+      "title": "TimonConfigs Downloads | Your Protected Configs",
+      "focus_keyword": "TimonConfigs downloads",
+      "description": "Open your TimonConfigs downloads to view protected configurations available to your verified Discord account and current Free or VIP membership."
+    },
+    "cart": {
+      "title": "TimonConfigs Cart | Review Your Selected Plan",
+      "focus_keyword": "TimonConfigs cart",
+      "description": "Review your TimonConfigs cart before checkout. Check the selected membership, billing period and order total before continuing to payment."
+    },
+    "checkout": {
+      "title": "TimonConfigs Checkout | Membership Payment",
+      "focus_keyword": "TimonConfigs checkout",
+      "description": "Complete your TimonConfigs checkout with your connected Discord account. Review the selected membership, billing details, payment method and final total."
+    },
+    "myaccount": {
+      "title": "TimonConfigs My Account | Orders & Subscriptions",
+      "focus_keyword": "TimonConfigs my account",
+      "description": "Open TimonConfigs My Account to review the orders and subscription options linked to your signed-in account. Contact support if a purchase is not listed."
+    },
+    "shop": {
+      "title": "TimonConfigs Memberships | Monthly & Lifetime Plans",
+      "focus_keyword": "TimonConfigs memberships",
+      "description": "Compare TimonConfigs memberships and review the current Monthly and Lifetime plan details. Check the included access and billing terms before purchase."
+    }
+  },
+  "platforms": {
+    "pc": {
+      "title": "PC Game Configs & Setup Compatibility | TimonConfigs",
+      "focus_keyword": "PC game configs",
+      "description": "Explore TimonConfigs PC game configs. Check each release for its supported game, device, input method, game version and platform-specific setup notes."
+    },
+    "playstation": {
+      "title": "PlayStation Game Configs & Setup Details | TimonConfigs",
+      "focus_keyword": "PlayStation game configs",
+      "description": "Explore TimonConfigs PlayStation game configs. Check the supported console, game, device, input and release version before following the setup guide."
+    },
+    "xbox": {
+      "title": "Xbox Game Configs & Setup Details | TimonConfigs",
+      "focus_keyword": "Xbox game configs",
+      "description": "Explore TimonConfigs Xbox game configs. Check each release for its supported console, game version, device, input and platform-specific installation notes."
+    }
+  }
+}

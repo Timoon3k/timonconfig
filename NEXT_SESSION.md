@@ -1,3 +1,15 @@
+# Rank Math — tytuły, frazy i opisy wszystkich podstron, 2026-11-06
+
+Baza GitHub main `36fec51`, gałąź `feature/rank-math-page-metadata-20261106`. Właściciel zlecił tytuły, frazy i opisy dla każdej podstrony w Rank Math. Przygotowano 46 unikalnych profili: 27 głównych stron/kolekcji, 7 gier, 2 urządzenia, 3 platformy, archiwum i 6 ról konta/Woo. Angielski zestaw w `docs/seo/timonconfigs-page-metadata-2026-11-06.csv` i JSON; runtime kopia w Core/data/page-seo.json. To nie jest globalny plik importu Rank Math.
+
+Nowy TC_Rank_Math_Pages zapisuje natywne rank_math_title/description/focus_keyword oraz dwa natywne klucze archiwum, nie tylko fallback frontendu. Pierwszy zapis znanych profili ma backup; dalsze wejścia nie nadpisują autorskich korekt. Nieznane strony/produkty/wpisy uzupełniają braki z rzeczywistego tytułu/jawnego excerpt, konfiguracje wyłącznie z tytułu i przypisanych etykiet, bez prywatnych Values/plików/shortcode. Role Woo rozpoznawane po ID; konta i puste kolekcje zachowują noindex, bez zmian canonical/schema/statusów. Natywne tytuły zarządzanych kolekcji i termów zachowują paginację; archiwum używa %page%. Tools → Page SEO pokazuje faktyczne pola i bezpieczny restore. Porcje admin-only, kolejka nowych obiektów, blokada równoległych przebiegów i usuwanie starych wpisów kolejki.
+
+PASS: 197 nowych asercji native fields/backup/privacy/permissions/queue/pagination, 142 rzeczywiste HTTP/browser z aktywnym Rank Math w 10 widokach, 85 regresji SEO, lint 133 PHP, static/JS/diff oraz 116 świeżej instalacji ZIP-a. Wszystkie fixture usunięto i poprzednie ustawienia/wtyczki przywrócono; brak zmian na produkcji. Regresja kolekcji: 68 asercji PASS (razem 350 asercji PHP). Paczka Core 1.3.0 zawiera 24 pliki; CRC, SHA256 i byte identity potwierdzone w `artifacts/rank-math-pages-release-manifest-20261106.json`. Motyw 0.17.1 pozostaje bez zmian.
+
+Aktualizacja: wgraj Core 1.3.0, otwórz kokpit jako administrator i Tools → Page SEO; przy dużym katalogu kontynuuj kolejne porcje, następnie cache purge. Nie uruchamiaj setupu ani importu starego globalnego JSON-a. Nie deklaruj instalacji hostingu, odczytu obecnej produkcji/GSC ani gwarantowanych pozycji; końcowy zdalny ref sprawdź w Git. Instrukcja `docs/RANK_MATH_PAGES_1.3.0.md`.
+
+---
+
 # Bieżąca poprawka — automatyczne pełne vouches, Core 1.2.1 / theme 0.17.1
 
 Właściciel doprecyzował, że nowe tekstowe posty w vouches mają automatycznie pokazywać pełną treść na stronie, bez konieczności przejścia do Discorda. Baza GitHub main `e787e67`; gałąź `fix/automatic-inline-vouches-20261105`. Core 1.2.1 przenosi harmonogram z 15 minut na 60 sekund i planuje pierwszy odczyt od razu przy dostępnym tokenie; nie wykonuje HTTP podczas renderowania. Panel pokazuje gotowość, pauzę/brak tokena, najbliższy termin oraz błędy. Motyw 0.17.1 zachowuje pełne karty i oznacza link jako opcjonalne źródło; pusty stan dla gościa nie przekierowuje na Discorda, administrator dostaje link do ustawień.

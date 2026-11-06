@@ -89,7 +89,7 @@ final class TC_SEO {
 		$source = ''; $default = '';
 		if ( $object instanceof WP_Post && in_array( $object->post_type, array( 'page', 'tc_config' ), true ) ) {
 			$authored = get_post_meta( $object->ID, 'rank_math_' . $field, true );
-			if ( ! is_scalar( $authored ) || '' !== trim( (string) $authored ) ) { return $incoming; }
+			if ( ! is_scalar( $authored ) || '' !== trim( (string) $authored ) ) { return self::managed_pagination( $field, $incoming, $object ); }
 			$source = get_post_meta( $object->ID, 'tc_seo_' . $field, true );
 			if ( is_scalar( $source ) && '' === trim( (string) $source ) && 'page' === $object->post_type ) {
 				if ( 'page' === get_option( 'show_on_front' ) && is_front_page() && $object->ID === (int) get_option( 'page_on_front' ) ) {
@@ -100,7 +100,7 @@ final class TC_SEO {
 			}
 		} elseif ( $object instanceof WP_Term && in_array( $object->taxonomy, array( 'tc_game', 'tc_device' ), true ) ) {
 			$authored = get_term_meta( $object->term_id, 'rank_math_' . $field, true );
-			if ( ! is_scalar( $authored ) || '' !== trim( (string) $authored ) ) { return $incoming; }
+			if ( ! is_scalar( $authored ) || '' !== trim( (string) $authored ) ) { return self::managed_pagination( $field, $incoming, $object ); }
 			$source = get_term_meta( $object->term_id, 'tc_seo_' . $field, true );
 		} else { return $incoming; }
 		if ( ! is_scalar( $source ) ) { return $incoming; }
@@ -125,6 +125,14 @@ final class TC_SEO {
 			$source .= ' — Page ' . $page;
 		}
 		return $source;
+	}
+
+	/** Literal prepared titles need pagination too; unrelated authored titles remain provider-owned. */
+	private static function managed_pagination( string $field, string $incoming, WP_Post|WP_Term $object ): string {
+		if ( 'title' !== $field || ! class_exists( 'TC_Rank_Math_Pages' ) || ! TC_Rank_Math_Pages::manages_title( $object ) ) { return $incoming; }
+		$collection_page = $object instanceof WP_Post && class_exists( 'TC_Collections' ) && TC_Collections::is_collection( $object ) ? TC_Collections::page_number() : 1;
+		$page = max( 1, (int) get_query_var( 'paged' ), (int) get_query_var( 'page' ), $collection_page );
+		return $page > 1 && ! preg_match( '/\bPage\s+' . $page . '\b/i', $incoming ) ? $incoming . ' — Page ' . $page : $incoming;
 	}
 
 	public static function add_meta_boxes(): void {
