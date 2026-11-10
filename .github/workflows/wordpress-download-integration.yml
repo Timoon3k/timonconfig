@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'wp-content/**/*.php'
+      - 'wp-content/plugins/timonconfigs-core/data/*.json'
       - 'wp-content/plugins/timonconfigs-core/resources/legal/*.html'
       - 'wp-content/themes/timonconfigs/assets/css/checkout-premium.css'
       - 'wp-content/themes/timonconfigs/assets/css/woocommerce.css'
@@ -21,6 +22,8 @@ on:
       - 'tests/woo-checkout-presentation-integration.php'
       - 'tests/woo-sync-lock-integration.php'
       - 'tests/seo-integration.php'
+      - 'tests/apex-seo-metadata-integration.php'
+      - 'tests/apex-seo-intro-integration.php'
       - 'tests/collections-integration.php'
       - 'tests/catalog-search-intent-integration.php'
       - 'tests/home-search-focus-integration.php'
@@ -74,6 +77,10 @@ jobs:
         run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/woo-checkout-presentation-integration.php
       - name: Provider-aware SEO metadata and indexing safeguards
         run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/seo-integration.php
+      - name: Apex metadata upgrade preserves editorial and indexing decisions
+        run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/apex-seo-metadata-integration.php
+      - name: Apex introductions upgrade only unchanged public starter content
+        run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp eval-file /tests/apex-seo-intro-integration.php
       - name: Frontend Owner upload transport and permission safeguards
         run: docker compose -f docker-compose.local.yml run --rm -T -v "$PWD/tests:/tests:ro" cli wp --exec='define("WP_HTTP_BLOCK_EXTERNAL", true);' eval-file /tests/owner-upload-request-integration.php
       - name: Game and device collection pages

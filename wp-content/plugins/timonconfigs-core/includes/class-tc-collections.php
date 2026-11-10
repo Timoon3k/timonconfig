@@ -4,7 +4,9 @@ defined( 'ABSPATH' ) || exit;
 
 final class TC_Collections {
 	private const MARKER = '_tc_collection';
-	private const VERSION = '2026-10-30-v1';
+	private const VERSION = '2026-11-10-v2';
+	private const INTRO_BACKUP = '_tc_apex_intro_backup';
+	private const INTRO_MANAGED = '_tc_apex_intro_managed';
 
 	public static function init(): void {
 		add_action( 'admin_init', array( __CLASS__, 'maybe_install' ) );
@@ -78,6 +80,67 @@ final class TC_Collections {
 		return self::canonical_url();
 	}
 
+	private static function has_apex_intro( array $definition ): bool {
+		return 'apex-legends' === ( $definition['game'] ?? '' ) && in_array( $definition['device'] ?? '', array( 'xim-matrix', 'cronus-zen' ), true );
+	}
+
+	/** Editable public copy; legacy mode is an exact fingerprint of the previous stock blocks. */
+	public static function default_content( array $definition, bool $legacy = false ): string {
+		$device = $definition['device'] ?? '';
+		if ( ! $legacy && self::has_apex_intro( $definition ) ) {
+			if ( 'xim-matrix' === $device ) {
+				$paragraphs = array(
+					'Explore <strong>XIM Matrix Apex Legends configs and settings</strong> for controller and mouse &amp; keyboard setups. Compare the public release descriptions in the catalogue below to find the input method and access requirement that match your setup. A configuration name alone does not establish compatibility with every platform or game update.',
+					'Before importing XIM Matrix text code, check the individual release for its supported platform, game version and installation instructions. Review any firmware requirement stated in that release. Controller and mouse &amp; keyboard configurations can use different settings, so follow the Guide and Values supplied for the configuration you choose.',
+					'Open <strong>Release details</strong> to read the setup information before signing in or downloading. Check the Free or VIP access label on that release, read the <a href="' . esc_url( home_url( '/faq/' ) ) . '">setup FAQ</a>, or <a href="' . esc_url( home_url( '/pricing/' ) ) . '">compare access plans</a> before choosing your configuration.',
+				);
+				$heading = 'Choose your XIM Matrix configuration';
+			} else {
+				$paragraphs = array(
+					'Browse <strong>Cronus Zen Apex Legends configs and scripts</strong> by release and supported setup. Use the catalogue below to compare public descriptions, input methods and the access requirement shown on each configuration. Check the individual release information rather than assuming that every script supports the same platform or game update.',
+					'Before importing a Cronus Zen script or backup, review its game version, supported input, platform notes and installation instructions. Follow the Guide and Values for that specific release, and keep a backup of your existing setup. Settings from a different device or release may require a different installation process.',
+					'Open <strong>Release details</strong> to read about a configuration before signing in or downloading. Free and VIP labels identify the access required for that release. Read the <a href="' . esc_url( home_url( '/faq/' ) ) . '">setup FAQ</a> or <a href="' . esc_url( home_url( '/pricing/' ) ) . '">compare access plans</a> if you need help choosing the next step.',
+				);
+				$heading = 'Choose a Cronus Zen release for your setup';
+			}
+			return '<!-- wp:paragraph --><p>' . $paragraphs[0] . '</p><!-- /wp:paragraph -->' . "\n" . '<!-- wp:paragraph --><p>' . $paragraphs[1] . '</p><!-- /wp:paragraph -->' . "\n" . '<!-- wp:heading --><h2 class="wp-block-heading">' . esc_html( $heading ) . '</h2><!-- /wp:heading -->' . "\n" . '<!-- wp:paragraph --><p>' . $paragraphs[2] . '</p><!-- /wp:paragraph -->';
+		}
+		$intro = $definition['description'] ?? '';
+		$guide = 'xim-matrix' === $device ? 'Read the release guide for the supported input and platform before importing XIM Matrix text code. Controller and mouse & keyboard setups can require different configurations.' : ( 'cronus-zen' === $device ? 'Check the individual release for its Cronus Zen script or backup format, supported input and installation steps. A device label does not imply compatibility with every game update.' : 'Free access follows the verification requirements shown on each configuration. Sign in with the same Discord account to request a protected file; files remain outside the public Media Library.' );
+		return '<!-- wp:paragraph --><p>' . esc_html( $intro ) . '</p><!-- /wp:paragraph -->' . "\n" . '<!-- wp:heading --><h2 class="wp-block-heading">Choose the release that matches your setup</h2><!-- /wp:heading -->' . "\n" . '<!-- wp:paragraph --><p>' . esc_html( $guide ) . '</p><!-- /wp:paragraph -->';
+	}
+
+	/** Upgrade only known stock or unchanged managed copy; never rewrite an author's introduction. */
+	public static function upgrade_intro( int $id ): array|WP_Error {
+		if ( ! current_user_can( 'manage_options' ) ) { return new WP_Error( 'tc_apex_intro_forbidden', 'Administrator permission is required.' ); }
+		$page = $id > 0 ? get_post( $id ) : null;
+		$definition = $page instanceof WP_Post ? self::definition( $page ) : null;
+		if ( ! $page instanceof WP_Post || ! $definition || ! self::has_apex_intro( $definition ) || 'publish' !== $page->post_status || '' !== $page->post_password ) { return array( 'changed' => false, 'status' => 'ineligible' ); }
+		$desired = self::default_content( $definition );
+		$content = $page->post_content;
+		$managed = get_post_meta( $id, self::INTRO_MANAGED, true );
+		$unchanged_managed = is_array( $managed ) && is_string( $managed['hash'] ?? null ) && hash_equals( $managed['hash'], hash( 'sha256', $content ) );
+		if ( $content !== $desired && '' !== trim( $content ) && $content !== self::default_content( $definition, true ) && ! $unchanged_managed ) { return array( 'changed' => false, 'status' => 'authored' ); }
+		if ( $content !== $desired ) {
+			if ( ! metadata_exists( 'post', $id, self::INTRO_BACKUP ) ) {
+				add_post_meta( $id, self::INTRO_BACKUP, wp_slash( array( 'content' => $content, 'hash' => hash( 'sha256', $content ) ) ), true );
+			}
+			$backup = get_post_meta( $id, self::INTRO_BACKUP, true );
+			if ( ! is_array( $backup ) || ! is_string( $backup['content'] ?? null ) || ! is_string( $backup['hash'] ?? null ) || ! hash_equals( $backup['hash'], hash( 'sha256', $backup['content'] ) ) ) { return new WP_Error( 'tc_apex_intro_backup', 'The original introduction could not be backed up. The page was not changed.' ); }
+			global $wpdb;
+			$live = $wpdb->get_row( $wpdb->prepare( "SELECT post_content, post_status, post_password FROM {$wpdb->posts} WHERE ID=%d", $id ) );
+			if ( ! $live || 'publish' !== $live->post_status || '' !== $live->post_password ) { return array( 'changed' => false, 'status' => 'ineligible' ); }
+			if ( $live->post_content !== $content ) { return array( 'changed' => false, 'status' => 'authored' ); }
+			$result = wp_update_post( wp_slash( array( 'ID' => $id, 'post_content' => $desired ) ), true );
+			if ( is_wp_error( $result ) || get_post_field( 'post_content', $id, 'raw' ) !== $desired ) { return new WP_Error( 'tc_apex_intro_write', 'The introduction could not be saved. Its original content remains backed up.' ); }
+			do_action( 'litespeed_purge_url', get_permalink( $id ) );
+		}
+		$marker = array( 'version' => self::VERSION, 'hash' => hash( 'sha256', $desired ) );
+		if ( $managed !== $marker ) { update_post_meta( $id, self::INTRO_MANAGED, $marker ); }
+		if ( get_post_meta( $id, self::INTRO_MANAGED, true ) !== $marker ) { return new WP_Error( 'tc_apex_intro_marker', 'The introduction was saved but its managed marker needs another administrator check.' ); }
+		return array( 'changed' => $content !== $desired, 'status' => $content !== $desired ? 'updated' : 'current' );
+	}
+
 	/** Creates only missing pages. Existing authored pages, drafts and deletions are preserved. */
 	public static function install(): array|WP_Error {
 		if ( ! ( defined( 'WP_CLI' ) && WP_CLI ) && ! current_user_can( 'manage_options' ) ) { return new WP_Error( 'tc_collection_forbidden', 'Administrator permission is required.' ); }
@@ -85,15 +148,19 @@ final class TC_Collections {
 		foreach ( self::page_ids() as $id ) { $existing[ get_post_meta( $id, self::MARKER, true ) ] = $id; }
 		$ids = array();
 		foreach ( self::definitions() as $key => $definition ) {
-			if ( isset( $existing[ $key ] ) ) { $ids[ $key ] = $existing[ $key ]; continue; }
+			if ( isset( $existing[ $key ] ) ) {
+				$ids[ $key ] = $existing[ $key ];
+				if ( current_user_can( 'manage_options' ) && self::has_apex_intro( $definition ) ) { $upgrade = self::upgrade_intro( (int) $existing[ $key ] ); if ( is_wp_error( $upgrade ) ) { return $upgrade; } }
+				continue;
+			}
 			if ( get_page_by_path( $key, OBJECT, 'page' ) ) { continue; }
 			$game = $definition['game'] ? get_term_by( 'slug', $definition['game'], 'tc_game' ) : null;
 			$device = $definition['device'] ? get_term_by( 'slug', $definition['device'], 'tc_device' ) : null;
 			if ( $definition['game'] && ( ! $game instanceof WP_Term || ! $device instanceof WP_Term ) ) { continue; }
-			$intro = $definition['description'];
-			$guide = 'xim-matrix' === $definition['device'] ? 'Read the release guide for the supported input and platform before importing XIM Matrix text code. Controller and mouse & keyboard setups can require different configurations.' : ( 'cronus-zen' === $definition['device'] ? 'Check the individual release for its Cronus Zen script or backup format, supported input and installation steps. A device label does not imply compatibility with every game update.' : 'Free access follows the verification requirements shown on each configuration. Sign in with the same Discord account to request a protected file; files remain outside the public Media Library.' );
-			$content = '<!-- wp:paragraph --><p>' . esc_html( $intro ) . '</p><!-- /wp:paragraph -->' . "\n" . '<!-- wp:heading --><h2 class="wp-block-heading">Choose the release that matches your setup</h2><!-- /wp:heading -->' . "\n" . '<!-- wp:paragraph --><p>' . esc_html( $guide ) . '</p><!-- /wp:paragraph -->';
-			$id = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => $definition['title'], 'post_name' => $key, 'post_content' => $content, 'meta_input' => array( self::MARKER => $key, 'tc_seo_title' => $definition['title'] . ' | TimonConfigs', 'tc_seo_description' => $definition['description'], 'rank_math_focus_keyword' => trim( ( $device instanceof WP_Term ? $device->name . ' ' : '' ) . ( $game instanceof WP_Term ? $game->name : 'Free configs' ) ) ) ), true );
+			$content = self::default_content( $definition );
+			$meta = array( self::MARKER => $key, 'tc_seo_title' => $definition['title'] . ' | TimonConfigs', 'tc_seo_description' => $definition['description'], 'rank_math_focus_keyword' => trim( ( $device instanceof WP_Term ? $device->name . ' ' : '' ) . ( $game instanceof WP_Term ? $game->name : 'Free configs' ) ) );
+			if ( self::has_apex_intro( $definition ) ) { $meta[ self::INTRO_MANAGED ] = array( 'version' => self::VERSION, 'hash' => hash( 'sha256', $content ) ); }
+			$id = wp_insert_post( array( 'post_type' => 'page', 'post_status' => 'publish', 'post_title' => $definition['title'], 'post_name' => $key, 'post_content' => $content, 'meta_input' => $meta ), true );
 			if ( ! is_wp_error( $id ) ) { $ids[ $key ] = $id; }
 		}
 		return $ids;
@@ -102,7 +169,19 @@ final class TC_Collections {
 	public static function maybe_install(): void {
 		// Never provision pages or invoke publication hooks during an Owner upload.
 		if ( 'GET' !== ( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) || wp_doing_ajax() || wp_doing_cron() || 'admin-post.php' === ( $GLOBALS['pagenow'] ?? '' ) ) { return; }
-		if ( wp_installing() || ! current_user_can( 'manage_options' ) || self::VERSION === get_option( 'timonconfigs_collections_version' ) ) { return; }
+		$installed_version = get_option( 'timonconfigs_collections_version' );
+		if ( wp_installing() || ! current_user_can( 'manage_options' ) || self::VERSION === $installed_version ) { return; }
+		if ( '2026-10-30-v1' === $installed_version ) {
+			// This release updates two existing introductions; deleted collections stay deleted.
+			foreach ( self::page_ids() as $id ) {
+				$definition = self::definition( (int) $id );
+				if ( ! $definition || ! self::has_apex_intro( $definition ) ) { continue; }
+				$result = self::upgrade_intro( (int) $id );
+				if ( is_wp_error( $result ) ) { return; }
+			}
+			update_option( 'timonconfigs_collections_version', self::VERSION, false );
+			return;
+		}
 		$result = self::install();
 		if ( is_wp_error( $result ) ) { return; }
 		foreach ( array_diff_key( self::definitions(), $result ) as $key => $definition ) {

@@ -1,9 +1,9 @@
 {
   "pages": {
     "home": {
-      "title": "TimonConfigs | XIM Matrix & Cronus Zen Game Configs",
+      "title": "TimonConfigs | XIM Matrix & Cronus Zen Configs for Apex Legends",
       "focus_keyword": "TimonConfigs",
-      "description": "Explore TimonConfigs game configs for XIM Matrix and Cronus Zen. Compare releases, read setup details and choose Free or VIP access for your device."
+      "description": "Explore TimonConfigs XIM Matrix and Cronus Zen configs for Apex Legends. Compare release details, setup guidance and Free or VIP access for your device."
     },
     "games": {
       "title": "Game Config Collections | TimonConfigs",
@@ -66,14 +66,14 @@
       "description": "Read the TimonConfigs refund policy for digital-access requests, recurring subscription cancellation, support procedures and statutory consumer rights."
     },
     "xim-matrix-apex-legends": {
-      "title": "XIM Matrix Apex Legends Configs | TimonConfigs",
+      "title": "XIM Matrix Apex Legends Configs & Settings | TimonConfigs",
       "focus_keyword": "XIM Matrix Apex Legends configs",
-      "description": "Explore the XIM Matrix Apex Legends configs collection. Check release status, supported input, platform, release version and setup guide before choosing your setup."
+      "description": "Explore XIM Matrix Apex Legends configs and settings. Check controller or mouse-and-keyboard input, release details, platform notes and access requirements."
     },
     "cronus-zen-apex-legends": {
-      "title": "Cronus Zen Apex Legends Configs | TimonConfigs",
+      "title": "Cronus Zen Apex Legends Configs & Scripts | TimonConfigs",
       "focus_keyword": "Cronus Zen Apex Legends configs",
-      "description": "Explore the Cronus Zen Apex Legends configs collection. Check release status, supported input, platform, release version and setup guide before choosing your setup."
+      "description": "Browse Cronus Zen Apex Legends configs and scripts. Compare release details, supported inputs, platform notes and Free or VIP access before choosing a setup."
     },
     "xim-matrix-call-of-duty": {
       "title": "XIM Matrix Call of Duty Configs | TimonConfigs",
@@ -138,9 +138,9 @@
   },
   "games": {
     "apex-legends": {
-      "title": "Apex Legends Configs | XIM Matrix & Cronus Zen",
+      "title": "Apex Legends Configs – Cronus Zen & XIM Matrix | TimonConfigs",
       "focus_keyword": "Apex Legends configs",
-      "description": "Explore Apex Legends configs from TimonConfigs. Compare XIM Matrix and Cronus Zen releases, input methods, supported platforms and setup information."
+      "description": "Browse Apex Legends configs for Cronus Zen and XIM Matrix. Compare published releases, supported input, platform details and Free or VIP access."
     },
     "call-of-duty": {
       "title": "Call of Duty Configs & Release Status | TimonConfigs",

@@ -4,8 +4,9 @@ defined( 'ABSPATH' ) || exit;
 $collection = is_callable( array( 'TC_Collections', 'current' ) ) ? TC_Collections::current() : null;
 if ( ! $collection ) { require get_template_directory() . '/page.php'; return; }
 $page_id = get_queried_object_id();
-$page = get_post( $page_id );
-if ( $page instanceof WP_Post && post_password_required( $page ) ) { require get_template_directory() . '/page.php'; return; }
+// WordPress owns the global $page for pagination; keep this object across wp_head callbacks.
+$collection_post = get_post( $page_id );
+if ( $collection_post instanceof WP_Post && post_password_required( $collection_post ) ) { require get_template_directory() . '/page.php'; return; }
 $game_term = $collection['game_term'] ?? null;
 $device_term = $collection['device_term'] ?? null;
 $image = $game_term instanceof WP_Term ? TC_Catalog::collection_image( $game_term ) : '';
@@ -33,7 +34,7 @@ get_header();
 			<?php timonconfigs_breadcrumbs(); ?>
 			<p class="tc-eyebrow"><?php echo $game_term instanceof WP_Term ? 'GAME &amp; DEVICE COLLECTION' : 'FREE CONFIG COLLECTION'; ?></p>
 			<h1><?php echo esc_html( get_the_title( $page_id ) ); ?></h1>
-			<div class="tc-lead"><?php echo $page instanceof WP_Post && '' !== trim( $page->post_content ) ? apply_filters( 'the_content', get_the_content( null, false, $page ) ) : wp_kses_post( wpautop( $collection['description'] ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Standard authored page content filters. ?></div>
+			<div class="tc-lead"><?php echo $collection_post instanceof WP_Post && '' !== trim( $collection_post->post_content ) ? apply_filters( 'the_content', get_the_content( null, false, $collection_post ) ) : wp_kses_post( wpautop( $collection['description'] ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Standard authored page content filters. ?></div>
 			<span class="tc-collection-status<?php echo $available ? ' is-available' : ''; ?>"><?php echo esc_html( $available ? 'Published releases available' : 'Coming soon · release details pending' ); ?></span>
 			<div class="tc-collection-links">
 				<?php if ( $game_term instanceof WP_Term ) : $game_url = get_term_link( $game_term ); ?>

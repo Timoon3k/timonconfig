@@ -1,3 +1,15 @@
+# Bieżące wydanie — poprawki Apex SEO z PDF, 2026-11-10
+
+Właściciel przesłał `TimonConfigs_SEO_Updates.pdf` i zlecił pobranie najnowszego GitHub, zastosowanie uzasadnionych poprawek i push main. Baza `27c8ab8`, gałąź `fix/apex-seo-pdf-20261110`. PDF potraktowano jako rekomendacje do weryfikacji: cztery profile Home/Apex/game×device z nowymi tytułami/opisami/frazami i dwa wstępy kolekcji. Nie wprowadzono niepotwierdzonych „Best”, popularności, dostępności wymienionych wydań, sezonów 30/31 ani gwarancji indeksowania. Pozostałe 42 profile zachowują treść. Aktualny arkusz/JSON: docs/seo/timonconfigs-page-metadata-2026-11-10.*.
+
+Ważny znaleziony błąd: przy aktywnym Rank Math wp_head zmieniał globalne `$page`, które szablon traktował jako WP_Post, więc mimo poprawnej bazy pokazywał generic description zamiast pełnego intro. Motyw 0.17.2 przechowuje `$collection_post`, wyświetla pełne zapisane wstępy i ma zgodny cache version. Core 1.3.1 ma idempotentną migrację stock/managed intro z pierwszą kopią i fresh-SQL sprawdzeniem treści przed zapisem, zachowuje authored/draft/password/H1/meta/status. Runtime v1→v2 dotyczy wyłącznie istniejących stron Apex, bez odtwarzania innych usuniętych kolekcji. Metadane natywne v2 zachowują późniejsze ręczne poprawki oraz explicit restored marker z wcześniejszych wydań. Canonical, paginacja, robots, płatności, role i prywatne pliki bez zmian. CI obejmuje dwa nowe zestawy migracji.
+
+PASS: **45 PDF metadata +68 intro +197 native metadata +85 SEO +68 collections =463 PHP**, **268 native Rank Math browser /14 widoków** (390/1440), **136 lint PHP**, static/JS/YAML/diff i **120 fresh ZIP installation**. Wszystkie oznaczone fixture i zmieniane opcje przywrócono, niezależny cleanup zero pozostałych QA. Wczesne błędy w fixture normalizacji/rewrite restore poprawiono w testach; finalna walidacja jest PASS. Wizualnie sprawdzono mobilny i desktopowy hero z pełnym intro. Paczki Core1.3.1 (24 pliki) i theme0.17.2 (105 plików) mają CRC/SHA256 i byte identity; manifest artifacts/apex-seo-pdf-release-manifest-20261110.json.
+
+Instalacja: motyw 0.17.2 pierwszy, Core 1.3.1 drugi; kokpit administratora uruchamia migracje, Tools → Page SEO pozwala dokończyć porcje, potem cache purge i kontrola czterech adresów w GSC po rzeczywistym wdrożeniu. Nie uruchamiaj instalatora ani starego globalnego importu SEO. Instrukcja docs/APEX_SEO_PDF_1.3.1.md. Nie deklaruj instalacji hostingu, odczytu obecnej produkcji/GSC ani natychmiastowej widoczności w Google: środowisko nie ma tych dostępów. Push main jest jawnie autoryzowany; końcowy zdalny ref odczytaj z Git.
+
+---
+
 # Rank Math — tytuły, frazy i opisy wszystkich podstron, 2026-11-06
 
 Baza GitHub main `36fec51`, gałąź `feature/rank-math-page-metadata-20261106`. Właściciel zlecił tytuły, frazy i opisy dla każdej podstrony w Rank Math. Przygotowano 46 unikalnych profili: 27 głównych stron/kolekcji, 7 gier, 2 urządzenia, 3 platformy, archiwum i 6 ról konta/Woo. Angielski zestaw w `docs/seo/timonconfigs-page-metadata-2026-11-06.csv` i JSON; runtime kopia w Core/data/page-seo.json. To nie jest globalny plik importu Rank Math.

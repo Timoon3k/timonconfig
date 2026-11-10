@@ -3,7 +3,7 @@
 defined( 'ABSPATH' ) || exit;
 
 final class TC_Rank_Math_Pages {
-	private const VERSION = '2026-11-06-v1';
+	private const VERSION = '2026-11-10-v2';
 	private const BACKUP = '_tc_rank_math_page_backup';
 	private const MANAGED = '_tc_rank_math_page_managed';
 	private const STATE = 'timonconfigs_page_seo_state';
@@ -97,7 +97,7 @@ final class TC_Rank_Math_Pages {
 		$id = $object instanceof WP_Post ? $object->ID : $object->term_id;
 		$profile = self::profile( $object ); $result = array( 'changed' => 0, 'kept' => 0 );
 		$managed = self::get( $type, $id, self::MANAGED );
-		if ( ! $profile || ( is_array( $managed ) && self::VERSION === ( $managed['version'] ?? '' ) ) ) { return $result; }
+		if ( ! $profile || ( is_array( $managed ) && ( ! empty( $managed['restored'] ) || self::VERSION === ( $managed['version'] ?? '' ) ) ) ) { return $result; }
 		$backup = self::get( $type, $id, self::BACKUP );
 		if ( ! is_array( $backup ) ) {
 			$backup = array();
@@ -139,7 +139,7 @@ final class TC_Rank_Math_Pages {
 		$options = get_option( 'rank-math-options-titles', array() );
 		if ( ! is_array( $options ) ) { return new WP_Error( 'tc_seo_options', 'Review the existing Rank Math title settings before continuing.' ); }
 		$managed = get_option( 'tc_rank_math_archive_managed', array() );
-		if ( is_array( $managed ) && self::VERSION === ( $managed['version'] ?? '' ) ) { return array( 'changed' => 0 ); }
+		if ( is_array( $managed ) && ( ! empty( $managed['restored'] ) || self::VERSION === ( $managed['version'] ?? '' ) ) ) { return array( 'changed' => 0 ); }
 		$profile = self::catalogue()['archive']['tc_config'] ?? array();
 		if ( ! $profile ) { return new WP_Error( 'tc_seo_profile', 'The archive metadata profile is missing.' ); }
 		if ( false === get_option( 'tc_rank_math_archive_backup', false ) ) {
