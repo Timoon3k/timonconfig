@@ -5,7 +5,7 @@ set -euo pipefail
 
 test_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 theme_zip="$(realpath "${1:-$test_root/artifacts/timonconfigs-theme-0.17.2.zip}")"
-core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-1.3.1.zip}")"
+core_zip="$(realpath "${2:-$test_root/artifacts/timonconfigs-core-1.3.2.zip}")"
 wp_image='wordpress:6.8.3-php8.2-apache'
 cli_image='wordpress:cli-php8.2'
 db_image='mariadb:11.4'
@@ -115,6 +115,9 @@ $expect( 'timonconfigs' === get_stylesheet(), 'the packaged theme is activated' 
 $expect( getenv( 'TC_EXPECTED_THEME_VERSION' ) === wp_get_theme()->get( 'Version' ), 'installed theme version matches its ZIP' );
 $expect( TIMONCONFIGS_THEME_VERSION === wp_get_theme()->get( 'Version' ), 'asset cache version matches the installed theme release' );
 $expect( getenv( 'TC_EXPECTED_CORE_VERSION' ) === TIMONCONFIGS_CORE_VERSION, 'installed plugin version matches its ZIP' );
+$expect( TC_Downloads::request_url() === home_url( '/?tc_download_request=1' ), 'packaged member download requests use the public installation origin' );
+$expect( 0 === has_action( 'parse_request', array( 'TC_Downloads', 'dispatch' ) ), 'packaged downloads dispatch before page middleware' );
+$expect( false !== has_action( 'admin_post_tc_request_download', array( 'TC_Downloads', 'request' ) ), 'packaged downloads retain compatibility with older native forms' );
 $expect( function_exists( 'timonconfigs_brand_assets' ), 'the installed theme loads its public artwork helper' );
 $artwork = timonconfigs_brand_assets();
 foreach ( array( 'emblem', 'hero' ) as $asset_name ) {

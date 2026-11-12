@@ -209,7 +209,10 @@ final class TC_Member_Area {
 					<?php if ( ! empty( $status['error'] ) || 'unavailable' === $state ) : ?><p class="tc-member-message" role="status"><?php echo esc_html( ! empty( $status['error'] ) ? (string) $status['error'] : 'Membership verification is temporarily unavailable. Protected files remain locked. Please try again shortly.' ); ?></p><?php elseif ( $owner_tools ) : ?><p class="tc-member-note">You can manage configs. Downloads follow your Free or VIP membership.</p><?php elseif ( $syncing ) : ?><p class="tc-member-note" role="status">Your Discord account is connected. Membership roles are updating. Use Refresh Roles shortly or <a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>">contact support</a> if the update does not finish. Protected downloads remain locked until the required role is confirmed.</p><?php elseif ( 'unverified' === $state ) : ?><p class="tc-member-note"><?php if ( ! self::ready() ) { echo 'Discord sign-in is not available yet. '; } ?>Complete verification in the TimonConfigs Discord server using the existing verification flow. Access is checked again before a protected file is served.</p><?php endif; ?>
 				</section>
 				<?php if ( ! $downloads ) { self::quick_actions(); } ?>
-				<?php if ( $downloads ) : ?><p class="tc-member-note">Downloads are available on each <a href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">configuration page</a>. Your download history remains private.</p><?php endif; ?>
+				<?php if ( $downloads ) : ?>
+					<p class="tc-member-note">Download the releases included in your verified membership below, or explore all <a href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">configuration pages</a>. Your download history remains private.</p>
+					<?php self::library( $syncing ? 'syncing' : $state ); ?>
+				<?php endif; ?>
 				<?php
 				$billing_account = is_callable( array( 'TC_Woo_Bridge', 'account' ) ) ? TC_Woo_Bridge::account( get_current_user_id() ) : '';
 				$direct_billing = class_exists( 'TC_Woo_Bridge' ) && TC_Woo_Bridge::checkout_ready();
@@ -250,7 +253,7 @@ final class TC_Member_Area {
 		?>
 		<section class="tc-member-library"><div class="tc-member-section-heading"><h2>Your protected library</h2><a href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">Explore all configs</a></div>
 		<?php
-		if ( ! in_array( $state, array( 'free', 'monthly', 'lifetime' ), true ) || ! class_exists( 'TC_Discord' ) || ! class_exists( 'TC_Private_Files' ) ) { echo '<p class="tc-member-empty">Verify your Discord membership to view the protected releases available to your account.</p></section>'; return; }
+		if ( ! in_array( $state, array( 'free', 'monthly', 'lifetime' ), true ) || ! is_callable( array( 'TC_Catalog', 'download_cta' ) ) ) { echo '<p class="tc-member-empty">Verify your Discord membership to view the protected releases available to your account.</p></section>'; return; }
 		$tiers = 'lifetime' === $state ? array( 'free', 'monthly', 'lifetime' ) : ( 'monthly' === $state ? array( 'free', 'monthly' ) : array( 'free' ) );
 		$raw_page = isset( $_GET['library_page'] ) && is_scalar( $_GET['library_page'] ) ? absint( $_GET['library_page'] ) : 1;
 		$paged = max( 1, min( 100000, $raw_page ) );
@@ -260,13 +263,17 @@ final class TC_Member_Area {
 		$rendered = 0;
 		echo '<div class="tc-member-file-grid">';
 		foreach ( $query->posts as $config ) {
-			if ( true !== TC_Discord::can_access( $config->ID, get_current_user_id() ) ) { continue; }
-			$files = TC_Private_Files::files( $config->ID );
-			if ( ! $files ) { continue; }
+			// Use the same server-authorized selection as catalogue and release pages,
+			// including Matrix TXT exports and their independent Values visibility.
+			$access = TC_Catalog::download_cta( $config->ID );
+			$files = $access['files'] ?? array();
+			if ( 'download' !== ( $access['action'] ?? '' ) || ! is_array( $files ) || ! $files ) { continue; }
 			$rendered++;
 			echo '<article class="tc-member-release"><h3><a href="' . esc_url( get_permalink( $config ) ) . '">' . esc_html( get_the_title( $config ) ) . '</a></h3><p>' . esc_html( wp_trim_words( $config->post_excerpt ?: wp_strip_all_tags( $config->post_content ), 24 ) ) . '</p><ul>';
 			foreach ( $files as $file ) {
-				echo '<li><div><strong>' . esc_html( $file['name'] ?? 'Release file' ) . '</strong><span>' . esc_html( ! empty( $file['version'] ) ? 'v' . $file['version'] . ' · ' : '' ) . esc_html( size_format( (int) ( $file['size'] ?? 0 ) ) ) . '</span></div>';
+				$text_export = defined( 'TC_Downloads::MATRIX_TEXT_ID' ) && ( $file['id'] ?? '' ) === TC_Downloads::MATRIX_TEXT_ID;
+				$size_label = $text_export ? 'TXT code' : size_format( (int) ( $file['size'] ?? 0 ) );
+				echo '<li><div><strong>' . esc_html( $file['name'] ?? 'Release file' ) . '</strong><span>' . esc_html( ! empty( $file['version'] ) ? 'v' . $file['version'] . ' · ' : '' ) . esc_html( $size_label ) . '</span></div>';
 				if ( class_exists( 'TC_Downloads' ) && is_callable( array( 'TC_Downloads', 'render_button' ) ) && ! empty( $file['id'] ) ) { TC_Downloads::render_button( $config->ID, (string) $file['id'], 'Download' ); }
 				echo '</li>';
 			}

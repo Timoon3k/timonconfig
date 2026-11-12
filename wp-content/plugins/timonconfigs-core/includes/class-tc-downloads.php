@@ -13,6 +13,8 @@ final class TC_Downloads {
 	public static function init(): void {
 		add_action( 'admin_post_tc_request_download', array( __CLASS__, 'request' ) );
 		add_action( 'admin_post_nopriv_tc_request_download', array( __CLASS__, 'request' ) );
+		// Public member forms need no access to wp-admin. Stream before page redirects or themes.
+		add_action( 'parse_request', array( __CLASS__, 'dispatch' ), 0 );
 		add_action( 'template_redirect', array( __CLASS__, 'deliver' ), 0 );
 		add_action( 'init', array( __CLASS__, 'protect_cache' ), 0 );
 		add_action( 'tc_download_cleanup', array( __CLASS__, 'cleanup' ) );
@@ -20,17 +22,39 @@ final class TC_Downloads {
 	}
 
 	public static function protect_cache(): void {
-		if ( isset( $_GET['tc_download'] ) || ( isset( $_POST['action'] ) && 'tc_request_download' === $_POST['action'] ) ) {
+		if ( isset( $_GET['tc_download'] ) || isset( $_GET['tc_download_request'] ) || ( isset( $_POST['action'] ) && 'tc_request_download' === $_POST['action'] ) ) {
 			if ( ! defined( 'DONOTCACHEPAGE' ) ) { define( 'DONOTCACHEPAGE', true ); }
 		}
 	}
 
 	private static function headers(): void {
+		if ( headers_sent() ) { return; }
 		nocache_headers();
 		header( 'Cache-Control: private, no-store, max-age=0' );
 		header( 'Referrer-Policy: no-referrer' );
 		header( 'X-Robots-Tag: noindex, nofollow, noarchive' );
 		header( 'X-Content-Type-Options: nosniff' );
+	}
+
+	public static function request_url(): string { return add_query_arg( 'tc_download_request', '1', home_url( '/' ) ); }
+
+	public static function dispatch(): void {
+		if ( isset( $_GET['tc_download_request'] ) ) {
+			if ( '1' !== $_GET['tc_download_request'] ) { self::headers(); self::fail( 'Use the download button on the release page.', 400 ); }
+			self::request();
+		}
+		if ( isset( $_GET['tc_download'] ) ) { self::deliver(); }
+	}
+
+	/** Some hosts install a non-removable buffer. Never spin or emit a damaged attachment. */
+	private static function clear_output_buffers(): bool {
+		if ( headers_sent() ) { return false; }
+		while ( ob_get_level() > 0 ) {
+			$level = ob_get_level();
+			$status = ob_get_status();
+			if ( ! is_array( $status ) || ! ( (int) $status['flags'] & PHP_OUTPUT_HANDLER_REMOVABLE ) || ! @ob_end_clean() || ob_get_level() >= $level ) { return false; }
+		}
+		return ! headers_sent();
 	}
 
 	private static function error( string $code, string $message ): WP_Error {
@@ -130,6 +154,7 @@ final class TC_Downloads {
 		$file = isset( $_POST['file_id'] ) && is_string( $_POST['file_id'] ) ? sanitize_text_field( wp_unslash( $_POST['file_id'] ) ) : '';
 		$nonce = isset( $_POST['_wpnonce'] ) && is_string( $_POST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ) : '';
 		if ( ! get_current_user_id() || ! wp_verify_nonce( $nonce, 'tc_download_' . $id . '_' . $file ) ) { self::fail( 'Sign in and use the download button on the release page.', 403 ); }
+		if ( headers_sent() ) { self::fail( 'The server could not start the download. Reload the release page and try again.', 500 ); }
 		$token = self::mint( $id, $file );
 		if ( is_wp_error( $token ) ) { self::fail( $token->get_error_message(), 403 ); }
 		wp_safe_redirect( add_query_arg( 'tc_download', $token, home_url( '/' ) ), 303 );
@@ -149,8 +174,9 @@ final class TC_Downloads {
 
 		if ( isset( $prepared['text'] ) ) {
 			// No private path or content is included in the public catalogue or signed URL.
-			while ( ob_get_level() ) { ob_end_clean(); }
+			if ( ! self::clear_output_buffers() ) { self::fail( 'The server could not start the download. Reload the release page and try again.', 500 ); }
 			$name = $prepared['file']['name'];
+			status_header( 200 );
 			header( 'Content-Type: text/plain; charset=UTF-8' );
 			header( 'Content-Length: ' . strlen( $prepared['text'] ) );
 			header( 'Content-Disposition: attachment; filename="' . $name . '"; filename*=UTF-8\'\'' . rawurlencode( $name ) );
@@ -166,7 +192,8 @@ final class TC_Downloads {
 		$hash = hash_init( 'sha256' );
 		$hashed = @hash_update_stream( $hash, $handle );
 		if ( false === $hashed || ! hash_equals( $metadata['checksum'], hash_final( $hash ) ) || ! rewind( $handle ) ) { fclose( $handle ); self::fail( 'This file changed. Request the current release.', 409 ); }
-		while ( ob_get_level() ) { ob_end_clean(); }
+		if ( ! self::clear_output_buffers() ) { fclose( $handle ); self::fail( 'The server could not start the download. Reload the release page and try again.', 500 ); }
+		status_header( 200 );
 		header( 'Content-Type: application/octet-stream' );
 		header( 'Content-Length: ' . (int) $stat['size'] );
 		$name = sanitize_file_name( $metadata['name'] );
@@ -179,7 +206,7 @@ final class TC_Downloads {
 	}
 
 	public static function render_button( int $config_id, string $file_id, string $label = 'Download' ): void {
-		echo '<form class="tc-download-form" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post"><input type="hidden" name="action" value="tc_request_download"><input type="hidden" name="config_id" value="' . esc_attr( (string) $config_id ) . '"><input type="hidden" name="file_id" value="' . esc_attr( $file_id ) . '">';
+		echo '<form class="tc-download-form" action="' . esc_url( self::request_url() ) . '" method="post"><input type="hidden" name="action" value="tc_request_download"><input type="hidden" name="config_id" value="' . esc_attr( (string) $config_id ) . '"><input type="hidden" name="file_id" value="' . esc_attr( $file_id ) . '">';
 		wp_nonce_field( 'tc_download_' . $config_id . '_' . $file_id );
 		echo '<button class="tc-button" type="submit">' . esc_html( $label ) . '</button></form>';
 	}
