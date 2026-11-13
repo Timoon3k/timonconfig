@@ -1,6 +1,6 @@
 # TimonConfigs WordPress website
 
-Current implementation: **Core 1.3.2 / theme 0.17.2** uses WooCommerce and ArraySubs for payments, orders and recurring subscriptions. TimonConfigs connects Discord identities, verifies paid membership and manages its assigned Discord roles. The native `TC_Billing_*` checkout and its webhook endpoints were retired in Core 1.1.3; earlier billing guides describe historical releases and must not be used to configure the current checkout.
+Current implementation: **Core 1.3.2 / theme 0.17.3** uses WooCommerce and ArraySubs for payments, orders and recurring subscriptions. TimonConfigs connects Discord identities, verifies paid membership and manages its assigned Discord roles. The native `TC_Billing_*` checkout and its webhook endpoints were retired in Core 1.1.3; earlier billing guides describe historical releases and must not be used to configure the current checkout.
 
 Core 1.1.8 fixes undefined revocation/grant constants introduced in 1.1.7, protects profile rendering from subscription dependency errors, preserves Monthly cancellation controls after a Lifetime purchase, and ignores moderation audit entries older than the newest grant. English billing fields retain gateway-required validation and country refresh behavior. Core 1.1.9 removes TimonConfigs reCAPTCHA from checkout, including its widget, Google requests and classic/Store API payment gates, as requested by the owner. No reCAPTCHA keys are required. See the [critical-error hotfix and recovery guide](docs/HOTFIX_CORE_1.1.8.md), [member roles and reCAPTCHA setup](docs/VIP_DISCORD_CHECKOUT_ROLES_CAPTCHA_1.1.7.md), and [English checkout/Stripe wallet configuration](docs/STRIPE_WALLETS_CHECKOUT_EN_1.1.4.md).
 
@@ -25,6 +25,8 @@ Core 1.3.0 prepares 46 reviewed SEO profiles and writes native Rank Math title, 
 Theme 0.17.2 fixes full collection introduction rendering with Rank Math and aligns the asset cache version with the theme package. Core 1.3.1 applies the reviewed Apex SEO PDF to Home, the Apex game archive and both Apex/device collections. It upgrades unchanged starter introductions and managed native Rank Math fields while preserving authored introductions and manually edited or restored SEO fields. See the [Apex SEO update](docs/APEX_SEO_PDF_1.3.1.md) and [current metadata spreadsheet](docs/seo/timonconfigs-page-metadata-2026-11-10.csv).
 
 Core 1.3.2 restores the actual protected file library in My Downloads, aligns its Matrix TXT selection with release pages, and sends native download requests through the public website origin before page redirects. Hosts restricting member access to wp-admin no longer intercept newly rendered download forms. Signed links retain session, membership, expiry and single-use checks; output buffers fail safely instead of hanging. See the [private download update](docs/PRIVATE_DOWNLOAD_DELIVERY_1.3.2.md).
+
+Theme 0.17.3 makes pasted Discord message, channel and invite URLs clickable in Guide and Values dialogs after access is checked. Links open in a separate tab; Values storage, copying and TXT exports keep their original text. See the [Discord content links update](docs/CONFIG_DISCORD_LINKS_0.17.3.md).
 
 Custom WordPress theme and business plugin for `timonconfigs.com`.
 

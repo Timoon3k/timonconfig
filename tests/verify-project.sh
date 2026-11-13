@@ -94,5 +94,6 @@ fi
 
 node --check "$theme/assets/js/main.js"
 node --check "$theme/assets/js/blocks.js"
+node --check "$theme/assets/js/config-content.js"
 echo "Project structure, WooCommerce integration, content claims, media, and JavaScript checks passed. Checkout behavior requires the WordPress + WooCommerce integration suite."
 

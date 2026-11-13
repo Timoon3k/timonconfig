@@ -1,3 +1,15 @@
+# Bieżące wydanie — linki Discord w Guide i Values — motyw 0.17.3 / Core 1.3.2, 2026-11-13
+
+Właściciel poprosił o obsługę linków w Guide i Values, a następnie potwierdził klikalne odnośniki do wiadomości, kanałów i zaproszeń. Baza najnowszego GitHub main `290d5fa`, gałąź `feature/config-discord-links-20261113`. Nie importujemy treści wiadomości ani nie używamy bota do tej funkcji.
+
+Motyw 0.17.3 rozpoznaje URL-e w węzłach tekstowych dopiero po poprawnej odpowiedzi istniejącego chronionego endpointu. Obsługuje pełne adresy, schemeless discord.gg, oficjalne legacy/ptb/canary; dokładny host i odrzucenie credentials zapobiegają dopasowaniu podszywających się domen. Linki otwierają nową kartę z noopener/noreferrer, istniejące linki nie są zagnieżdżane. Interpunkcja, polskie cudzysłowy i sąsiednie URL-e są zachowane w tekście. Guide HTML, Values jako tekst, kopia schowka, zapisane metadata i TXT pozostają niezmienione. Core 1.3.2 i wcześniejsza poprawka pobierania bez zmian. Cache version motywu jest zgodna z nagłówkiem 0.17.3.
+
+PASS: **174 kontrole rzeczywistego browser HTTP i 5 otwarć nowych kart z lokalnie przechwyconym celem Discorda**, Guide1440/390 i Values1440/768/390; **47 PHP config-content**, static/JS/YAML/diff oraz **123 kontroli świeżej instalacji finalnych ZIP-ów** w oddzielnym offline WordPressie. Testy obejmują dokładny tekst/kopię/zapis Values, literalny HTML, odmowy dostępu/nonce/REST, formatowanie Guide, istniejące linki, query amp, domeny podszywające, credentials, interpunkcję i zachowanie otwartego modalu. Fixture usunięty, opcje kolejki SEO/state/lock przywrócone. Pierwszy start wymagał przywrócenia praw odczytu źródeł w lokalnym kontenerze; test końcowy jest PASS. W teście poprawiono oczekiwanie na asynchroniczne zdarzenie close natywnego dialogu.
+
+Paczka `artifacts/timonconfigs-theme-0.17.3.zip`: 105 plików, CRC/SHA256 i zgodność bajtowa ze źródłem; manifest `artifacts/config-discord-links-release-manifest-20261113.json`. Instrukcja `docs/CONFIG_DISCORD_LINKS_0.17.3.md`. Aktualizacja: wgraj motyw 0.17.3, zachowaj Core 1.3.2, wyczyść cache i odśwież konfigurację; istniejących treści nie trzeba ponownie zapisywać. Bez setupu/reimportu SEO. Kontynuacja obejmuje autoryzowany push main, końcowy ref sprawdź w Git. Nie wykonywano instalacji na hostingu ani odczytu prywatnych wiadomości Discorda.
+
+---
+
 # Bieżąca poprawka — prywatne pobieranie plików — Core 1.3.2 / motyw 0.17.2, 2026-11-13
 
 Właściciel zgłosił otwieranie Member Login/profilu zamiast zapisania pliku i potwierdził, że działa jako Owner z widocznymi wszystkimi rolami. Najnowszy GitHub main pobrano i potwierdzono jako `2cc15e5`; gałąź `fix/private-download-delivery-20261112`. Znaleziono konkretny błąd: publiczny render My Downloads nigdy nie wywoływał istniejącej biblioteki plików. Core 1.3.2 montuje ją w zalogowanym widoku przed członkostwem i używa autorytatywnego CTA katalogu: rzeczywisty Matrix TXT albo chroniony eksport Values, bez reklamowania XIMMR-only. Owner bez roli członkostwa nadal nie pobiera plików.
