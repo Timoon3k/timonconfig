@@ -23,7 +23,7 @@ add_action(
 			'hero_eyebrow' => array( 'label' => __( 'Hero eyebrow', 'timonconfigs' ), 'default' => 'PRECISION × CONSISTENCY × REAL SETUPS' ),
 			'hero_title'   => array( 'label' => __( 'Hero title', 'timonconfigs' ), 'default' => 'XIM Matrix & Cronus Zen Configs for Apex Legends' ),
 			'hero_tagline' => array( 'label' => __( 'Hero tagline', 'timonconfigs' ), 'default' => 'Play Smarter. Hit Different.' ),
-			'hero_copy'    => array( 'label' => __( 'Hero description', 'timonconfigs' ), 'default' => 'Explore Apex Legends configurations for XIM Matrix and Cronus Zen, including controller and mouse & keyboard setups. Check release-specific compatibility, setup guidance, and Free or VIP access.' ),
+			'hero_copy'    => array( 'label' => __( 'Hero description', 'timonconfigs' ), 'default' => 'Discover XIM Matrix and Cronus Zen configs for Apex Legends, Call of Duty, Fortnite, Rust and more. Explore XIM Matrix Apex Legends setups and Cronus Zen Call of Duty scripts, with controller and MnK options, installation guides, updates, and Free or VIP access.' ),
 			'apex_cta' => array( 'label' => __( 'Hero Apex button label', 'timonconfigs' ), 'default' => 'Explore XIM Matrix Apex Configs' ),
 			'apex_cta_url' => array( 'label' => __( 'Hero Apex destination', 'timonconfigs' ), 'default' => timonconfigs_collection_url( 'apex-legends', 'xim-matrix' ), 'url' => true ),
 			'hero_cta'     => array( 'label' => __( 'Hero primary button label', 'timonconfigs' ), 'default' => 'Get Started' ),

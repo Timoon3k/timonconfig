@@ -8,6 +8,12 @@ $hero_media = function_exists( 'timonconfigs_hero_media' ) ? timonconfigs_hero_m
     'src' => $settings['image'] ?? get_theme_mod( 'timonconfigs_hero_image', get_template_directory_uri() . '/assets/images/apex-legends-crimson-hero.webp' ),
     'alt' => $settings['imageAlt'] ?? '', 'width' => 1536, 'height' => 1024, 'srcset' => '', 'sizes' => '100vw',
 );
+$hero_description_default = 'Discover XIM Matrix and Cronus Zen configs for Apex Legends, Call of Duty, Fortnite, Rust and more. Explore XIM Matrix Apex Legends setups and Cronus Zen Call of Duty scripts, with controller and MnK options, installation guides, updates, and Free or VIP access.';
+$hero_description = (string) ( $settings['description'] ?? get_theme_mod( 'timonconfigs_hero_copy', $hero_description_default ) );
+// Replace only this specific retired S31-era copy, preserving other authored descriptions.
+if ( trim( $hero_description ) === 'Explore Apex Legends configurations for XIM Matrix and Cronus Zen, including Predator S31, Timon S31 VIP Classic, and Timon S30 Roller. Discover controller and MnK setups, installation guides, updates, and Free or VIP access.' ) {
+    $hero_description = $hero_description_default;
+}
 $motion_enabled = array_key_exists( 'motion', $settings ) ? (bool) $settings['motion'] : (bool) get_theme_mod( 'timonconfigs_hero_motion', true );
 ?>
 <section class="tc-hero tc-hero--crimson" aria-labelledby="hero-title" data-hero-atmosphere data-motion-enabled="<?php echo $motion_enabled ? '1' : '0'; ?>" data-motion-state="paused">
@@ -21,7 +27,7 @@ $motion_enabled = array_key_exists( 'motion', $settings ) ? (bool) $settings['mo
             <p class="tc-eyebrow"><?php echo esc_html( $settings['eyebrow'] ?? get_theme_mod( 'timonconfigs_hero_eyebrow', 'PRECISION × CONSISTENCY × REAL SETUPS' ) ); ?></p>
             <h1 id="hero-title"><?php echo esc_html( $settings['title'] ?? get_theme_mod( 'timonconfigs_hero_title', 'XIM Matrix & Cronus Zen Configs for Apex Legends' ) ); ?></h1>
             <p class="tc-hero__tagline"><?php echo esc_html( $settings['tagline'] ?? get_theme_mod( 'timonconfigs_hero_tagline', 'Play Smarter. Hit Different.' ) ); ?></p>
-            <p class="tc-hero__description"><?php echo esc_html( $settings['description'] ?? get_theme_mod( 'timonconfigs_hero_copy', 'Explore Apex Legends configurations for XIM Matrix and Cronus Zen, including controller and mouse & keyboard setups. Check release-specific compatibility, setup guidance, and Free or VIP access.' ) ); ?></p>
+            <p class="tc-hero__description"><?php echo esc_html( $hero_description ); ?></p>
             <div class="tc-actions"><a class="tc-button" href="<?php echo esc_url( $hero_target ); ?>"><?php echo esc_html( $settings['primaryLabel'] ?? get_theme_mod( 'timonconfigs_apex_cta', 'Explore XIM Matrix Apex Configs' ) ); ?> <?php echo timonconfigs_icon( 'arrow' ); // phpcs:ignore ?></a><?php if ( $discord_url ) : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( $discord_url ); ?>"><?php echo timonconfigs_icon( 'discord' ); // phpcs:ignore ?>Join Discord</a><?php else : ?><a class="tc-button tc-button--ghost" href="<?php echo esc_url( home_url( '/configs/' ) ); ?>">Explore Configs</a><?php endif; ?></div>
             <ul class="tc-trust"><li><?php echo timonconfigs_icon( 'bolt' ); // phpcs:ignore ?><?php echo esc_html( get_theme_mod( 'timonconfigs_trust_access', 'Discord Member Access' ) ); ?></li><li><?php echo timonconfigs_icon( 'refresh' ); // phpcs:ignore ?><?php echo esc_html( get_theme_mod( 'timonconfigs_trust_updates', 'Regular Updates' ) ); ?></li><li><?php echo timonconfigs_icon( 'shield' ); // phpcs:ignore ?><?php echo esc_html( get_theme_mod( 'timonconfigs_trust_support', 'Active Support' ) ); ?></li></ul>
         </div></div>
